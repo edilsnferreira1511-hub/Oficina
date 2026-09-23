@@ -1,0 +1,67 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signed() { return request.auth != null; }
+    function role() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role; }
+    function hasRole(r) { return signed() && role() == r; }
+    function isAdmin() { return hasRole('admin'); }
+    function staff() { return signed() && role() in ['admin','recepcao','financeiro','mecanico']; }
+    function own() { return signed() && resource.data.customerUid == request.auth.uid; }
+    function osMine(osId) { return get(/databases/$(database)/documents/workOrders/$(osId)).data.mechanicUid == request.auth.uid; }
+
+    match /users/{uid} {
+      allow read: if signed() && (request.auth.uid == uid || isAdmin());
+      allow write: if isAdmin();
+    }
+    match /customers/{id} {
+      allow read: if staff() || own();
+      allow create, update: if isAdmin() || hasRole('recepcao');
+      allow delete: if isAdmin();
+    }
+    match /vehicles/{id} {
+      allow read: if staff() || own();
+      allow create, update: if isAdmin() || hasRole('recepcao');
+      allow delete: if isAdmin();
+    }
+    match /workOrders/{id} {
+      allow read: if isAdmin() || hasRole('recepcao') || hasRole('financeiro')
+        || (hasRole('mecanico') && resource.data.mechanicUid == request.auth.uid) || own();
+      allow create: if isAdmin() || hasRole('recepcao');
+      allow update: if isAdmin() || hasRole('recepcao') || hasRole('financeiro')
+        || (hasRole('mecanico') && resource.data.mechanicUid == request.auth.uid
+            && request.resource.data.mechanicUid == resource.data.mechanicUid);
+      allow delete: if false;
+    }
+    match /{col}/{id} {
+      allow read: if col in ['workOrderServices','checklists','vehiclePhotos','servicePhotos'] && (
+        isAdmin() || hasRole('recepcao') || hasRole('financeiro')
+        || (hasRole('mecanico') && osMine(resource.data.workOrderId))
+        || (own() && col != 'checklists'));
+      allow create, update: if col in ['workOrderServices','checklists','vehiclePhotos','servicePhotos'] && (
+        isAdmin() || hasRole('recepcao')
+        || (hasRole('mecanico') && osMine(request.resource.data.workOrderId)));
+    }
+    match /budgets/{id} {
+      allow read: if isAdmin() || hasRole('financeiro') || (own() && resource.data.status != 'rascunho');
+      allow create, update: if isAdmin() || hasRole('financeiro');
+      allow update: if own() && resource.data.status == 'enviado'
+        && request.resource.data.status in ['aprovado','recusado']
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','decidedAt','decisionReason']);
+    }
+    match /payments/{id} {
+      allow read: if isAdmin() || hasRole('financeiro') || own();
+      allow create, update: if isAdmin() || hasRole('financeiro');
+    }
+    match /services/{id} { allow read: if staff(); allow write: if isAdmin(); }
+    match /parts/{id} { allow read: if staff(); allow write: if isAdmin() || hasRole('financeiro'); }
+    match /notifications/{id} {
+      allow read, update: if signed() && (resource.data.toUid == request.auth.uid || resource.data.toRole == role());
+      allow create: if staff();
+    }
+    match /auditLogs/{id} {
+      allow read: if isAdmin();
+      allow create: if staff() && request.resource.data.uid == request.auth.uid;
+    }
+    match /settings/{id} { allow read: if staff(); allow write: if isAdmin(); }
+  }
+}

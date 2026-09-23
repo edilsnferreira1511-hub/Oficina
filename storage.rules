@@ -1,0 +1,20 @@
+rules_version = '2';
+service firebase.storage {
+  match /b/{bucket}/o {
+    function role() { return firestore.get(/databases/(default)/documents/users/$(request.auth.uid)).data.role; }
+    function staff() { return request.auth != null && role() in ['admin','recepcao','financeiro','mecanico']; }
+    function isImg() { return request.resource.contentType.matches('image/.*') && request.resource.size < 10 * 1024 * 1024; }
+    function osMine(osId) { return firestore.get(/databases/(default)/documents/workOrders/$(osId)).data.mechanicUid == request.auth.uid; }
+
+    match /workOrders/{osId}/{kind}/{file} {
+      allow read: if staff();
+      allow create: if isImg() && request.auth != null && (role() in ['admin','recepcao'] || (role() == 'mecanico' && osMine(osId)));
+      allow delete: if request.auth != null && role() in ['admin','recepcao'];
+    }
+    match /{col}/{id}/{file} {
+      allow read: if col in ['customers','vehicles'] && staff();
+      allow create: if col in ['customers','vehicles'] && isImg() && request.auth != null && role() in ['admin','recepcao'];
+    }
+    match /{allPaths=**} { allow read, write: if false; }
+  }
+}

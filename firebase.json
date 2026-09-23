@@ -1,0 +1,3 @@
+{"hosting":{"public":".","ignore":["firebase.json","*.rules","index.js","package.json","package-lock.json","README.md","node_modules/**","**/.*"],"rewrites":[{"source":"**","destination":"/index.html"}],"headers":[{"source":"/sw.js","headers":[{"key":"Cache-Control","value":"no-cache"}]}]},
+"firestore":{"rules":"firestore.rules"},"storage":{"rules":"storage.rules"},
+"functions":[{"source":".","codebase":"default","runtime":"nodejs20","ignore":["firebase.json","*.rules","*.png","*.html","sw.js","manifest.json","firebase-config.js","README.md","node_modules",".git"]}]}

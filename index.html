@@ -1,0 +1,244 @@
+<!DOCTYPE html>
+<html lang="pt-BR"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0a0c10">
+<title>WKK Oficina</title>
+<link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<style>
+:root{--bg:#0a0c10;--card:#141821;--card2:#1c2230;--tx:#f4f6fa;--mut:#8b95a8;--bl:#1e6bff;--rd:#e5262f;--ye:#ffd21f;--gr:#22c55e;--or:#ff8a1f;--ln:#272e3f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef1f6;--card:#fff;--card2:#f1f4f9;--tx:#0d1220;--mut:#5b6579;--ln:#dbe1ec}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}
+*{box-sizing:border-box}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
+h2{margin:6px 0 12px}h3{margin:18px 0 8px}small{color:var(--mut)}p{margin:6px 0}
+#app{max-width:980px;margin:0 auto;padding:14px 14px 96px}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px;margin-bottom:10px}
+.os{cursor:pointer;display:grid;gap:4px}.os:active{transform:scale(.99)}
+.row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
+.grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
+@media(min-width:700px){.grid{grid-template-columns:repeat(4,1fr)}}
+.kpi{border-left:4px solid var(--c);margin:0}.kpi strong{display:block;font-size:22px;margin-top:4px}
+.b{font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);white-space:nowrap}
+.btn{background:var(--card2);color:var(--tx);border:1px solid var(--ln);border-radius:12px;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer;min-height:48px}
+.btn.bl{background:var(--bl);border-color:var(--bl);color:#fff}.btn.gr{background:var(--gr);border-color:var(--gr);color:#04170b}.btn.rd{background:var(--rd);border-color:var(--rd);color:#fff}
+.w{width:100%;margin-top:8px}
+.btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
+input,select,textarea{width:100%;background:var(--card2);color:var(--tx);border:1px solid var(--ln);border-radius:10px;padding:12px;font:inherit;margin:4px 0}
+textarea{min-height:90px}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.ph{aspect-ratio:1;border:2px dashed var(--ln);border-radius:12px;position:relative;overflow:hidden;color:var(--mut);font-size:12px;text-align:center}
+.ph label{cursor:pointer;display:grid;place-content:center;gap:2px;width:100%;height:100%;font-size:26px}.ph label span{font-size:12px}
+.ph img{width:100%;height:100%;object-fit:cover;display:block}
+.ph button{position:absolute;top:4px;right:4px;width:32px;height:32px;border-radius:50%;border:0;background:var(--rd);color:#fff}
+.ph i{position:absolute;bottom:0;left:0;right:0;background:#000a;color:#fff;font-style:normal;padding:2px}
+.ck{font-size:13px;padding:10px}.ck[data-v="0"]{color:var(--gr)}.ck[data-v="1"]{color:var(--ye)}.ck[data-v="2"]{color:var(--rd)}
+.tot{font-size:22px;font-weight:800;color:var(--ye)}
+.login{max-width:420px;margin:0 auto;padding-top:24px}
+.wm{text-align:center;margin-bottom:18px;background:#0a0c10;border-radius:16px;padding:22px;border-bottom:5px solid var(--bl)}
+.wm b{display:block;font-size:64px;font-style:italic;font-weight:900;letter-spacing:-2px;background:linear-gradient(#fff,#8f99aa);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1}
+.wm span{display:block;color:#3d8bff;font-weight:800;font-size:18px}.wm small{letter-spacing:.35em;color:#dfe5f0}
+.prof{display:grid;gap:8px;margin-top:8px}.ctr{display:block;text-align:center;margin-top:14px}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;background:var(--card);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;border:0;color:var(--mut);padding:8px 2px;font:600 11px system-ui;min-height:56px;cursor:pointer}
+nav span{display:block;font-size:20px}nav .on{color:var(--ye)}
+@media(min-width:900px){nav{top:0;right:auto;width:180px;flex-direction:column;justify-content:flex-start;padding-top:20px;border-top:0;border-right:1px solid var(--ln)}nav button{flex:none;text-align:left;padding:12px 18px;font-size:14px;min-height:0}nav span{display:inline;margin-right:8px}#app{margin-left:200px;max-width:none;padding:14px 24px 30px}}
+#toast{position:fixed;left:50%;bottom:90px;transform:translate(-50%,20px);background:var(--bl);color:#fff;padding:10px 16px;border-radius:99px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:90%}#toast.on{opacity:1;transform:translate(-50%,0)}
+.aviso{background:color-mix(in srgb,var(--ye) 12%,transparent);border:1px solid var(--ye);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13px}
+.dots{display:flex;justify-content:center;gap:14px;margin:14px 0}.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--mut)}.dots i.f{background:var(--ye);border-color:var(--ye)}.dots.err{animation:sh .35s}.dots.err i{border-color:var(--rd)}
+@keyframes sh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
+@media (prefers-reduced-motion:reduce){.dots.err{animation:none}}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.pad .btn{min-height:60px;font-size:24px}.btn.alt{opacity:.7}
+#md{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:20;padding:20px}#md.on{display:grid}#md>div{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px;max-width:360px;width:100%}
+#pr{display:none}
+@media print{body>*{display:none!important}body>#pr{display:block!important;background:#fff;color:#000;font:13px/1.4 Arial,sans-serif}#pr .hd{background:#0a0c10;color:#fff;padding:14px;border-bottom:5px solid #1e6bff;-webkit-print-color-adjust:exact;print-color-adjust:exact}#pr h4{margin:14px 0 4px;color:#1e6bff}#pr table{width:100%;border-collapse:collapse}#pr th,#pr td{border-bottom:1px solid #ccc;padding:5px;text-align:left}#pr .tt{width:50%;margin-left:50%}}
+</style></head><body>
+<div id="app"></div><nav id="nav"></nav><div id="toast"></div><div id="md"><div><p id="mt"></p><div class="btns"><button class="btn" onclick="ask.no()">Cancelar</button><button class="btn bl" onclick="ask.ok()">Confirmar</button></div></div></div><div id="pr"></div>
+<script>
+const $=s=>document.querySelector(s);
+const e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
+const R=c=>'R$ '+(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const pad=n=>String(n).padStart(6,'0'),br=d=>d.split('-').reverse().join('/');
+const cents=v=>Math.round(parseFloat(String(v||'0').replace(',','.'))*100);
+const ST=['AGUARDANDO DIAGNÓSTICO','DIAGNÓSTICO','AGUARDANDO ORÇAMENTO','AGUARDANDO APROVAÇÃO','AGUARDANDO PEÇA','EM ANDAMENTO','PAUSADO','FINALIZADO','PRONTO PARA ENTREGA','ENTREGUE','CANCELADO'];
+const SC={'AGUARDANDO DIAGNÓSTICO':'--rd','DIAGNÓSTICO':'--rd','AGUARDANDO ORÇAMENTO':'--ye','AGUARDANDO APROVAÇÃO':'--bl','AGUARDANDO PEÇA':'--ye','EM ANDAMENTO':'--or','PAUSADO':'--mut','FINALIZADO':'--gr','PRONTO PARA ENTREGA':'--gr','ENTREGUE':'--gr','CANCELADO':'--mut'};
+const BC={rascunho:'--mut',enviado:'--bl',aprovado:'--gr',recusado:'--rd'};
+const RL={admin:'Administrador',recepcao:'Recepção',financeiro:'Financeiro',mecanico:'Mecânico',cliente:'Cliente'};
+const PL=['Frente','Traseira','Lateral esq.','Lateral dir.','Painel / KM','Área do problema'];
+const CK=['Riscos','Amassados','Para-brisa','Faróis','Pneus','Bancos','Painel','Motor','Freios','Suspensão'];
+const ROLES={admin:['Administrador','🛠️',[['dash','Painel','📊'],['ent','Entrada','➕'],['list','OS','📋'],['fin','Financeiro','💰'],['usr','Usuários','👥']]],recepcao:['Recepção','🧾',[['ent','Entrada','➕'],['list','OS','📋']]],financeiro:['Financeiro','💵',[['fin','Financeiro','💰'],['list','OS','📋']]],mecanico:['Mecânico','🔧',[['list','Meus serviços','🔧']]],cliente:['Cliente','🚗',[['list','Meus veículos','🚗']]]};
+const mk=o=>({diag:'',it:[],desc:0,bs:'rascunho',pg:[],ph:[],sp:[],log:[],ck:[],hora:'08:30',...o});
+const seed=()=>[
+mk({id:128,cli:'João da Silva',tel:'62999990001',vei:'Honda Civic',ano:2018,placa:'ABC-1D23',km:84200,relato:'Veículo apresenta barulho na suspensão dianteira quando passa em quebra-molas.',mec:'Felipe',st:'EM ANDAMENTO',serv:'Suspensão dianteira',data:'2026-09-21',bs:'aprovado',it:[{t:'Serviço',d:'Substituição de amortecedor dianteiro',q:1,v:44000},{t:'Peça',d:'Amortecedor dianteiro',q:2,v:21000}],pg:[{f:'Pix',v:30000,d:'21/09/2026'}]}),
+mk({id:129,cli:'Maria Oliveira',tel:'62999990002',vei:'Chevrolet Onix',ano:2021,placa:'QWE-4F56',km:41000,relato:'Luz da injeção acesa e o carro perde força ao acelerar.',mec:'Felipe',st:'AGUARDANDO DIAGNÓSTICO',serv:'Injeção eletrônica',data:'2026-09-23'}),
+mk({id:127,cli:'Carlos Henrique',tel:'62999990003',vei:'Chevrolet Prisma',ano:2016,placa:'HJK-7L89',km:132500,relato:'Freio com barulho e pedal baixo.',mec:'Henrique',st:'AGUARDANDO APROVAÇÃO',serv:'Freios',data:'2026-09-22',bs:'enviado',it:[{t:'Serviço',d:'Troca de pastilhas e discos',q:1,v:28000},{t:'Peça',d:'Kit pastilhas e discos',q:1,v:32000}]}),
+mk({id:126,cli:'Maria Oliveira',tel:'62999990004',vei:'Honda CG 160',tipo:'Moto',ano:2020,placa:'MNB-2C34',km:60100,relato:'Revisão e troca de óleo.',mec:'João',st:'FINALIZADO',serv:'Troca de óleo',data:'2026-09-19',bs:'aprovado',it:[{t:'Serviço',d:'Troca de óleo e filtros',q:1,v:18000},{t:'Peça',d:'Óleo 10W30 (1L)',q:1,v:22000}],pg:[{f:'Pix',v:40000,d:'20/09/2026'}]}),
+mk({id:120,cli:'João da Silva',tel:'62999990001',vei:'Honda Civic',ano:2018,placa:'ABC-1D23',km:79800,relato:'Troca de óleo e revisão geral.',mec:'João',st:'ENTREGUE',serv:'Troca de óleo',data:'2026-06-10',bs:'aprovado',it:[{t:'Serviço',d:'Troca de óleo',q:1,v:15000},{t:'Peça',d:'Óleo 5W30 e filtro',q:1,v:20000}],pg:[{f:'Dinheiro',v:35000,d:'10/06/2026'}]})];
+const K='wkk-oficina-v2';let me=null,pin='',bad=0,lockUntil=0,shake=false,editU=null,db=null,role=null,view='',sel=null,draft={ph:[]};
+try{db=JSON.parse(localStorage.getItem(K))}catch(_){}
+if(!Array.isArray(db))db=seed();
+const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(_){}};
+const seedU=()=>[{id:1,nome:'Administrador',role:'admin',pin:'123456',ativo:true},{id:2,nome:'Recepção',role:'recepcao',pin:'111111',ativo:true},{id:3,nome:'Financeiro',role:'financeiro',pin:'222222',ativo:true},{id:4,nome:'Felipe',role:'mecanico',pin:'333333',ativo:true},{id:5,nome:'Henrique',role:'mecanico',pin:'444444',ativo:true},{id:6,nome:'João',role:'mecanico',pin:'555555',ativo:true},{id:7,nome:'João da Silva',role:'cliente',pin:'666666',ativo:true}];
+let users=null;try{users=JSON.parse(localStorage.getItem('wkk-users-v1'))}catch(_){}
+if(!Array.isArray(users))users=seedU();
+const saveU=()=>{try{localStorage.setItem('wkk-users-v1',JSON.stringify(users))}catch(_){}};
+const mecs=()=>users.filter(u=>u.role==='mecanico'&&u.ativo).map(u=>u.nome);
+const sub=(o,t)=>o.it.filter(i=>i.t===t).reduce((s,i)=>s+i.q*i.v,0);
+const tot=o=>Math.max(0,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros')-o.desc);
+const paid=o=>o.pg.reduce((s,p)=>s+p.v,0);
+const F=()=>db.find(o=>o.id===sel);
+const mine=()=>db.filter(o=>role==='mecanico'?o.mec===me.nome:role==='cliente'?o.cli===me.nome:true).sort((a,b)=>b.id-a.id);
+const bd=s=>`<span class="b" style="--c:var(${SC[s]})">${s}</span>`;
+const opt=(a,s)=>a.map(x=>`<option ${x===s?'selected':''}>${x}</option>`).join('');
+const kpi=([i,l,v,c])=>`<div class="card kpi" style="--c:var(${c})"><small>${i} ${l}</small><strong>${v}</strong></div>`;
+function ask(m,fn){$('#mt').textContent=m;$('#md').classList.add('on');ask.ok=()=>{$('#md').classList.remove('on');fn()};ask.no=()=>{$('#md').classList.remove('on');render()}}
+function resetDemo(){db=seed();users=seedU();saveU();save();toast('Dados de exemplo restaurados')}
+function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2400)}
+function log(o,t){o.log.push(new Date().toLocaleString('pt-BR')+' · '+me.nome+' · '+t)}
+function go(v,id){view=v;if(id)sel=id;render();scrollTo(0,0)}
+function login(r){role=r;view=ROLES[r][2][0][0];render()}
+function out(){role=null;me=null;pin='';render()}
+function key(k){
+ if(Date.now()<lockUntil){toast('Muitas tentativas. Aguarde '+Math.ceil((lockUntil-Date.now())/1000)+'s');return}
+ if(k==='C')pin='';else if(k==='B')pin=pin.slice(0,-1);else if(pin.length<6)pin+=k;
+ if(pin.length===6){
+  const u=users.find(x=>x.pin===pin&&x.ativo);pin='';
+  if(u){bad=0;me=u;role=u.role;view=ROLES[role][2][0][0];toast('Bem-vindo, '+u.nome);return render()}
+  shake=true;bad++;if(bad>=5){lockUntil=Date.now()+30000;bad=0;toast('Muitas tentativas. Tente de novo em 30s')}else toast('PIN incorreto ou acesso desativado')
+ }
+ render();
+}
+const genPin=()=>{let p;do{p=String(crypto.getRandomValues(new Uint32Array(1))[0]%900000+100000)}while(users.some(x=>x.pin===p));return p};
+function vUsr(){
+ const u=editU==='new'?{nome:'',role:'mecanico',pin:''}:users.find(x=>x.id===editU);
+ let h=`<div class="row"><h2>Usuários e acessos</h2><button class="btn bl" onclick="editU='new';render()">+ Novo login</button></div>`;
+ if(u)h+=`<div class="card"><b>${editU==='new'?'Novo login':'Editar login'}</b><input id="u_n" placeholder="Nome" value="${e(u.nome)}"><select id="u_r">${Object.entries(RL).map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select><small>Para cliente, use o mesmo nome do cadastro nas OS.</small><div class="f2"><input id="u_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números" value="${e(u.pin)}"><button class="btn" onclick="$('#u_p').value=genPin()">Gerar PIN</button></div><div class="btns"><button class="btn" onclick="editU=null;render()">Cancelar</button><button class="btn bl" onclick="saveUsr()">Salvar</button></div></div>`;
+ return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]} · PIN ${e(x.pin)}</small><div class="btns"><button class="btn" onclick="editU=${x.id};render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU(${x.id})">${x.ativo?'Desativar':'Reativar'}</button>`}</div></div>`).join('');
+}
+function saveUsr(){
+ const nome=$('#u_n').value.trim(),r=$('#u_r').value,p=$('#u_p').value.trim(),cur=users.find(x=>x.id===editU);
+ if(nome.length<2){toast('Informe o nome do usuário');return}
+ if(!/^\d{6}$/.test(p)){toast('O PIN deve ter exatamente 6 números');return}
+ if(users.some(x=>x.pin===p&&x!==cur)){toast('Este PIN já está em uso. Gere outro.');return}
+ if(users.some(x=>x.nome.toLowerCase()===nome.toLowerCase()&&x!==cur)){toast('Já existe um usuário com este nome');return}
+ if(cur===me&&r!==cur.role){toast('Você não pode mudar o próprio perfil');return}
+ if(cur){db.forEach(o=>{if(o.mec===cur.nome)o.mec=nome;if(o.cli===cur.nome)o.cli=nome});Object.assign(cur,{nome,role:r,pin:p})}
+ else users.push({id:Math.max(0,...users.map(x=>x.id))+1,nome,role:r,pin:p,ativo:true});
+ editU=null;save();saveU();render();toast('Login salvo')
+}
+function togU(id){
+ const x=users.find(u=>u.id===id),n=x.role==='mecanico'?db.filter(o=>o.mec===x.nome&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
+ ask((x.ativo?'Desativar':'Reativar')+' o acesso de '+x.nome+'?'+(x.ativo&&n?' Ele tem '+n+' OS em aberto.':''),()=>{x.ativo=!x.ativo;saveU();render();toast(x.ativo?'Acesso reativado':'Acesso desativado')})
+}
+function render(){
+ const a=$('#app'),n=$('#nav');
+ if(!role){n.style.display='none';a.innerHTML=vLogin();return}
+ n.style.display='';
+ n.innerHTML=ROLES[role][2].map(([k,l,i])=>`<button class="${view===k||(view==='os'&&k==='list')?'on':''}" onclick="go('${k}')"><span>${i}</span>${l}</button>`).join('')+`<button onclick="out()"><span>🚪</span>Sair</button>`;
+ a.innerHTML=`<div class="row" style="margin-bottom:10px"><b style="font-size:18px">WKK <span style="color:var(--bl)">Oficina</span></b><small>${ROLES[role][1]} ${e(me.nome)} · ${ROLES[role][0]}</small></div>`+({dash:vDash,ent:vEnt,list:vList,fin:vFin,os:vOs,usr:vUsr}[view])();
+}
+const vLogin=()=>{const sh=shake;shake=false;return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:20px">WKK Oficina</b><p><small>Digite seu PIN de acesso</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div><small>Demonstração: administrador 123456 · mecânico Felipe 333333</small></div><button class="btn w" onclick="ask('Restaurar os dados e logins de exemplo? Isso apaga as alterações feitas neste navegador.',resetDemo)">Restaurar dados de exemplo</button><small class="ctr">Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750</small></div>`};
+const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div>${e(o.vei)} · <b>${e(o.placa)}</b></div><small>${e(o.serv)} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'?'<div class="btn bl" style="text-align:center;margin-top:6px">ABRIR SERVIÇO</div>':''}</div>`;
+const pend=()=>db.filter(o=>o.bs==='aprovado').reduce((s,o)=>s+Math.max(0,tot(o)-paid(o)),0);
+function vDash(){
+ const c=f=>db.filter(f).length,st=s=>c(o=>o.st===s),open=o=>!['ENTREGUE','CANCELADO'].includes(o.st);
+ const k=[['🚗','Em atendimento',c(open),'--bl'],['🔴','Aguard. diagnóstico',st('AGUARDANDO DIAGNÓSTICO'),'--rd'],['🟠','Em andamento',st('EM ANDAMENTO'),'--or'],['🟡','Aguard. peça',st('AGUARDANDO PEÇA'),'--ye'],['💰','Aguard. aprovação',st('AGUARDANDO APROVAÇÃO'),'--bl'],['🟢','Concluídos',c(o=>['FINALIZADO','PRONTO PARA ENTREGA','ENTREGUE'].includes(o.st)),'--gr'],['💵','Faturamento',R(db.reduce((s,o)=>s+paid(o),0)),'--gr'],['⏳','A receber',R(pend()),'--ye']];
+ return `<h2>Painel</h2><div class="grid">${k.map(kpi).join('')}</div><h3>Serviços em andamento</h3>${db.filter(open).sort((a,b)=>b.id-a.id).map(card).join('')}`;
+}
+function vList(){
+ return `<h2>${role==='mecanico'?'Olá, '+e(me.nome)+' 👋':role==='cliente'?'Meus veículos e OS':'Ordens de serviço'}</h2>${mine().map(card).join('')||'<small>Nenhuma OS por aqui.</small>'}`;
+}
+function vFin(){
+ const b=s=>db.filter(o=>o.bs===s).length;
+ return `<h2>Financeiro</h2><div class="grid">${[['⏳','Orç. pendentes',b('enviado'),'--bl'],['✅','Aprovados',b('aprovado'),'--gr'],['❌','Recusados',b('recusado'),'--rd'],['💵','Recebido',R(db.reduce((s,o)=>s+paid(o),0)),'--gr']].map(kpi).join('')}</div><h3>Orçamentos e pagamentos</h3>`+db.slice().sort((a,b)=>b.id-a.id).map(o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)} · ${e(o.cli)}</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div><small>Total ${R(tot(o))} · Pago ${R(paid(o))} · Restante ${R(Math.max(0,tot(o)-paid(o)))}</small></div>`).join('');
+}
+const slot=i=>draft.ph[i]?`<img src="${draft.ph[i]}" alt="${PL[i]}"><button type="button" onclick="delPh(${i})">✕</button><i>${PL[i]}</i>`:`<label>📷<span>${PL[i]}</span><input type="file" accept="image/*" capture="environment" hidden onchange="pho(${i},this)"></label>`;
+function shrink(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,480/im.width);c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.7))};im.src=r.result};r.readAsDataURL(f)}
+function pho(i,inp){shrink(inp,d=>{draft.ph[i]=d;$('#ph'+i).innerHTML=slot(i)})}
+function spho(inp){const o=F(),cap=$('#sp_c').value.trim();shrink(inp,d=>{o.sp=o.sp||[];o.sp.push({s:d,c:cap||'Sem legenda'});log(o,'foto do serviço adicionada');save();render();toast('Foto do serviço salva')})}
+function delPh(i){draft.ph[i]=null;$('#ph'+i).innerHTML=slot(i)}
+function cyc(b){const v=(+b.dataset.v+1)%3;b.dataset.v=v;b.textContent=b.dataset.n+' · '+['OK','ATENÇÃO','PROBLEMA'][v]}
+function vEnt(){
+ draft={ph:[]};
+ return `<h2>Nova Entrada</h2>
+<div class="card"><b>Cliente</b><input id="f_cli" placeholder="Nome completo"><div class="f2"><input id="f_tel" inputmode="tel" placeholder="WhatsApp"><input id="f_cpf" placeholder="CPF/CNPJ"></div></div>
+<div class="card"><b>Veículo</b><select id="f_tipo"><option>Carro</option><option>Moto</option><option>Caminhonete</option><option>Van</option><option>Outro</option></select><input id="f_vei" placeholder="Marca e modelo"><div class="f2"><input id="f_placa" placeholder="Placa"><input id="f_ano" inputmode="numeric" placeholder="Ano"></div><input id="f_km" inputmode="numeric" placeholder="Quilometragem atual"></div>
+<div class="card"><b>O que o cliente relatou?</b><textarea id="f_relato" placeholder="Escreva exatamente o que o cliente contou"></textarea></div>
+<div class="card"><b>Fotos de entrada</b><div class="g3" style="margin-top:8px">${PL.map((_,i)=>`<div class="ph" id="ph${i}">${slot(i)}</div>`).join('')}</div></div>
+<div class="card"><b>Checklist</b> <small>toque para alternar</small><div class="f2" style="margin-top:8px">${CK.map(n=>`<button type="button" class="btn ck" data-n="${n}" data-v="0" onclick="cyc(this)">${n} · OK</button>`).join('')}</div></div>
+<button class="btn bl w" onclick="criar()">Criar ordem de serviço</button>`;
+}
+function criar(){
+ const g=id=>$('#'+id).value.trim();
+ if(!g('f_cli')||!g('f_placa')||!g('f_relato')){toast('Preencha nome, placa e relato do cliente');return}
+ if(g('f_tel').replace(/\D/g,'').length<10){toast('Informe o WhatsApp com DDD, só números');return}
+ if(g('f_km')&&!(+g('f_km')>=0)){toast('A quilometragem deve ser um número');return}
+ const id=Math.max(0,...db.map(o=>o.id))+1,now=new Date();
+ const o=mk({id,cli:g('f_cli'),tel:g('f_tel'),cpf:g('f_cpf'),tipo:$('#f_tipo').value,vei:g('f_vei')||'Veículo',ano:g('f_ano'),placa:g('f_placa').toUpperCase(),km:g('f_km'),relato:g('f_relato'),mec:'',st:'AGUARDANDO DIAGNÓSTICO',serv:'A diagnosticar',data:now.toISOString().slice(0,10),hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),ph:draft.ph.filter(Boolean),ck:[...document.querySelectorAll('.ck')].map(b=>[b.dataset.n,+b.dataset.v])});
+ db.push(o);sel=id;log(o,'OS criada');save();toast('OS #'+pad(id)+' criada');go('os',id);
+}
+function vOs(){
+ const o=F();if(!o)return vList();
+ const adm=role==='admin',rec=role==='recepcao',mec=role==='mecanico',fin=role==='financeiro',cli=role==='cliente';
+ const canB=adm||fin,showB=canB||(cli&&o.bs!=='rascunho'),ed=canB&&o.bs!=='aprovado',rest=tot(o)-paid(o);
+ let h=`<button class="btn" onclick="go('${adm?'dash':fin?'fin':'list'}')">← Voltar</button><div class="card" style="margin-top:10px"><div class="row"><h2 style="margin:0">OS #${pad(o.id)}</h2>${bd(o.st)}</div><p>🚗 ${e(o.vei)} ${e(o.ano)} · <b>${e(o.placa)}</b> · ${e(o.km)} km<br>👤 ${e(o.cli)} · ${e(o.tel)}</p><small>Entrada ${br(o.data)} às ${e(o.hora)} · 🔧 ${e(o.mec||'sem mecânico')}</small>`;
+ if(adm||mec)h+=`<select onchange="setSt(this.value)">${opt(ST,o.st)}</select>`;
+ if(adm||rec)h+=`<select onchange="setMec(this.value)"><option value="">Atribuir mecânico…</option>${opt(mecs(),o.mec)}</select>`;
+ h+=`</div><div class="card"><b>O que o cliente relatou</b><p>${e(o.relato)}</p>`;
+ if(!cli){const pr=o.ck.filter(c=>c[1]>0);if(pr.length)h+=`<small>Checklist: ${pr.map(c=>(c[1]>1?'🔴 ':'🟡 ')+e(c[0])).join(' · ')}</small>`;if(o.ph.length)h+=`<div class="g3" style="margin-top:8px">${o.ph.map(p=>`<img src="${p}" alt="Foto de entrada" style="width:100%;border-radius:8px">`).join('')}</div>`;if((o.sp||[]).length)h+=`<b style="display:block;margin-top:10px">Fotos do serviço</b><div class="g3" style="margin-top:6px">${o.sp.map(p=>`<figure style="margin:0"><img src="${p.s}" alt="${e(p.c)}" style="width:100%;border-radius:8px"><small>${e(p.c)}</small></figure>`).join('')}</div>`}
+ h+='</div>';
+ if(adm||mec)h+=`<div class="card"><b>Diagnóstico técnico</b><textarea id="diag" placeholder="Problema encontrado, causa provável, testes realizados, solução recomendada">${e(o.diag)}</textarea><button class="btn w" onclick="saveDiag()">Salvar diagnóstico</button></div>
+<div class="card"><b>🤖 Assistente WKK</b><textarea id="iaq" placeholder="Descreva o problema. Ex.: perde força ao acelerar e a luz da injeção está acesa"></textarea><button class="btn bl w" onclick="ia()">Consultar assistente</button><div id="iar" style="margin-top:8px"></div></div>
+<div class="card"><b>Fotos do serviço</b><input id="sp_c" placeholder="Legenda (ex.: amortecedor com vazamento)"><label class="btn w" style="display:block;text-align:center">📷 Tirar foto<input type="file" accept="image/*" capture="environment" hidden onchange="spho(this)"></label></div>`;
+ if(showB){
+  h+=`<div class="card"><div class="row"><b>Orçamento</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div>`;
+  h+=o.it.map((i,n)=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--ln)"><span>${i.t==='Peça'?'🔩':'🛠️'} ${e(i.d)} <small>×${i.q} · ${R(i.v)}</small></span><span><b>${R(i.q*i.v)}</b>${ed?` <button class="btn" style="min-height:36px;padding:2px 10px" onclick="ask('Remover este item?',()=>delIt(${n}))">✕</button>`:''}</span></div>`).join('')||'<small>Nenhum item ainda.</small>';
+  if(ed)h+=`<div class="f2" style="margin-top:10px"><select id="i_t"><option>Serviço</option><option>Peça</option><option>Outros</option></select><input id="i_q" type="number" min="1" value="1" inputmode="numeric"></div><input id="i_d" placeholder="Descrição"><input id="i_v" inputmode="decimal" placeholder="Valor unitário (R$)"><button class="btn w" onclick="addIt()">Adicionar item</button><label><small>Desconto (R$)</small><input id="i_x" inputmode="decimal" value="${(o.desc/100).toFixed(2).replace('.',',')}" onchange="setDesc(this.value)"></label>`;
+  h+=`<div style="margin-top:10px"><div class="row"><small>Mão de obra/Serviços</small><span>${R(sub(o,'Serviço'))}</span></div><div class="row"><small>Peças/Produtos</small><span>${R(sub(o,'Peça'))}</span></div><div class="row"><small>Outros</small><span>${R(sub(o,'Outros'))}</span></div><div class="row"><small>Desconto</small><span>− ${R(o.desc)}</span></div><div class="row"><b>TOTAL</b><span class="tot">${R(tot(o))}</span></div></div><div class="btns"><button class="btn" onclick="pdf()">📄 Gerar PDF</button><button class="btn gr" onclick="wa()">WhatsApp</button>${ed?'<button class="btn bl" style="grid-column:1/-1" onclick="ask('Enviar o orçamento ao cliente?',sendB)">Enviar ao cliente</button>':''}${cli&&o.bs==='enviado'?'<button class="btn gr" onclick="ask('Aprovar o orçamento de '+R(tot(F()))+'?',()=>resp(1))">✅ Aprovar</button><button class="btn rd" onclick="ask('Recusar o orçamento?',()=>resp(0))">❌ Recusar</button>':''}</div></div>`;
+ }
+ if(canB||cli){
+  h+=`<div class="card"><b>Pagamentos</b><div class="row"><small>Total</small><span>${R(tot(o))}</span></div><div class="row"><small>Pago</small><span style="color:var(--gr)">${R(paid(o))}</span></div><div class="row"><small>Restante</small><b>${R(Math.max(0,rest))}</b></div>${o.pg.map(p=>`<small>${p.d} · ${p.f} · ${R(p.v)}</small><br>`).join('')}`;
+  if(canB&&o.bs==='aprovado'&&rest>0)h+=`<div class="f2" style="margin-top:8px"><select id="p_f">${opt(['Pix','Dinheiro','Cartão de débito','Cartão de crédito','Transferência','Outro'])}</select><input id="p_v" inputmode="decimal" placeholder="Valor (R$)"></div><button class="btn w" onclick="pay()">Registrar pagamento</button>`;
+  if(canB)h+=`<button class="btn w" onclick="toast('Emissão fiscal ainda não configurada.')">Emitir documento fiscal</button>`;
+  h+='</div>';
+ }
+ const hv=db.filter(x=>x.placa===o.placa&&x.id!==o.id);if(hv.length)h+=`<div class="card"><b>Histórico do veículo</b><br>${hv.map(x=>`<small>OS #${pad(x.id)} · ${br(x.data)} · ${e(x.km)} km · ${e(x.serv)} · ${x.st}</small><br>`).join('')}</div>`;
+ if(adm)h+=`<div class="card"><b>Histórico de alterações</b><br>${o.log.slice().reverse().map(l=>`<small>${e(l)}</small><br>`).join('')||'<small>Sem registros.</small>'}</div>`;
+ return h;
+}
+function setSt(v){const o=F(),run=()=>{log(o,'status → '+v);o.st=v;save();render();toast('Status atualizado')};['FINALIZADO','ENTREGUE','CANCELADO'].includes(v)?ask('Alterar o status para '+v+'?',run):run()}
+function setMec(v){const o=F();o.mec=v;log(o,'mecânico → '+(v||'nenhum'));save();render();toast('Mecânico atribuído')}
+function saveDiag(){const o=F();o.diag=$('#diag').value;log(o,'diagnóstico salvo');save();toast('Diagnóstico salvo')}
+function addIt(){const o=F(),d=$('#i_d').value.trim(),q=parseInt($('#i_q').value),v=cents($('#i_v').value);if(!d||!(q>=1)||!(v>=0)){toast('Informe descrição, quantidade e valor');return}o.it.push({t:$('#i_t').value,d,q,v});log(o,'item adicionado: '+d+' '+R(v));save();render()}
+function delIt(n){const o=F();log(o,'item removido: '+o.it[n].d);o.it.splice(n,1);o.desc=Math.min(o.desc,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros'));save();render()}
+function setDesc(v){const o=F(),c=cents(v),max=sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros');o.desc=isNaN(c)||c<0?0:Math.min(c,max);log(o,'desconto '+R(o.desc));save();render()}
+function sendB(){const o=F();if(!o.it.length){toast('Adicione ao menos um item');return}o.bs='enviado';o.st='AGUARDANDO APROVAÇÃO';log(o,'orçamento enviado ao cliente');save();render();toast('Orçamento enviado ao cliente')}
+function resp(ok){const o=F();o.bs=ok?'aprovado':'recusado';if(ok)o.st='EM ANDAMENTO';log(o,(ok?'APROVOU':'RECUSOU')+' o orçamento de '+R(tot(o)));save();render();toast(ok?'Orçamento aprovado':'Orçamento recusado')}
+function pay(){const o=F(),v=cents($('#p_v').value),r=tot(o)-paid(o);if(!(v>0)||v>r){toast('Valor inválido. Restante: '+R(r));return}const f=$('#p_f').value;ask('Registrar pagamento de '+R(v)+' ('+f+')?',()=>{o.pg.push({f,v,d:new Date().toLocaleDateString('pt-BR')});log(o,'pagamento '+R(v));save();render();toast('Pagamento registrado')})}
+function wa(){const o=F(),m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}\n\nO orçamento completo está disponível no link:\n${location.href.split('#')[0]}\n\nWKK Oficina Mecânica Auto Center`;window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank')}
+function pdf(){
+ const o=F(),P=o.it.filter(i=>i.t==='Peça'),S=o.it.filter(i=>i.t!=='Peça');
+ const tr=(a,m)=>a.map(i=>m?`<tr><td>${e(i.d)}</td><td>${e(o.mec||'—')}</td><td>${i.q}</td><td>${R(i.q*i.v)}</td></tr>`:`<tr><td>${e(i.d)}</td><td>${i.q}</td><td>${R(i.v)}</td><td>${R(i.q*i.v)}</td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>';
+ $('#pr').innerHTML=`<div class="hd"><b style="font-size:26px">WKK</b> OFICINA MECÂNICA AUTO CENTER<br>Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750 · CNPJ: ______________</div>
+<h2>ORÇAMENTO DA ORDEM DE SERVIÇO Nº ${pad(o.id)}</h2><p>Data: ${new Date().toLocaleDateString('pt-BR')}</p>
+<h4>CLIENTE</h4><p>${e(o.cli)} · ${e(o.tel)} · ${e(o.cpf||'—')}</p>
+<h4>VEÍCULO</h4><p>${e(o.vei)} ${e(o.ano)} · Placa ${e(o.placa)} · ${e(o.km)} km · Entrada ${br(o.data)}</p>
+<h4>O QUE O CLIENTE RELATOU</h4><p>${e(o.relato)}</p>
+<h4>PEÇAS / PRODUTOS</h4><table><tr><th>Descrição</th><th>Qtd</th><th>Unitário</th><th>Total</th></tr>${tr(P)}</table>
+<h4>SERVIÇOS A EXECUTAR</h4><table><tr><th>Serviço</th><th>Responsável</th><th>Qtd</th><th>Total</th></tr>${tr(S,1)}</table>
+<h4>TOTAIS</h4><table class="tt"><tr><td>Mão de obra/Serviços</td><td>${R(sub(o,'Serviço'))}</td></tr><tr><td>Peças/Produtos</td><td>${R(sub(o,'Peça'))}</td></tr><tr><td>Outros</td><td>${R(sub(o,'Outros'))}</td></tr><tr><td>Desconto</td><td>− ${R(o.desc)}</td></tr><tr><th>TOTAL</th><th>${R(tot(o))}</th></tr></table>
+<h4>CONDIÇÕES / OBSERVAÇÕES</h4><p>Validade do orçamento: 7 dias. Valores podem mudar se novos serviços forem identificados durante a execução.</p>
+<p style="margin-top:40px">Aprovação do cliente: ______________________________ Data: ___/___/_____</p>`;
+ setTimeout(()=>print(),60);
+}
+const IA=[[/inje|for[cç]a|acelera/,'Sonda lambda, sensor MAP/MAF ou bobinas/velas com falha; filtro ou bomba de combustível; entrada falsa de ar','Ler códigos de falha e dados ao vivo no scanner; medir a pressão de combustível; inspecionar velas, bobinas e mangueiras'],[/barulho|ru[ií]do|batida|suspens/,'Amortecedor ou coxim desgastado; bandeja, pivô, terminal ou bieleta com folga; batentes ressecados','Testar folgas com o veículo suspenso; verificar vazamento nos amortecedores; inspecionar buchas e batentes'],[/freio|pedal/,'Pastilhas ou discos gastos; ar ou vazamento no fluido; cilindro mestre com falha','Medir espessura de pastilhas e discos; verificar nível e umidade do fluido; testar o pedal com o motor ligado'],[/[\s\S]*/,'Faltam informações para sugerir causas','Fazer leitura de scanner, inspeção visual e teste de rodagem']];
+function ia(){
+ const q=$('#iaq').value.toLowerCase();if(!q.trim()){toast('Descreva o problema primeiro');return}
+ const r=IA.find(x=>x[0].test(q));
+ $('#iar').innerHTML=`<p><b>Possíveis causas:</b> ${r[1]}.</p><p><b>Inspeção e testes:</b> ${r[2]}.</p><p><b>Perguntas:</b> Quando ocorre (frio/quente, velocidade)? Há códigos de falha? Houve manutenção recente?</p><div class="aviso">Esta sugestão é apenas um auxílio técnico. O diagnóstico final deve ser realizado e validado pelo profissional responsável.</div><small>Modo demonstração: a IA real ainda não está conectada.</small>`;
+}
+addEventListener('keydown',ev=>{if(role||document.activeElement.tagName==='INPUT')return;if(/^\d$/.test(ev.key))key(ev.key);else if(ev.key==='Backspace')key('B')});
+render();
+</script>
+<button id="inst" class="btn bl" style="display:none;position:fixed;top:10px;right:10px;z-index:9">Instalar WKK Oficina</button>
+<script>let dp;addEventListener("beforeinstallprompt",ev=>{ev.preventDefault();dp=ev;$("#inst").style.display="block"});$("#inst").onclick=()=>{dp.prompt();$("#inst").style.display="none"};if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js")</script>
+</body></html>
