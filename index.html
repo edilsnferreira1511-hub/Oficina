@@ -82,10 +82,12 @@ mk({id:129,cli:'Maria Oliveira',tel:'62999990002',vei:'Chevrolet Onix',ano:2021,
 mk({id:127,cli:'Carlos Henrique',tel:'62999990003',vei:'Chevrolet Prisma',ano:2016,placa:'HJK-7L89',km:132500,relato:'Freio com barulho e pedal baixo.',mec:'Henrique',st:'AGUARDANDO APROVAÇÃO',serv:'Freios',data:'2026-09-22',bs:'enviado',it:[{t:'Serviço',d:'Troca de pastilhas e discos',q:1,v:28000},{t:'Peça',d:'Kit pastilhas e discos',q:1,v:32000}]}),
 mk({id:126,cli:'Maria Oliveira',tel:'62999990004',vei:'Honda CG 160',tipo:'Moto',ano:2020,placa:'MNB-2C34',km:60100,relato:'Revisão e troca de óleo.',mec:'João',st:'FINALIZADO',serv:'Troca de óleo',data:'2026-09-19',bs:'aprovado',it:[{t:'Serviço',d:'Troca de óleo e filtros',q:1,v:18000},{t:'Peça',d:'Óleo 10W30 (1L)',q:1,v:22000}],pg:[{f:'Pix',v:40000,d:'20/09/2026'}]}),
 mk({id:120,cli:'João da Silva',tel:'62999990001',vei:'Honda Civic',ano:2018,placa:'ABC-1D23',km:79800,relato:'Troca de óleo e revisão geral.',mec:'João',st:'ENTREGUE',serv:'Troca de óleo',data:'2026-06-10',bs:'aprovado',it:[{t:'Serviço',d:'Troca de óleo',q:1,v:15000},{t:'Peça',d:'Óleo 5W30 e filtro',q:1,v:20000}],pg:[{f:'Dinheiro',v:35000,d:'10/06/2026'}]})];
-const K='wkk-oficina-v2';let me=null,pin='',bad=0,lockUntil=0,shake=false,editU=null,db=null,role=null,view='',sel=null,draft={ph:[]};
+const K='wkk-oficina-v2';let q='',fst='',fbs='',srt='etapa',LB=()=>'',me=null,pin='',bad=0,lockUntil=0,shake=false,editU=null,db=null,role=null,view='',sel=null,draft={ph:[]};
 try{db=JSON.parse(localStorage.getItem(K))}catch(_){}
 if(!Array.isArray(db))db=seed();
 const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(_){}};
+const getSeq=()=>{try{return +localStorage.getItem('wkk-seq-v1')||0}catch(_){return 0}};
+const setSeq=n=>{try{localStorage.setItem('wkk-seq-v1',n)}catch(_){}};
 const seedU=()=>[{id:1,nome:'Administrador',role:'admin',pin:'123456',ativo:true},{id:2,nome:'Recepção',role:'recepcao',pin:'111111',ativo:true},{id:3,nome:'Financeiro',role:'financeiro',pin:'222222',ativo:true},{id:4,nome:'Felipe',role:'mecanico',pin:'333333',ativo:true},{id:5,nome:'Henrique',role:'mecanico',pin:'444444',ativo:true},{id:6,nome:'João',role:'mecanico',pin:'555555',ativo:true},{id:7,nome:'João da Silva',role:'cliente',pin:'666666',ativo:true}];
 let users=null;try{users=JSON.parse(localStorage.getItem('wkk-users-v1'))}catch(_){}
 if(!Array.isArray(users))users=seedU();
@@ -104,8 +106,9 @@ function resetDemo(){db=seed();users=seedU();saveU();save();toast('Dados de exem
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2400)}
 function log(o,t){o.log.push(new Date().toLocaleString('pt-BR')+' · '+me.nome+' · '+t)}
 function go(v,id){view=v;if(id)sel=id;render();scrollTo(0,0)}
+function nv(k){q='';fst='';fbs='';go(k)}
 function login(r){role=r;view=ROLES[r][2][0][0];render()}
-function out(){role=null;me=null;pin='';render()}
+function out(){role=null;me=null;pin='';q='';fst='';fbs='';render()}
 function key(k){
  if(Date.now()<lockUntil){toast('Muitas tentativas. Aguarde '+Math.ceil((lockUntil-Date.now())/1000)+'s');return}
  if(k==='C')pin='';else if(k==='B')pin=pin.slice(0,-1);else if(pin.length<6)pin+=k;
@@ -150,26 +153,52 @@ function render(){
  const a=$('#app'),n=$('#nav');
  if(!role){n.style.display='none';a.innerHTML=vLogin();return}
  n.style.display='';
- n.innerHTML=ROLES[role][2].map(([k,l,i])=>`<button class="${k===(view==='os'?(role==='mecanico'&&F()&&done(F())?'hist':'list'):view)?'on':''}" onclick="go('${k}')"><span>${i}</span>${l}</button>`).join('')+`<button onclick="out()"><span>🚪</span>Sair</button>`;
+ n.innerHTML=ROLES[role][2].map(([k,l,i])=>`<button class="${k===(view==='os'?(role==='mecanico'&&F()&&done(F())?'hist':'list'):view)?'on':''}" onclick="nv('${k}')"><span>${i}</span>${l}</button>`).join('')+`<button onclick="out()"><span>🚪</span>Sair</button>`;
  a.innerHTML=`<div class="row" style="margin-bottom:10px"><b style="font-size:18px">WKK <span style="color:var(--bl)">Oficina</span></b><small>${ROLES[role][1]} ${e(me.nome)} · ${ROLES[role][0]}</small></div>`+({dash:vDash,ent:vEnt,list:vList,fin:vFin,os:vOs,usr:vUsr,hist:vHist}[view])();
 }
 const vLogin=()=>{const sh=shake;shake=false;return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:20px">WKK Oficina</b><p><small>Digite seu PIN de acesso</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div></div><small class="ctr">Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750</small></div>`};
 const done=o=>['ENTREGUE','CANCELADO'].includes(o.st);
-const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div>${e(o.vei)} · <b>${e(o.placa)}</b></div><small>${e(o.serv)} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'&&!done(o)?'<div class="btn bl" style="text-align:center;margin-top:6px">ABRIR SERVIÇO</div>':''}</div>`;
+const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div>${e(o.vei)} · <b>${e(o.placa)}</b></div><small>${e(svc(o))} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'&&!done(o)?'<div class="btn bl" style="text-align:center;margin-top:6px">ABRIR SERVIÇO</div>':''}</div>`;
 const pend=()=>db.filter(o=>o.bs==='aprovado').reduce((s,o)=>s+Math.max(0,tot(o)-paid(o)),0);
 function vDash(){
  const c=f=>db.filter(f).length,st=s=>c(o=>o.st===s),open=o=>!['ENTREGUE','CANCELADO'].includes(o.st);
  const k=[['🚗','Em atendimento',c(open),'--bl'],['🔴','Aguard. diagnóstico',st('AGUARDANDO DIAGNÓSTICO'),'--rd'],['🟠','Em andamento',st('EM ANDAMENTO'),'--or'],['🟡','Aguard. peça',st('AGUARDANDO PEÇA'),'--ye'],['💰','Aguard. aprovação',st('AGUARDANDO APROVAÇÃO'),'--bl'],['🟢','Concluídos',c(o=>['FINALIZADO','PRONTO PARA ENTREGA','ENTREGUE'].includes(o.st)),'--gr'],['💵','Faturamento',R(db.reduce((s,o)=>s+paid(o),0)),'--gr'],['⏳','A receber',R(pend()),'--ye']];
  return `<h2>Painel</h2><div class="grid">${k.map(kpi).join('')}</div><h3>Serviços em andamento</h3>${db.filter(open).sort((a,b)=>b.id-a.id).map(card).join('')}`;
 }
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const svc=o=>{const l=o.it.filter(i=>i.t!=='Peça').map(i=>i.d);return l.length?l.join(', '):o.serv};
+const isStaff=()=>['admin','financeiro','recepcao'].includes(role);
+const hit=o=>{const n=norm(q);if(!n)return true;const fl=[o.cli,o.placa,o.vei,pad(o.id),o.id,svc(o)];if(isStaff())fl.push(o.tel,o.cpf);return fl.some(x=>x!=null&&norm(x).includes(n))};
+const sorted=a=>a.slice().sort(srt==='etapa'?(x,y)=>ST.indexOf(x.st)-ST.indexOf(y.st)||y.id-x.id:(x,y)=>y.data.localeCompare(x.data)||y.id-x.id);
+const bar=()=>`<div class="row" style="gap:8px;flex-wrap:nowrap;margin-bottom:6px"><input id="sq" style="flex:1;margin:0;min-width:0" inputmode="search" placeholder="${isStaff()?'Pesquisar placa, nome, CPF, OS…':'Pesquisar placa, modelo, nome, OS…'}" value="${e(q)}" oninput="setQ(this.value)"><button class="btn" style="white-space:nowrap" onclick="togS()">↕ ${srt==='etapa'?'Por etapa':'Por data'}</button></div>`;
+function setQ(v){q=v;$('#lst').innerHTML=LB()}
+function setF(v){fst=v;render()}
+function setFB(v){fbs=v;render()}
+function togS(){srt=srt==='etapa'?'data':'etapa';render()}
 function vList(){
- return `<h2>${role==='mecanico'?'Olá, '+e(me.nome)+' 👋':role==='cliente'?'Meus veículos e OS':'Ordens de serviço'}</h2>${mine().filter(o=>!(role==='mecanico'&&done(o))).map(card).join('')||'<small>Nenhuma OS por aqui.</small>'}`;
+ const base=mine().filter(o=>!(role==='mecanico'&&done(o))),c={};base.forEach(o=>c[o.st]=(c[o.st]||0)+1);
+ LB=()=>sorted(base.filter(o=>(!fst||o.st===fst)&&hit(o))).map(card).join('')||'<small>Nenhuma OS encontrada.</small>';
+ return `<h2>${role==='mecanico'?'Olá, '+e(me.nome)+' 👋':role==='cliente'?'Meus veículos e OS':'Ordens de serviço'}</h2>${bar()}<select onchange="setF(this.value)"><option value="">Todos os status (${base.length})</option>${ST.filter(x=>c[x]||x===fst).map(x=>`<option value="${x}" ${x===fst?'selected':''}>${x} (${c[x]||0})</option>`).join('')}</select><div id="lst" style="margin-top:8px">${LB()}</div>`;
 }
-function vHist(){return `<h2>Histórico</h2>${mine().filter(done).map(card).join('')||'<small>Nenhum serviço entregue ou cancelado ainda.</small>'}`}
+function vHist(){
+ const base=mine().filter(done);
+ LB=()=>sorted(base.filter(hit)).map(card).join('')||'<small>Nenhum serviço entregue ou cancelado encontrado.</small>';
+ return `<h2>Histórico</h2>${bar()}<div id="lst" style="margin-top:8px">${LB()}</div>`;
+}
 function vFin(){
- const b=s=>db.filter(o=>o.bs===s).length;
- return `<h2>Financeiro</h2><div class="grid">${[['⏳','Orç. pendentes',b('enviado'),'--bl'],['✅','Aprovados',b('aprovado'),'--gr'],['❌','Recusados',b('recusado'),'--rd'],['💵','Recebido',R(db.reduce((s,o)=>s+paid(o),0)),'--gr']].map(kpi).join('')}</div><h3>Orçamentos e pagamentos</h3>`+db.slice().sort((a,b)=>b.id-a.id).map(o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)} · ${e(o.cli)}</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div><small>Total ${R(tot(o))} · Pago ${R(paid(o))} · Restante ${R(Math.max(0,tot(o)-paid(o)))}</small></div>`).join('');
+ const b=s=>db.filter(o=>o.bs===s).length,BL={rascunho:'Rascunho',enviado:'Enviado',aprovado:'Aprovado',recusado:'Recusado'};
+ LB=()=>sorted(db.filter(o=>(!fbs||o.bs===fbs)&&hit(o))).map(o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)} · ${e(o.cli)}</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div><small>Total ${R(tot(o))} · Pago ${R(paid(o))} · Restante ${R(Math.max(0,tot(o)-paid(o)))}</small></div>`).join('')||'<small>Nenhuma OS encontrada.</small>';
+ return `<h2>Financeiro</h2><div class="grid">${[['⏳','Orç. pendentes',b('enviado'),'--bl'],['✅','Aprovados',b('aprovado'),'--gr'],['❌','Recusados',b('recusado'),'--rd'],['💵','Recebido',R(db.reduce((s,o)=>s+paid(o),0)),'--gr']].map(kpi).join('')}</div><h3>Orçamentos e pagamentos</h3>${bar()}<select onchange="setFB(this.value)"><option value="">Todos os orçamentos (${db.length})</option>${Object.keys(BL).map(k=>`<option value="${k}" ${k===fbs?'selected':''}>${BL[k]} (${b(k)})</option>`).join('')}</select><div id="lst" style="margin-top:8px">${LB()}</div>`;
 }
+const onlyN=(el,n)=>{el.value=el.value.replace(/\D/g,'').slice(0,n)};
+const lastOS=fn=>db.slice().sort((a,b)=>b.id-a.id).find(fn);
+const setAF=(id,v)=>{const el=$('#'+id);if(!el.value.trim()||el.dataset.af===el.value){el.value=v;el.dataset.af=v}};
+function fillCpf(v){const d=String(v).replace(/\D/g,'');if(d.length!==11&&d.length!==14)return;
+ const o=lastOS(x=>String(x.cpf||'').replace(/\D/g,'')===d);if(!o)return;
+ setAF('f_cli',o.cli);setAF('f_tel',String(o.tel||'').replace(/\D/g,'').slice(0,11));toast('Cliente já cadastrado: '+o.cli)}
+function fillPlaca(v){const n=norm(v);if(n.length!==7)return;
+ const o=lastOS(x=>norm(x.placa)===n);if(!o)return;
+ setAF('f_vei',o.vei);setAF('f_ano',String(o.ano||''));if(o.tipo)$('#f_tipo').value=o.tipo;toast('Veículo já cadastrado: '+o.vei)}
 const slot=i=>draft.ph[i]?`<img src="${draft.ph[i]}" alt="${PL[i]}"><button type="button" onclick="delPh(${i})">✕</button><i>${PL[i]}</i>`:`<label>📷<span>${PL[i]}</span><input type="file" accept="image/*" capture="environment" hidden onchange="pho(${i},this)"></label>`;
 function shrink(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,480/im.width);c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.7))};im.src=r.result};r.readAsDataURL(f)}
 function pho(i,inp){shrink(inp,d=>{draft.ph[i]=d;$('#ph'+i).innerHTML=slot(i)})}
@@ -179,8 +208,8 @@ function cyc(b){const v=(+b.dataset.v+1)%3;b.dataset.v=v;b.textContent=b.dataset
 function vEnt(){
  draft={ph:[]};
  return `<h2>Nova Entrada</h2>
-<div class="card"><b>Cliente</b><input id="f_cli" placeholder="Nome completo"><div class="f2"><input id="f_tel" inputmode="tel" placeholder="WhatsApp"><input id="f_cpf" placeholder="CPF/CNPJ"></div></div>
-<div class="card"><b>Veículo</b><select id="f_tipo"><option>Carro</option><option>Moto</option><option>Caminhonete</option><option>Van</option><option>Outro</option></select><input id="f_vei" placeholder="Marca e modelo"><div class="f2"><input id="f_placa" placeholder="Placa"><input id="f_ano" inputmode="numeric" placeholder="Ano"></div><input id="f_km" inputmode="numeric" placeholder="Quilometragem atual"></div>
+<div class="card"><b>Cliente</b><input id="f_cli" placeholder="Nome completo"><div class="f2"><input id="f_tel" type="tel" inputmode="numeric" maxlength="11" placeholder="WhatsApp (só números)" oninput="onlyN(this,11)"><input id="f_cpf" inputmode="numeric" maxlength="14" placeholder="CPF/CNPJ (só números)" oninput="onlyN(this,14);fillCpf(this.value)"></div></div>
+<div class="card"><b>Veículo</b><select id="f_tipo"><option>Carro</option><option>Moto</option><option>Caminhonete</option><option>Van</option><option>Outro</option></select><input id="f_vei" placeholder="Marca e modelo"><div class="f2"><input id="f_placa" maxlength="8" autocapitalize="characters" placeholder="Placa" oninput="this.value=this.value.toUpperCase();fillPlaca(this.value)"><input id="f_ano" inputmode="numeric" maxlength="4" placeholder="Ano" oninput="onlyN(this,4)"></div><input id="f_km" inputmode="numeric" maxlength="7" placeholder="Quilometragem atual" oninput="onlyN(this,7)"></div>
 <div class="card"><b>O que o cliente relatou?</b><textarea id="f_relato" placeholder="Escreva exatamente o que o cliente contou"></textarea></div>
 <div class="card"><b>Fotos de entrada</b><div class="g3" style="margin-top:8px">${PL.map((_,i)=>`<div class="ph" id="ph${i}">${slot(i)}</div>`).join('')}</div></div>
 <div class="card"><b>Checklist</b> <small>toque para alternar</small><div class="f2" style="margin-top:8px">${CK.map(n=>`<button type="button" class="btn ck" data-n="${n}" data-v="0" onclick="cyc(this)">${n} · OK</button>`).join('')}</div></div>
@@ -191,7 +220,8 @@ function criar(){
  if(!g('f_cli')||!g('f_placa')||!g('f_relato')){toast('Preencha nome, placa e relato do cliente');return}
  if(g('f_tel').replace(/\D/g,'').length<10){toast('Informe o WhatsApp com DDD, só números');return}
  if(g('f_km')&&!(+g('f_km')>=0)){toast('A quilometragem deve ser um número');return}
- const id=Math.max(0,...db.map(o=>o.id))+1,now=new Date();
+ if(g('f_cpf')&&![11,14].includes(g('f_cpf').length)){toast('O CPF tem 11 números e o CNPJ tem 14');return}
+ const id=Math.max(getSeq(),0,...db.map(o=>o.id))+1,now=new Date();setSeq(id);
  const o=mk({id,cli:g('f_cli'),tel:g('f_tel'),cpf:g('f_cpf'),tipo:$('#f_tipo').value,vei:g('f_vei')||'Veículo',ano:g('f_ano'),placa:g('f_placa').toUpperCase(),km:g('f_km'),relato:g('f_relato'),mec:'',st:'AGUARDANDO DIAGNÓSTICO',serv:'A diagnosticar',data:now.toISOString().slice(0,10),hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),ph:draft.ph.filter(Boolean),ck:[...document.querySelectorAll('.ck')].map(b=>[b.dataset.n,+b.dataset.v])});
  db.push(o);sel=id;log(o,'OS criada');save();toast('OS #'+pad(id)+' criada');go('os',id);
 }
@@ -217,14 +247,21 @@ function vOs(){
   h+=`<div style="margin-top:10px"><div class="row"><small>Mão de obra/Serviços</small><span>${R(sub(o,'Serviço'))}</span></div><div class="row"><small>Peças/Produtos</small><span>${R(sub(o,'Peça'))}</span></div><div class="row"><small>Outros</small><span>${R(sub(o,'Outros'))}</span></div><div class="row"><small>Desconto</small><span>− ${R(o.desc)}</span></div><div class="row"><b>TOTAL</b><span class="tot">${R(tot(o))}</span></div></div><div class="btns"><button class="btn" onclick="pdf()">📄 Gerar PDF</button>${canB?'<button class="btn gr" onclick="waBtn()">WhatsApp</button>':''}${(adm||fin)&&o.bs==='enviado'?'<button class="btn gr" onclick="ask(\'Registrar que o cliente aprovou o orçamento de \'+R(tot(F()))+\'?\',()=>resp(1))">✅ Cliente aprovou</button><button class="btn rd" onclick="ask(\'Registrar que o cliente recusou o orçamento?\',()=>resp(0))">❌ Cliente recusou</button>':''}${cli&&o.bs==='enviado'?'<button class="btn gr" onclick="ask(\'Aprovar o orçamento de \'+R(tot(F()))+\'?\',()=>resp(1))">✅ Aprovar</button><button class="btn rd" onclick="ask(\'Recusar o orçamento?\',()=>resp(0))">❌ Recusar</button>':''}</div></div>`;
  }
  if(canB||cli){
-  h+=`<div class="card"><b>Pagamentos</b><div class="row"><small>Total</small><span>${R(tot(o))}</span></div><div class="row"><small>Pago</small><span style="color:var(--gr)">${R(paid(o))}</span></div><div class="row"><small>Restante</small><b>${R(Math.max(0,rest))}</b></div>${o.pg.map(p=>`<small>${p.d} · ${p.f} · ${R(p.v)}</small><br>`).join('')}`;
+  h+=`<div class="card"><b>Pagamentos</b><div class="row"><small>Total</small><span>${R(tot(o))}</span></div><div class="row"><small>Pago</small><span style="color:var(--gr)">${R(paid(o))}</span></div><div class="row"><small>Restante</small><b>${R(Math.max(0,rest))}</b></div>${o.pg.map((p,n)=>`<div class="row"><small>${p.d} · ${p.f} · ${R(p.v)}</small>${adm?`<button class="btn" style="min-height:34px;padding:2px 10px" onclick="ask('Apagar este pagamento?',()=>delPg(${n}))">✕</button>`:''}</div>`).join('')}`;
+  if(canB&&o.bs!=='aprovado')h+=`<div class="aviso">O pagamento é liberado depois que o orçamento for aprovado.</div>`;
+  if(canB&&o.bs==='aprovado'&&rest<=0)h+=`<div class="aviso" style="border-color:var(--gr)">✔ Quitado</div>`;
   if(canB&&o.bs==='aprovado'&&rest>0)h+=`<div class="f2" style="margin-top:8px"><select id="p_f">${opt(['Pix','Dinheiro','Cartão de débito','Cartão de crédito','Transferência','Outro'])}</select><input id="p_v" inputmode="decimal" placeholder="Valor (R$)"></div><button class="btn w" onclick="pay()">Registrar pagamento</button>`;
   h+='</div>';
  }
  const hv=db.filter(x=>x.placa===o.placa&&x.id!==o.id);if(hv.length)h+=`<div class="card"><b>Histórico do veículo</b><br>${hv.map(x=>`<small>OS #${pad(x.id)} · ${br(x.data)} · ${fkm(x.km)} km · ${e(x.serv)} · ${x.st}</small><br>`).join('')}</div>`;
  if(adm)h+=`<div class="card"><b>Histórico de alterações</b><br>${o.log.slice().reverse().map(l=>`<small>${e(l)}</small><br>`).join('')||'<small>Sem registros.</small>'}</div>`;
+ if(adm)h+=`<button class="btn w" style="color:var(--rd)" onclick="delOS()">Excluir OS</button>`;
  return h;
 }
+function delOS(){const o=F();if(role!=='admin'||!o)return;
+ if(o.pg.length){toast('Esta OS tem pagamento lançado. Cancele a OS em vez de excluir.');return}
+ ask('Excluir a OS #'+pad(o.id)+' ('+o.vei+' '+o.placa+')? Isso não pode ser desfeito.',()=>{setSeq(Math.max(getSeq(),o.id));db=db.filter(x=>x!==o);save();sel=null;go('dash');toast('OS excluída')})}
+function delPg(n){const o=F();if(role!=='admin'||!o.pg[n])return;log(o,'pagamento apagado: '+R(o.pg[n].v)+' ('+o.pg[n].f+')');o.pg.splice(n,1);save();render();toast('Pagamento apagado')}
 function setSt(v){const o=F(),run=()=>{log(o,'status → '+v);o.st=v;save();render();toast('Status atualizado')};['FINALIZADO','ENTREGUE','CANCELADO'].includes(v)?ask('Alterar o status para '+v+'?',run):run()}
 function setMec(v){const o=F();if(!v||v===o.mec){render();return}ask(o.mec?'Trocar o mecânico de '+o.mec+' para '+v+'?':'Atribuir '+v+' a esta OS?',()=>{log(o,'mecânico: '+(o.mec||'nenhum')+' → '+v);o.mec=v;save();render();toast('Mecânico atualizado')})}
 function saveDiag(){const o=F();o.diag=$('#diag').value;log(o,'diagnóstico salvo');save();toast('Diagnóstico salvo')}
