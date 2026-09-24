@@ -4,7 +4,7 @@
 <meta name="theme-color" content="#0a0c10">
 <title>WKK Oficina</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
-<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+<script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
 :root{--bg:#0a0c10;--card:#141821;--card2:#1c2230;--tx:#f4f6fa;--mut:#8b95a8;--bl:#1e6bff;--rd:#e5262f;--ye:#ffd21f;--gr:#22c55e;--or:#ff8a1f;--ln:#272e3f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef1f6;--card:#fff;--card2:#f1f4f9;--tx:#0d1220;--mut:#5b6579;--ln:#dbe1ec}}
@@ -242,11 +242,48 @@ function sheet(o){
 <div class="ts"><div><span>Total Mão de Obra / Serviços</span><span>${R(sub(o,'Serviço'))}</span></div><div><span>Total Peças e Produtos</span><span>${R(sub(o,'Peça'))}</span></div>${so?`<div><span>Outros</span><span>${R(so)}</span></div>`:''}<div><span>Desconto Aplicado</span><span>- ${R(o.desc)}</span></div><div class="tv"><span>VALOR TOTAL</span><span>${R(tot(o))}</span></div></div></div>
 <div class="sg"><div><hr><b>WKK OFICINA MECÂNICA AUTO CENTER</b><small>Responsável Técnico / Mecânica</small></div><div><hr><b>${e(o.cli.toUpperCase())}</b><small>Aprovação do Cliente (Data: ____/____/${hoje.getFullYear()})</small></div></div></div>`;
 }
-const PO=o=>({margin:0,filename:'Orcamento-WKK-OS'+pad(o.id)+'.pdf',image:{type:'jpeg',quality:.95},html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4'}});
-const mkEl=o=>{const d=document.createElement('div');d.innerHTML=sheet(o);return d.firstElementChild};
-const mkPdf=o=>html2pdf().set(PO(o)).from(mkEl(o)).outputPdf('blob');
 const viaPrint=o=>{$('#pr').innerHTML=sheet(o);setTimeout(()=>print(),60)};
-function pdf(){const o=F();if(!window.html2pdf){viaPrint(o);return}toast('Gerando PDF…');html2pdf().set(PO(o)).from(mkEl(o)).save().catch(()=>viaPrint(o))}
+async function mkPdf(o){
+ const {PDFDocument,StandardFonts,rgb}=PDFLib,H=841.89,d=await PDFDocument.create(),pg=d.addPage([595.28,H]);
+ const f=await d.embedFont(StandardFonts.Helvetica),b=await d.embedFont(StandardFonts.HelveticaBold);
+ const cl=t=>String(t??'').replace(/\s+/g,' ').replace(/[^\x20-\x7E\u00A0-\u00FF\u2013\u2014\u2022\u2018\u2019\u201C\u201D]/g,'');
+ const C=h=>rgb(parseInt(h.slice(1,3),16)/255,parseInt(h.slice(3,5),16)/255,parseInt(h.slice(5,7),16)/255);
+ const T=(t,x,y,p={})=>{const s=p.s||9,ft=p.bold?b:f;t=cl(t);const w=ft.widthOfTextAtSize(t,s);pg.drawText(t,{x:p.al==='r'?x-w:p.al==='c'?x-w/2:x,y:H-y-s*0.8,size:s,font:ft,color:C(p.c||'#1c2333')})};
+ const B=(x,y,w,h,p={})=>pg.drawRectangle({x,y:H-y-h,width:w,height:h,color:p.fill?C(p.fill):undefined,borderColor:p.line?C(p.line):undefined,borderWidth:p.line?0.7:0});
+ const L=(x1,y,x2,c,w=0.7)=>pg.drawLine({start:{x:x1,y:H-y},end:{x:x2,y:H-y},thickness:w,color:C(c)});
+ const wrap=(t,ft,s,m)=>{const out=[];let l='';for(const w of cl(t).split(' ')){const n=l?l+' '+w:w,mw=typeof m==='function'?m(out.length):m;if(l&&ft.widthOfTextAtSize(n,s)>mw){out.push(l);l=w}else l=n}if(l)out.push(l);return out};
+ const k=Number(String(o.km).replace(/\D/g,'')),dg=String(o.tel||'').replace(/\D/g,''),tel=dg.length===11||dg.length===10?fmtTel(o.tel):(o.tel||'—'),hoje=new Date();
+ const P=o.it.filter(i=>i.t==='Peça'),S=o.it.filter(i=>i.t!=='Peça'),so=sub(o,'Outros');
+ const st={rascunho:'Em análise',enviado:'Aguardando aprovação',aprovado:'Aprovado',recusado:'Recusado'}[o.bs];
+ T('WKK OFICINA MECÂNICA',40,38,{s:19,bold:1,c:'#0f1b33'});T('AUTO CENTER & SERVIÇOS AUTOMOTIVOS',40,64,{s:9,bold:1,c:'#0d8bd9'});
+ T('Av. Patriarca, Qd. 42 Lt. 23 — Bairro de Lourdes, Anápolis - GO',40,80,{s:8,c:'#6b7385'});T('Tel / WhatsApp: (62) 99210-6920 | (62) 99214-2750',40,91,{s:8,c:'#6b7385'});
+ B(385,34,170.28,24,{fill:'#0f1b33'});T('ORÇAMENTO Nº '+pad(o.id),470.14,41,{s:10.5,bold:1,c:'#ffffff',al:'c'});
+ const kv=(l,v,y)=>{const w=f.widthOfTextAtSize(cl(v),8);T(v,555.28,y,{s:8,al:'r'});T(l,555.28-w-3,y,{s:8,bold:1,al:'r'})};
+ kv('Data de Emissão:',hoje.toLocaleDateString('pt-BR'),68);kv('Status:',st,80);L(40,104,555.28,'#0d8bd9',1.5);
+ const card=(x,t,rows)=>{B(x,116,250,66,{fill:'#f5f7fa',line:'#e1e5ee'});T(t,x+12,124,{s:8,bold:1,c:'#0d8bd9'});L(x+12,137,x+238,'#e1e5ee');rows.forEach(([l,v,bd],i)=>{T(l,x+12,144+i*13,{s:8.5,c:'#6b7385'});T(v,x+82,144+i*13,{s:8.5,bold:bd})})};
+ card(40,'DADOS DO CLIENTE',[['Nome:',o.cli,1],['Telefone:',tel],['CPF / Ref:',o.cpf||'—']]);
+ card(305.28,'DADOS DO VEÍCULO',[['Veículo:',o.vei+(o.ano?' '+o.ano:''),1],['Placa:',o.placa,1],['KM / Entrada:',(k?k.toLocaleString('pt-BR'):(o.km||'—'))+' km | '+br(o.data)]]);
+ const lw=b.widthOfTextAtSize('Relato do Cliente: ',8.5),rl=wrap(o.relato||'—',f,8.5,i=>487-(i?0:lw)),rh=rl.length*11+13;
+ B(40,194,515.28,rh,{fill:'#fff8e1',line:'#f5d77a'});B(40,194,3.5,rh,{fill:'#f5b400'});
+ T('Relato do Cliente:',54,200,{s:8.5,bold:1,c:'#7a4a00'});rl.forEach((t,i)=>T(t,i?54:54+lw,200+i*11,{s:8.5,c:'#7a4a00'}));
+ let y=194+rh+18;
+ const h4=t=>{B(40,y,3,13,{fill:'#0d8bd9'});T(t,49,y+1.5,{s:10,bold:1,c:'#0f1b33'});y+=20};
+ const tb=(hd,cols,rows)=>{B(40,y,515.28,20,{fill:'#eef1f6'});hd.forEach((t,i)=>T(t,cols[i].x,y+7,{s:7,bold:1,c:'#3a4256',al:cols[i].al}));y+=20;
+  (rows.length?rows:[['—','','','']]).forEach(r=>{const ls=wrap(r[0],f,8.5,cols[0].w);ls.forEach((t,i)=>T(t,cols[0].x,y+6+i*11,{s:8.5}));r.slice(1).forEach((t,i)=>T(t,cols[i+1].x,y+6,{s:8.5,al:cols[i+1].al,bold:i===r.length-2}));y+=ls.length*11+11;L(40,y,555.28,'#e8ebf1')});y+=6};
+ h4('PEÇAS E COMPONENTES');tb(['DESCRIÇÃO DO PRODUTO / PEÇA','QTD','UNITÁRIO (R$)','TOTAL (R$)'],[{x:48,al:'l',w:270},{x:365,al:'c'},{x:465,al:'r'},{x:547,al:'r'}],P.map(i=>[i.d,String(i.q),num(i.v),num(i.q*i.v)]));
+ h4('SERVIÇOS E MÃO DE OBRA');tb(['DESCRIÇÃO DO SERVIÇO','RESPONSÁVEL TÉCNICO','QTD','TOTAL (R$)'],[{x:48,al:'l',w:235},{x:295,al:'l'},{x:465,al:'c'},{x:547,al:'r'}],S.map(i=>[i.d,o.mec||'—',String(i.q),num(i.q*i.v)]));
+ y+=6;const y0=y;T('TERMOS E CONDIÇÕES',40,y,{s:8,bold:1,c:'#3a4256'});let ty=y+16;
+ T('•',40,ty,{s:7.5,c:'#5a6378'});T('Validade deste orçamento:',48,ty,{s:7.5,bold:1,c:'#5a6378'});T('7 dias corridos a contar da data de emissão.',48+b.widthOfTextAtSize('Validade deste orçamento:',7.5)+3,ty,{s:7.5,c:'#5a6378'});ty+=12;
+ for(const t of ['Os valores orçados referem-se estritamente aos itens listados. Caso sejam constatadas avarias ocultas ou serviços adicionais durante a execução, será solicitado novo alinhamento prévio.','Peças e serviços cobertos pela garantia legal.']){const ls=wrap(t,f,7.5,272);T('•',40,ty,{s:7.5,c:'#5a6378'});ls.forEach((l,i)=>T(l,48,ty+i*10,{s:7.5,c:'#5a6378'}));ty+=ls.length*10+2}
+ const tr=[['Total Mão de Obra / Serviços',R(sub(o,'Serviço'))],['Total Peças e Produtos',R(sub(o,'Peça'))]];if(so)tr.push(['Outros',R(so)]);tr.push(['Desconto Aplicado','- '+R(o.desc)]);
+ B(345,y0,210.28,tr.length*23+27,{line:'#e1e5ee'});tr.forEach(([l,v],i)=>{T(l,355,y0+7+i*23,{s:8.5,c:'#3a4256'});T(v,545,y0+7+i*23,{s:8.5,c:'#3a4256',al:'r'});L(345,y0+(i+1)*23,555.28,'#e8ebf1')});
+ const vy=y0+tr.length*23;B(345,vy,210.28,27,{fill:'#0f1b33'});T('VALOR TOTAL',355,vy+9,{s:10,bold:1,c:'#ffffff'});T(R(tot(o)),545,vy+9,{s:10,bold:1,c:'#ffffff',al:'r'});
+ y=Math.max(ty,vy+27)+48;L(40,y,290,'#b9c0cf');L(305.28,y,555.28,'#b9c0cf');
+ T('WKK OFICINA MECÂNICA AUTO CENTER',165,y+6,{s:8,bold:1,al:'c'});T('Responsável Técnico / Mecânica',165,y+18,{s:7,c:'#8a93a6',al:'c'});
+ T(o.cli.toUpperCase(),430.28,y+6,{s:8,bold:1,al:'c'});T('Aprovação do Cliente (Data: ____/____/'+hoje.getFullYear()+')',430.28,y+18,{s:7,c:'#8a93a6',al:'c'});
+ return new Blob([await d.save()],{type:'application/pdf'});
+}
+async function pdf(){const o=F();if(!window.PDFLib){viaPrint(o);return}toast('Gerando PDF…');try{dl(await mkPdf(o),'Orcamento-WKK-OS'+pad(o.id)+'.pdf');toast('PDF gerado. Veja em Downloads.')}catch(_){viaPrint(o)}}
 const dl=(b,n)=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click()};
 async function wa(){
  const o=F(),nm='Orcamento-WKK-OS'+pad(o.id)+'.pdf',m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}\n\nO orçamento completo está disponível abaixo no PDF`;
