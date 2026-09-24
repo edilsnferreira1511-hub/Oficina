@@ -91,7 +91,7 @@ let users=null;try{users=JSON.parse(localStorage.getItem('wkk-users-v1'))}catch(
 if(!Array.isArray(users))users=seedU();
 const saveU=()=>{try{localStorage.setItem('wkk-users-v1',JSON.stringify(users))}catch(_){}};
 const mecs=()=>users.filter(u=>u.role==='mecanico'&&u.ativo).map(u=>u.nome);
-const sub=(o,t)=>o.it.filter(i=>i.t===t).reduce((s,i)=>s+i.q*i.v,0);
+const sub=(o,t)=>o.it.filter(i=>i.t===t).reduce((s,i)=>s+i.q*(i.v||0),0);
 const tot=o=>Math.max(0,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros')-o.desc);
 const paid=o=>o.pg.reduce((s,p)=>s+p.v,0);
 const F=()=>db.find(o=>o.id===sel);
@@ -121,7 +121,7 @@ function vUsr(){
  const u=editU==='new'?{nome:'',role:'mecanico',pin:''}:users.find(x=>x.id===editU);
  let h=`<div class="row"><h2>Usuários e acessos</h2><button class="btn bl" onclick="editU='new';render()">+ Novo login</button></div>`;
  if(u)h+=`<div class="card"><b>${editU==='new'?'Novo login':'Editar login'}</b><input id="u_n" placeholder="Nome" value="${e(u.nome)}"><select id="u_r">${Object.entries(RL).map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select><small>Para cliente, use o mesmo nome do cadastro nas OS.</small><div class="f2"><input id="u_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números" value="${e(u.pin)}"><button class="btn" onclick="$('#u_p').value=genPin()">Gerar PIN</button></div><div class="btns"><button class="btn" onclick="editU=null;render()">Cancelar</button><button class="btn bl" onclick="saveUsr()">Salvar</button></div></div>`;
- return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]} · PIN ${e(x.pin)}</small><div class="btns"><button class="btn" onclick="editU=${x.id};render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU(${x.id})">${x.ativo?'Desativar':'Reativar'}</button>`}</div></div>`).join('');
+ return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]} · PIN ${e(x.pin)}</small><div class="btns"><button class="btn" onclick="editU=${x.id};render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU(${x.id})">${x.ativo?'Desativar':'Reativar'}</button><button class="btn" style="grid-column:1/-1;color:var(--rd)" onclick="delU(${x.id})">Excluir</button>`}</div></div>`).join('');
 }
 function saveUsr(){
  const nome=$('#u_n').value.trim(),r=$('#u_r').value,p=$('#u_p').value.trim(),cur=users.find(x=>x.id===editU);
@@ -133,6 +133,14 @@ function saveUsr(){
  if(cur){db.forEach(o=>{if(o.mec===cur.nome)o.mec=nome;if(o.cli===cur.nome)o.cli=nome});Object.assign(cur,{nome,role:r,pin:p})}
  else users.push({id:Math.max(0,...users.map(x=>x.id))+1,nome,role:r,pin:p,ativo:true});
  editU=null;save();saveU();render();toast('Login salvo')
+}
+function delU(id){
+ const x=users.find(u=>u.id===id);if(!x)return;
+ if(x===me){toast('Você não pode excluir o próprio acesso');return}
+ if(x.role==='admin'&&!users.some(u=>u!==x&&u.role==='admin'&&u.ativo)){toast('Mantenha ao menos um administrador ativo');return}
+ const n=x.role==='mecanico'?db.filter(o=>o.mec===x.nome&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
+ if(n){toast(x.nome+' tem '+n+' OS em aberto. Troque o mecânico dessas OS ou use Desativar.');return}
+ ask('Excluir o acesso de '+x.nome+'? Isso não pode ser desfeito.',()=>{users=users.filter(u=>u!==x);if(editU===id)editU=null;saveU();render();toast('Usuário excluído')})
 }
 function togU(id){
  const x=users.find(u=>u.id===id),n=x.role==='mecanico'?db.filter(o=>o.mec===x.nome&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
@@ -191,7 +199,7 @@ function vOs(){
  const o=F();if(!o)return vList();
  const adm=role==='admin',rec=role==='recepcao',mec=role==='mecanico',fin=role==='financeiro',cli=role==='cliente';
  const canB=adm||fin,showB=canB||(cli&&o.bs!=='rascunho'),ed=canB&&o.bs!=='aprovado',rest=tot(o)-paid(o);
- let h=`<button class="btn" onclick="go('${adm?'dash':fin?'fin':mec&&done(o)?'hist':'list'}')">← Voltar</button><div class="card" style="margin-top:10px"><div class="row"><h2 style="margin:0">OS #${pad(o.id)}</h2>${bd(o.st)}</div><p>🚗 ${e(o.vei)} ${e(o.ano)} · <b>${e(o.placa)}</b> · ${e(o.km)} km<br>👤 ${e(o.cli)} · ${e(o.tel)}</p><small>Entrada ${br(o.data)} às ${e(o.hora)} · 🔧 ${e(o.mec||'sem mecânico')}</small>`;
+ let h=`<button class="btn" onclick="go('${adm?'dash':fin?'fin':mec&&done(o)?'hist':'list'}')">← Voltar</button><div class="card" style="margin-top:10px"><div class="row"><h2 style="margin:0">OS #${pad(o.id)}</h2>${bd(o.st)}</div><p>🚗 ${e(o.vei)} ${e(o.ano)} · <b>${e(o.placa)}</b> · ${fkm(o.km)} km<br>👤 ${e(o.cli)} · ${e(o.tel)}</p><small>Entrada ${br(o.data)} às ${e(o.hora)} · 🔧 ${e(o.mec||'sem mecânico')}</small>`;
  if(adm||(mec&&!done(o)))h+=`<select onchange="setSt(this.value)">${opt(ST,o.st)}</select>`;
  if(adm||rec)h+=`<small style="display:block;margin-top:8px">Mecânico responsável</small><select onchange="setMec(this.value)"><option value="">Atribuir mecânico…</option>${opt(mecs(),o.mec)}</select>`;
  h+=`</div><div class="card"><b>O que o cliente relatou</b><p>${e(o.relato)}</p>`;
@@ -201,19 +209,19 @@ function vOs(){
  if(adm||(mec&&!done(o)))h+=`<div class="card"><b>Diagnóstico técnico</b><textarea id="diag" placeholder="Problema encontrado, causa provável, testes realizados, solução recomendada">${e(o.diag)}</textarea><button class="btn w" onclick="saveDiag()">Salvar diagnóstico</button></div>
 <div class="card"><b>🤖 Assistente WKK</b><textarea id="iaq" placeholder="Descreva o problema. Ex.: perde força ao acelerar e a luz da injeção está acesa"></textarea><button class="btn bl w" onclick="ia()">Consultar assistente</button><div id="iar" style="margin-top:8px"></div></div>
 <div class="card"><b>Fotos do serviço</b><input id="sp_c" placeholder="Legenda (ex.: amortecedor com vazamento)"><label class="btn w" style="display:block;text-align:center">📷 Tirar foto<input type="file" accept="image/*" capture="environment" hidden onchange="spho(this)"></label></div>`;
+ if(mec&&!done(o))h+=mecCard(o);
  if(showB){
-  h+=`<div class="card"><div class="row"><b>Orçamento</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div>`;
-  h+=o.it.map((i,n)=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--ln)"><span>${i.t==='Peça'?'🔩':'🛠️'} ${e(i.d)} <small>×${i.q} · ${R(i.v)}</small></span><span><b>${R(i.q*i.v)}</b>${ed?` <button class="btn" style="min-height:36px;padding:2px 10px" onclick="ask('Remover este item?',()=>delIt(${n}))">✕</button>`:''}</span></div>`).join('')||'<small>Nenhum item ainda.</small>';
+  h+=`<div class="card"><div class="row"><b>Orçamento</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div>${canB&&o.it.some(i=>i.v==null)?`<div class="aviso">Há item do mecânico sem valor. Defina o valor de cada um para poder enviar o orçamento.</div>`:''}`;
+  h+=o.it.map((i,n)=>i.v==null?`<div style="padding:8px 0;border-bottom:1px solid var(--ln)"><div class="row"><span>${i.t==='Peça'?'🔩':'🛠️'} <small>×${i.q}${i.by?' · '+e(i.by):''}</small></span><span><b style="color:var(--ye)">definir valor</b>${ed?` <button class="btn" style="min-height:36px;padding:2px 10px" onclick="ask('Remover este item?',()=>delIt(${n}))">✕</button>`:''}</span></div>${canB?`<input id="pd${n}" value="${e(i.d)}"><div class="f2"><input id="pv${n}" inputmode="decimal" placeholder="Valor unitário (R$)"><button class="btn bl" onclick="setV(${n})">Salvar</button></div>`:`<small>${e(i.d)}</small>`}</div>`:`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--ln)"><span>${i.t==='Peça'?'🔩':'🛠️'} ${e(i.d)} <small>×${i.q} · ${R(i.v)}${i.by?' · '+e(i.by):''}</small></span><span><b>${R(i.q*i.v)}</b>${ed?` <button class="btn" style="min-height:36px;padding:2px 10px" onclick="ask('Remover este item?',()=>delIt(${n}))">✕</button>`:''}</span></div>`).join('')||'<small>Nenhum item ainda.</small>';
   if(ed)h+=`<div class="f2" style="margin-top:10px"><select id="i_t"><option>Serviço</option><option>Peça</option><option>Outros</option></select><input id="i_q" type="number" min="1" value="1" inputmode="numeric"></div><input id="i_d" placeholder="Descrição"><input id="i_v" inputmode="decimal" placeholder="Valor unitário (R$)"><button class="btn w" onclick="addIt()">Adicionar item</button><label><small>Desconto (R$)</small><input id="i_x" inputmode="decimal" value="${(o.desc/100).toFixed(2).replace('.',',')}" onchange="setDesc(this.value)"></label>`;
-  h+=`<div style="margin-top:10px"><div class="row"><small>Mão de obra/Serviços</small><span>${R(sub(o,'Serviço'))}</span></div><div class="row"><small>Peças/Produtos</small><span>${R(sub(o,'Peça'))}</span></div><div class="row"><small>Outros</small><span>${R(sub(o,'Outros'))}</span></div><div class="row"><small>Desconto</small><span>− ${R(o.desc)}</span></div><div class="row"><b>TOTAL</b><span class="tot">${R(tot(o))}</span></div></div><div class="btns"><button class="btn" onclick="pdf()">📄 Gerar PDF</button><button class="btn gr" onclick="wa()">WhatsApp</button>${ed?'<button class="btn bl" style="grid-column:1/-1" onclick="ask(\'Enviar o orçamento ao cliente?\',sendB)">Enviar ao cliente</button>':''}${cli&&o.bs==='enviado'?'<button class="btn gr" onclick="ask(\'Aprovar o orçamento de \'+R(tot(F()))+\'?\',()=>resp(1))">✅ Aprovar</button><button class="btn rd" onclick="ask(\'Recusar o orçamento?\',()=>resp(0))">❌ Recusar</button>':''}</div></div>`;
+  h+=`<div style="margin-top:10px"><div class="row"><small>Mão de obra/Serviços</small><span>${R(sub(o,'Serviço'))}</span></div><div class="row"><small>Peças/Produtos</small><span>${R(sub(o,'Peça'))}</span></div><div class="row"><small>Outros</small><span>${R(sub(o,'Outros'))}</span></div><div class="row"><small>Desconto</small><span>− ${R(o.desc)}</span></div><div class="row"><b>TOTAL</b><span class="tot">${R(tot(o))}</span></div></div><div class="btns"><button class="btn" onclick="pdf()">📄 Gerar PDF</button>${canB?'<button class="btn gr" onclick="waBtn()">WhatsApp</button>':''}${(adm||fin)&&o.bs==='enviado'?'<button class="btn gr" onclick="ask(\'Registrar que o cliente aprovou o orçamento de \'+R(tot(F()))+\'?\',()=>resp(1))">✅ Cliente aprovou</button><button class="btn rd" onclick="ask(\'Registrar que o cliente recusou o orçamento?\',()=>resp(0))">❌ Cliente recusou</button>':''}${cli&&o.bs==='enviado'?'<button class="btn gr" onclick="ask(\'Aprovar o orçamento de \'+R(tot(F()))+\'?\',()=>resp(1))">✅ Aprovar</button><button class="btn rd" onclick="ask(\'Recusar o orçamento?\',()=>resp(0))">❌ Recusar</button>':''}</div></div>`;
  }
  if(canB||cli){
   h+=`<div class="card"><b>Pagamentos</b><div class="row"><small>Total</small><span>${R(tot(o))}</span></div><div class="row"><small>Pago</small><span style="color:var(--gr)">${R(paid(o))}</span></div><div class="row"><small>Restante</small><b>${R(Math.max(0,rest))}</b></div>${o.pg.map(p=>`<small>${p.d} · ${p.f} · ${R(p.v)}</small><br>`).join('')}`;
   if(canB&&o.bs==='aprovado'&&rest>0)h+=`<div class="f2" style="margin-top:8px"><select id="p_f">${opt(['Pix','Dinheiro','Cartão de débito','Cartão de crédito','Transferência','Outro'])}</select><input id="p_v" inputmode="decimal" placeholder="Valor (R$)"></div><button class="btn w" onclick="pay()">Registrar pagamento</button>`;
-  if(canB)h+=`<button class="btn w" onclick="toast('Emissão fiscal ainda não configurada.')">Emitir documento fiscal</button>`;
   h+='</div>';
  }
- const hv=db.filter(x=>x.placa===o.placa&&x.id!==o.id);if(hv.length)h+=`<div class="card"><b>Histórico do veículo</b><br>${hv.map(x=>`<small>OS #${pad(x.id)} · ${br(x.data)} · ${e(x.km)} km · ${e(x.serv)} · ${x.st}</small><br>`).join('')}</div>`;
+ const hv=db.filter(x=>x.placa===o.placa&&x.id!==o.id);if(hv.length)h+=`<div class="card"><b>Histórico do veículo</b><br>${hv.map(x=>`<small>OS #${pad(x.id)} · ${br(x.data)} · ${fkm(x.km)} km · ${e(x.serv)} · ${x.st}</small><br>`).join('')}</div>`;
  if(adm)h+=`<div class="card"><b>Histórico de alterações</b><br>${o.log.slice().reverse().map(l=>`<small>${e(l)}</small><br>`).join('')||'<small>Sem registros.</small>'}</div>`;
  return h;
 }
@@ -223,15 +231,15 @@ function saveDiag(){const o=F();o.diag=$('#diag').value;log(o,'diagnóstico salv
 function addIt(){const o=F(),d=$('#i_d').value.trim(),q=parseInt($('#i_q').value),v=cents($('#i_v').value);if(!d||!(q>=1)||!(v>=0)){toast('Informe descrição, quantidade e valor');return}o.it.push({t:$('#i_t').value,d,q,v});log(o,'item adicionado: '+d+' '+R(v));save();render()}
 function delIt(n){const o=F();log(o,'item removido: '+o.it[n].d);o.it.splice(n,1);o.desc=Math.min(o.desc,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros'));save();render()}
 function setDesc(v){const o=F(),c=cents(v),max=sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros');o.desc=isNaN(c)||c<0?0:Math.min(c,max);log(o,'desconto '+R(o.desc));save();render()}
-function sendB(){const o=F();if(!o.it.length){toast('Adicione ao menos um item');return}o.bs='enviado';o.st='AGUARDANDO APROVAÇÃO';log(o,'orçamento enviado ao cliente');save();render();toast('Orçamento enviado ao cliente')}
-function resp(ok){const o=F();o.bs=ok?'aprovado':'recusado';if(ok)o.st='EM ANDAMENTO';log(o,(ok?'APROVOU':'RECUSOU')+' o orçamento de '+R(tot(o)));save();render();toast(ok?'Orçamento aprovado':'Orçamento recusado')}
+function resp(ok){const o=F();o.bs=ok?'aprovado':'recusado';o.st=ok?'EM ANDAMENTO':'AGUARDANDO ORÇAMENTO';log(o,(role==='cliente'?(ok?'APROVOU':'RECUSOU')+' o orçamento':'registrou que o cliente '+(ok?'aprovou':'recusou')+' o orçamento')+' de '+R(tot(o)));save();render();toast(ok?'Orçamento aprovado':'Orçamento recusado')}
 function pay(){const o=F(),v=cents($('#p_v').value),r=tot(o)-paid(o);if(!(v>0)||v>r){toast('Valor inválido. Restante: '+R(r));return}const f=$('#p_f').value;ask('Registrar pagamento de '+R(v)+' ('+f+')?',()=>{o.pg.push({f,v,d:new Date().toLocaleDateString('pt-BR')});log(o,'pagamento '+R(v));save();render();toast('Pagamento registrado')})}
+const fkm=v=>{const k=Number(String(v).replace(/\D/g,''));return k?k.toLocaleString('pt-BR'):e(v||'—')};
 const num=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtTel=t=>{const d=String(t||'').replace(/\D/g,'');return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:e(t||'—')};
 function sheet(o){
  const P=o.it.filter(i=>i.t==='Peça'),S=o.it.filter(i=>i.t!=='Peça'),hoje=new Date(),k=Number(String(o.km).replace(/\D/g,''));
  const st={rascunho:'Em análise',enviado:'Aguardando aprovação',aprovado:'Aprovado',recusado:'Recusado'}[o.bs];
- const rows=(a,m)=>a.map(i=>`<tr><td>${e(i.d)}</td>${m?`<td>${e(o.mec||'—')}</td>`:''}<td class="c">${i.q}</td>${m?'':`<td class="r">${num(i.v)}</td>`}<td class="r"><b>${num(i.q*i.v)}</b></td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>';
+ const rows=(a,m)=>a.map(i=>`<tr><td>${e(i.d)}</td>${m?`<td>${e(o.mec||'—')}</td>`:''}<td class="c">${i.q}</td>${m?'':`<td class="r">${num(i.v||0)}</td>`}<td class="r"><b>${num(i.q*(i.v||0))}</b></td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>';
  const so=sub(o,'Outros');
  return `<div class="qs"><div class="qh"><div><div class="t1">WKK OFICINA MECÂNICA</div><div class="t2">AUTO CENTER & SERVIÇOS AUTOMOTIVOS</div><div class="t3">Av. Patriarca, Qd. 42 Lt. 23 — Bairro de Lourdes, Anápolis - GO<br>Tel / WhatsApp: (62) 99210-6920 | (62) 99214-2750</div></div><div class="tr"><div class="bx">ORÇAMENTO Nº ${pad(o.id)}</div><div><b>Data de Emissão:</b> ${hoje.toLocaleDateString('pt-BR')}</div><div><b>Status:</b> ${st}</div></div></div>
 <div class="two"><div class="cd"><h5>DADOS DO CLIENTE</h5><p><i>Nome:</i><b>${e(o.cli)}</b></p><p><i>Telefone:</i>${fmtTel(o.tel)}</p><p><i>CPF / Ref:</i>${e(o.cpf||'—')}</p></div><div class="cd"><h5>DADOS DO VEÍCULO</h5><p><i>Veículo:</i><b>${e(o.vei)}${o.ano?' '+e(o.ano):''}</b></p><p><i>Placa:</i><b>${e(o.placa)}</b></p><p><i>KM / Entrada:</i>${k?k.toLocaleString('pt-BR'):e(o.km||'—')} km | ${br(o.data)}</p></div></div>
@@ -270,8 +278,8 @@ async function mkPdf(o){
  const h4=t=>{B(40,y,3,13,{fill:'#0d8bd9'});T(t,49,y+1.5,{s:10,bold:1,c:'#0f1b33'});y+=20};
  const tb=(hd,cols,rows)=>{B(40,y,515.28,20,{fill:'#eef1f6'});hd.forEach((t,i)=>T(t,cols[i].x,y+7,{s:7,bold:1,c:'#3a4256',al:cols[i].al}));y+=20;
   (rows.length?rows:[['—','','','']]).forEach(r=>{const ls=wrap(r[0],f,8.5,cols[0].w);ls.forEach((t,i)=>T(t,cols[0].x,y+6+i*11,{s:8.5}));r.slice(1).forEach((t,i)=>T(t,cols[i+1].x,y+6,{s:8.5,al:cols[i+1].al,bold:i===r.length-2}));y+=ls.length*11+11;L(40,y,555.28,'#e8ebf1')});y+=6};
- h4('PEÇAS E COMPONENTES');tb(['DESCRIÇÃO DO PRODUTO / PEÇA','QTD','UNITÁRIO (R$)','TOTAL (R$)'],[{x:48,al:'l',w:270},{x:365,al:'c'},{x:465,al:'r'},{x:547,al:'r'}],P.map(i=>[i.d,String(i.q),num(i.v),num(i.q*i.v)]));
- h4('SERVIÇOS E MÃO DE OBRA');tb(['DESCRIÇÃO DO SERVIÇO','RESPONSÁVEL TÉCNICO','QTD','TOTAL (R$)'],[{x:48,al:'l',w:235},{x:295,al:'l'},{x:465,al:'c'},{x:547,al:'r'}],S.map(i=>[i.d,o.mec||'—',String(i.q),num(i.q*i.v)]));
+ h4('PEÇAS E COMPONENTES');tb(['DESCRIÇÃO DO PRODUTO / PEÇA','QTD','UNITÁRIO (R$)','TOTAL (R$)'],[{x:48,al:'l',w:270},{x:365,al:'c'},{x:465,al:'r'},{x:547,al:'r'}],P.map(i=>[i.d,String(i.q),num(i.v||0),num(i.q*(i.v||0))]));
+ h4('SERVIÇOS E MÃO DE OBRA');tb(['DESCRIÇÃO DO SERVIÇO','RESPONSÁVEL TÉCNICO','QTD','TOTAL (R$)'],[{x:48,al:'l',w:235},{x:295,al:'l'},{x:465,al:'c'},{x:547,al:'r'}],S.map(i=>[i.d,o.mec||'—',String(i.q),num(i.q*(i.v||0))]));
  y+=6;const y0=y;T('TERMOS E CONDIÇÕES',40,y,{s:8,bold:1,c:'#3a4256'});let ty=y+16;
  T('•',40,ty,{s:7.5,c:'#5a6378'});T('Validade deste orçamento:',48,ty,{s:7.5,bold:1,c:'#5a6378'});T('7 dias corridos a contar da data de emissão.',48+b.widthOfTextAtSize('Validade deste orçamento:',7.5)+3,ty,{s:7.5,c:'#5a6378'});ty+=12;
  for(const t of ['Os valores orçados referem-se estritamente aos itens listados. Caso sejam constatadas avarias ocultas ou serviços adicionais durante a execução, será solicitado novo alinhamento prévio.','Peças e serviços cobertos pela garantia legal.']){const ls=wrap(t,f,7.5,272);T('•',40,ty,{s:7.5,c:'#5a6378'});ls.forEach((l,i)=>T(l,48,ty+i*10,{s:7.5,c:'#5a6378'}));ty+=ls.length*10+2}
@@ -285,13 +293,34 @@ async function mkPdf(o){
 }
 async function pdf(){const o=F();if(!window.PDFLib){viaPrint(o);return}toast('Gerando PDF…');try{dl(await mkPdf(o),'Orcamento-WKK-OS'+pad(o.id)+'.pdf');toast('PDF gerado. Veja em Downloads.')}catch(_){viaPrint(o)}}
 const dl=(b,n)=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click()};
+const mark=o=>{if(o.bs==='rascunho'||o.bs==='recusado'){o.bs='enviado';o.st='AGUARDANDO APROVAÇÃO';log(o,'orçamento enviado ao cliente pelo WhatsApp');save();render()}};
+function waBtn(){const o=F();if(!o.it.length){toast('Adicione itens ao orçamento primeiro');return}if(o.it.some(i=>i.v==null)){toast('Defina o valor de todos os itens antes de enviar');return}
+ if(o.bs==='enviado'||o.bs==='aprovado')return wa();ask('Enviar o orçamento ao cliente? A OS passa para Aguardando aprovação.',wa)}
+function setV(n){const o=F(),i=o.it[n],d=$('#pd'+n).value.trim(),raw=$('#pv'+n).value.trim(),v=cents(raw);
+ if(d.length<3||raw===''||!(v>=0)){toast('Informe a descrição e o valor unitário');return}
+ i.d=d;i.v=v;log(o,'definiu o valor de '+d+': '+R(v));save();render();toast('Valor definido')}
+function mecCard(o){
+ const lock=o.bs==='enviado'||o.bs==='aprovado';
+ let h=`<div class="card"><b>Serviços e peças necessários</b>`;
+ h+=o.it.map((i,n)=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--ln)"><span>${i.t==='Peça'?'🔩':'🛠️'} ${e(i.d)} <small>×${i.q}${i.by?' · '+e(i.by):''}</small></span>${!lock&&i.by===me.nome?`<button class="btn" style="min-height:36px;padding:2px 10px" onclick="ask('Remover este item?',()=>delIt(${n}))">✕</button>`:''}</div>`).join('')||'<small>Nenhum item ainda. Adicione o serviço e as peças que você vai precisar.</small>';
+ if(lock)return h+`<div class="aviso">Orçamento já enviado, fale com o financeiro.</div></div>`;
+ h+=`<div class="f2" style="margin-top:10px"><select id="m_t"><option>Serviço</option><option>Peça</option></select><input id="m_q" type="number" min="1" value="1" inputmode="numeric"></div><input id="m_d" placeholder="Descrição (ex.: mão de obra troca de bomba)"><button class="btn w" onclick="addM()">Adicionar</button>`;
+ h+=o.st==='AGUARDANDO ORÇAMENTO'?`<div class="aviso" style="margin-top:10px">✔ Enviado ao financeiro. Você ainda pode adicionar itens.</div>`:`<button class="btn bl w" onclick="sendFin()">Enviar para o financeiro</button>`;
+ return h+'</div>';
+}
+function addM(){const o=F(),d=$('#m_d').value.trim(),q=parseInt($('#m_q').value),t=$('#m_t').value;
+ if(o.bs==='enviado'||o.bs==='aprovado'){toast('Orçamento já enviado, fale com o financeiro');return}
+ if(d.length<3||!(q>=1)){toast('Informe a descrição e a quantidade');return}
+ o.it.push({t,d,q,v:null,by:me.nome});log(o,'adicionou '+t.toLowerCase()+': '+d);save();render();toast('Item adicionado')}
+function sendFin(){const o=F();if(!o.it.length){toast('Adicione ao menos um serviço ou peça');return}
+ ask('Enviar a lista para o financeiro montar o orçamento?',()=>{o.st='AGUARDANDO ORÇAMENTO';log(o,'enviou serviços e peças para o financeiro');save();render();toast('Enviado ao financeiro')})}
 async function wa(){
  const o=F(),nm='Orcamento-WKK-OS'+pad(o.id)+'.pdf',m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}\n\nO orçamento completo está disponível abaixo no PDF`;
  toast('Preparando o PDF…');let b=null;try{b=await mkPdf(o)}catch(_){}
  if(b){const f=new File([b],nm,{type:'application/pdf'});
-  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:m});return}catch(x){if(x&&x.name==='AbortError')return}}
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:m});mark(o);return}catch(x){if(x&&x.name==='AbortError')return}}
   dl(b,nm);toast('PDF baixado. Anexe no WhatsApp.')}
- window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank');
+ window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank');mark(o);
 }
 const IA=[[/inje|for[cç]a|acelera/,'Sonda lambda, sensor MAP/MAF ou bobinas/velas com falha; filtro ou bomba de combustível; entrada falsa de ar','Ler códigos de falha e dados ao vivo no scanner; medir a pressão de combustível; inspecionar velas, bobinas e mangueiras'],[/barulho|ru[ií]do|batida|suspens/,'Amortecedor ou coxim desgastado; bandeja, pivô, terminal ou bieleta com folga; batentes ressecados','Testar folgas com o veículo suspenso; verificar vazamento nos amortecedores; inspecionar buchas e batentes'],[/freio|pedal/,'Pastilhas ou discos gastos; ar ou vazamento no fluido; cilindro mestre com falha','Medir espessura de pastilhas e discos; verificar nível e umidade do fluido; testar o pedal com o motor ligado'],[/[\s\S]*/,'Faltam informações para sugerir causas','Fazer leitura de scanner, inspeção visual e teste de rodagem']];
 function ia(){
