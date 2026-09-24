@@ -4,6 +4,7 @@
 <meta name="theme-color" content="#0a0c10">
 <title>WKK Oficina</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<script defer src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
 <style>
 :root{--bg:#0a0c10;--card:#141821;--card2:#1c2230;--tx:#f4f6fa;--mut:#8b95a8;--bl:#1e6bff;--rd:#e5262f;--ye:#ffd21f;--gr:#22c55e;--or:#ff8a1f;--ln:#272e3f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
 @media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef1f6;--card:#fff;--card2:#f1f4f9;--tx:#0d1220;--mut:#5b6579;--ln:#dbe1ec}}
@@ -49,8 +50,16 @@ nav span{display:block;font-size:20px}nav .on{color:var(--ye)}
 @media (prefers-reduced-motion:reduce){.dots.err{animation:none}}
 .pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.pad .btn{min-height:60px;font-size:24px}.btn.alt{opacity:.7}
 #md{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:20;padding:20px}#md.on{display:grid}#md>div{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px;max-width:360px;width:100%}
+.qs{width:794px;padding:36px 40px;background:#fff;color:#1c2333;font:12px/1.45 Arial,Helvetica,sans-serif}.qs *{box-sizing:border-box}
+.qh{display:flex;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:2px solid #0d8bd9}.t1{font-size:22px;font-weight:800;color:#0f1b33}.t2{font-size:11px;font-weight:700;color:#0d8bd9;margin:2px 0 6px}.t3{color:#6b7385;font-size:10.5px}
+.tr{text-align:right;font-size:10.5px;color:#3a4256;line-height:1.6}.bx{background:#0f1b33;color:#fff;font-weight:800;font-size:14px;padding:8px 14px;border-radius:6px;margin-bottom:6px;display:inline-block}
+.two{display:flex;gap:14px;margin:16px 0 12px}.cd{flex:1;background:#f5f7fa;border:1px solid #e1e5ee;border-radius:8px;padding:10px 14px}.cd h5,.tm h5{margin:0 0 6px;color:#0d8bd9;font-size:10.5px;border-bottom:1px solid #e1e5ee;padding-bottom:5px}.tm h5{color:#3a4256;border:0}.cd p{margin:3px 0}.cd i{font-style:normal;color:#6b7385;display:inline-block;width:88px}
+.rel{background:#fff8e1;border:1px solid #f5d77a;border-left:4px solid #f5b400;border-radius:4px;padding:8px 12px;color:#7a4a00;margin-bottom:14px}
+.qs h4{margin:14px 0 6px;font-size:12.5px;border-left:4px solid #0d8bd9;padding-left:8px;color:#0f1b33}.qs table{width:100%;border-collapse:collapse;font-size:11px}.qs th{background:#eef1f6;color:#3a4256;text-align:left;padding:8px;font-size:9.5px}.qs td{padding:8px;border-bottom:1px solid #e8ebf1}.qs .c{text-align:center}.qs .r{text-align:right}
+.bt{display:flex;justify-content:space-between;gap:24px;margin-top:16px}.tm{flex:1;color:#5a6378;font-size:10.5px}.tm p{margin:3px 0}.ts{width:250px;border:1px solid #e1e5ee;font-size:11px}.ts div{display:flex;justify-content:space-between;padding:8px 12px;border-bottom:1px solid #e8ebf1;color:#3a4256}.ts .tv{background:#0f1b33;color:#fff;font-weight:800;font-size:13px;border:0}
+.sg{display:flex;gap:40px;margin-top:46px;text-align:center}.sg div{flex:1;font-size:10.5px}.sg hr{border:0;border-top:1px solid #b9c0cf;margin:0 0 6px}.sg small{display:block;color:#8a93a6}
 #pr{display:none}
-@media print{body>*{display:none!important}body>#pr{display:block!important;background:#fff;color:#000;font:13px/1.4 Arial,sans-serif}#pr .hd{background:#0a0c10;color:#fff;padding:14px;border-bottom:5px solid #1e6bff;-webkit-print-color-adjust:exact;print-color-adjust:exact}#pr h4{margin:14px 0 4px;color:#1e6bff}#pr table{width:100%;border-collapse:collapse}#pr th,#pr td{border-bottom:1px solid #ccc;padding:5px;text-align:left}#pr .tt{width:50%;margin-left:50%}}
+@media print{body>*{display:none!important}body>#pr{display:block!important}.qs{width:auto}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}}
 </style></head><body>
 <div id="app"></div><nav id="nav"></nav><div id="toast"></div><div id="md"><div><p id="mt"></p><div class="btns"><button class="btn" onclick="ask.no()">Cancelar</button><button class="btn bl" onclick="ask.ok()">Confirmar</button></div></div></div><div id="pr"></div>
 <script>
@@ -65,7 +74,7 @@ const BC={rascunho:'--mut',enviado:'--bl',aprovado:'--gr',recusado:'--rd'};
 const RL={admin:'Administrador',recepcao:'Recepção',financeiro:'Financeiro',mecanico:'Mecânico',cliente:'Cliente'};
 const PL=['Frente','Traseira','Lateral esq.','Lateral dir.','Painel / KM','Área do problema'];
 const CK=['Riscos','Amassados','Para-brisa','Faróis','Pneus','Bancos','Painel','Motor','Freios','Suspensão'];
-const ROLES={admin:['Administrador','🛠️',[['dash','Painel','📊'],['ent','Entrada','➕'],['list','OS','📋'],['fin','Financeiro','💰'],['usr','Usuários','👥']]],recepcao:['Recepção','🧾',[['ent','Entrada','➕'],['list','OS','📋']]],financeiro:['Financeiro','💵',[['fin','Financeiro','💰'],['list','OS','📋']]],mecanico:['Mecânico','🔧',[['list','Meus serviços','🔧']]],cliente:['Cliente','🚗',[['list','Meus veículos','🚗']]]};
+const ROLES={admin:['Administrador','🛠️',[['dash','Painel','📊'],['ent','Entrada','➕'],['list','OS','📋'],['fin','Financeiro','💰'],['usr','Usuários','👥']]],recepcao:['Recepção','🧾',[['ent','Entrada','➕'],['list','OS','📋']]],financeiro:['Financeiro','💵',[['fin','Financeiro','💰'],['list','OS','📋']]],mecanico:['Mecânico','🔧',[['list','Meus serviços','🔧'],['hist','Histórico','🗂️']]],cliente:['Cliente','🚗',[['list','Meus veículos','🚗']]]};
 const mk=o=>({diag:'',it:[],desc:0,bs:'rascunho',pg:[],ph:[],sp:[],log:[],ck:[],hora:'08:30',...o});
 const seed=()=>[
 mk({id:128,cli:'João da Silva',tel:'62999990001',vei:'Honda Civic',ano:2018,placa:'ABC-1D23',km:84200,relato:'Veículo apresenta barulho na suspensão dianteira quando passa em quebra-molas.',mec:'Felipe',st:'EM ANDAMENTO',serv:'Suspensão dianteira',data:'2026-09-21',bs:'aprovado',it:[{t:'Serviço',d:'Substituição de amortecedor dianteiro',q:1,v:44000},{t:'Peça',d:'Amortecedor dianteiro',q:2,v:21000}],pg:[{f:'Pix',v:30000,d:'21/09/2026'}]}),
@@ -133,11 +142,12 @@ function render(){
  const a=$('#app'),n=$('#nav');
  if(!role){n.style.display='none';a.innerHTML=vLogin();return}
  n.style.display='';
- n.innerHTML=ROLES[role][2].map(([k,l,i])=>`<button class="${view===k||(view==='os'&&k==='list')?'on':''}" onclick="go('${k}')"><span>${i}</span>${l}</button>`).join('')+`<button onclick="out()"><span>🚪</span>Sair</button>`;
- a.innerHTML=`<div class="row" style="margin-bottom:10px"><b style="font-size:18px">WKK <span style="color:var(--bl)">Oficina</span></b><small>${ROLES[role][1]} ${e(me.nome)} · ${ROLES[role][0]}</small></div>`+({dash:vDash,ent:vEnt,list:vList,fin:vFin,os:vOs,usr:vUsr}[view])();
+ n.innerHTML=ROLES[role][2].map(([k,l,i])=>`<button class="${k===(view==='os'?(role==='mecanico'&&F()&&done(F())?'hist':'list'):view)?'on':''}" onclick="go('${k}')"><span>${i}</span>${l}</button>`).join('')+`<button onclick="out()"><span>🚪</span>Sair</button>`;
+ a.innerHTML=`<div class="row" style="margin-bottom:10px"><b style="font-size:18px">WKK <span style="color:var(--bl)">Oficina</span></b><small>${ROLES[role][1]} ${e(me.nome)} · ${ROLES[role][0]}</small></div>`+({dash:vDash,ent:vEnt,list:vList,fin:vFin,os:vOs,usr:vUsr,hist:vHist}[view])();
 }
-const vLogin=()=>{const sh=shake;shake=false;return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:20px">WKK Oficina</b><p><small>Digite seu PIN de acesso</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div><small>Demonstração: administrador 123456 · mecânico Felipe 333333</small></div><button class="btn w" onclick="ask('Restaurar os dados e logins de exemplo? Isso apaga as alterações feitas neste navegador.',resetDemo)">Restaurar dados de exemplo</button><small class="ctr">Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750</small></div>`};
-const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div>${e(o.vei)} · <b>${e(o.placa)}</b></div><small>${e(o.serv)} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'?'<div class="btn bl" style="text-align:center;margin-top:6px">ABRIR SERVIÇO</div>':''}</div>`;
+const vLogin=()=>{const sh=shake;shake=false;return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:20px">WKK Oficina</b><p><small>Digite seu PIN de acesso</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div></div><small class="ctr">Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750</small></div>`};
+const done=o=>['ENTREGUE','CANCELADO'].includes(o.st);
+const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div>${e(o.vei)} · <b>${e(o.placa)}</b></div><small>${e(o.serv)} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'&&!done(o)?'<div class="btn bl" style="text-align:center;margin-top:6px">ABRIR SERVIÇO</div>':''}</div>`;
 const pend=()=>db.filter(o=>o.bs==='aprovado').reduce((s,o)=>s+Math.max(0,tot(o)-paid(o)),0);
 function vDash(){
  const c=f=>db.filter(f).length,st=s=>c(o=>o.st===s),open=o=>!['ENTREGUE','CANCELADO'].includes(o.st);
@@ -145,8 +155,9 @@ function vDash(){
  return `<h2>Painel</h2><div class="grid">${k.map(kpi).join('')}</div><h3>Serviços em andamento</h3>${db.filter(open).sort((a,b)=>b.id-a.id).map(card).join('')}`;
 }
 function vList(){
- return `<h2>${role==='mecanico'?'Olá, '+e(me.nome)+' 👋':role==='cliente'?'Meus veículos e OS':'Ordens de serviço'}</h2>${mine().map(card).join('')||'<small>Nenhuma OS por aqui.</small>'}`;
+ return `<h2>${role==='mecanico'?'Olá, '+e(me.nome)+' 👋':role==='cliente'?'Meus veículos e OS':'Ordens de serviço'}</h2>${mine().filter(o=>!(role==='mecanico'&&done(o))).map(card).join('')||'<small>Nenhuma OS por aqui.</small>'}`;
 }
+function vHist(){return `<h2>Histórico</h2>${mine().filter(done).map(card).join('')||'<small>Nenhum serviço entregue ou cancelado ainda.</small>'}`}
 function vFin(){
  const b=s=>db.filter(o=>o.bs===s).length;
  return `<h2>Financeiro</h2><div class="grid">${[['⏳','Orç. pendentes',b('enviado'),'--bl'],['✅','Aprovados',b('aprovado'),'--gr'],['❌','Recusados',b('recusado'),'--rd'],['💵','Recebido',R(db.reduce((s,o)=>s+paid(o),0)),'--gr']].map(kpi).join('')}</div><h3>Orçamentos e pagamentos</h3>`+db.slice().sort((a,b)=>b.id-a.id).map(o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)} · ${e(o.cli)}</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div><small>Total ${R(tot(o))} · Pago ${R(paid(o))} · Restante ${R(Math.max(0,tot(o)-paid(o)))}</small></div>`).join('');
@@ -180,13 +191,14 @@ function vOs(){
  const o=F();if(!o)return vList();
  const adm=role==='admin',rec=role==='recepcao',mec=role==='mecanico',fin=role==='financeiro',cli=role==='cliente';
  const canB=adm||fin,showB=canB||(cli&&o.bs!=='rascunho'),ed=canB&&o.bs!=='aprovado',rest=tot(o)-paid(o);
- let h=`<button class="btn" onclick="go('${adm?'dash':fin?'fin':'list'}')">← Voltar</button><div class="card" style="margin-top:10px"><div class="row"><h2 style="margin:0">OS #${pad(o.id)}</h2>${bd(o.st)}</div><p>🚗 ${e(o.vei)} ${e(o.ano)} · <b>${e(o.placa)}</b> · ${e(o.km)} km<br>👤 ${e(o.cli)} · ${e(o.tel)}</p><small>Entrada ${br(o.data)} às ${e(o.hora)} · 🔧 ${e(o.mec||'sem mecânico')}</small>`;
- if(adm||mec)h+=`<select onchange="setSt(this.value)">${opt(ST,o.st)}</select>`;
- if(adm||rec)h+=`<select onchange="setMec(this.value)"><option value="">Atribuir mecânico…</option>${opt(mecs(),o.mec)}</select>`;
+ let h=`<button class="btn" onclick="go('${adm?'dash':fin?'fin':mec&&done(o)?'hist':'list'}')">← Voltar</button><div class="card" style="margin-top:10px"><div class="row"><h2 style="margin:0">OS #${pad(o.id)}</h2>${bd(o.st)}</div><p>🚗 ${e(o.vei)} ${e(o.ano)} · <b>${e(o.placa)}</b> · ${e(o.km)} km<br>👤 ${e(o.cli)} · ${e(o.tel)}</p><small>Entrada ${br(o.data)} às ${e(o.hora)} · 🔧 ${e(o.mec||'sem mecânico')}</small>`;
+ if(adm||(mec&&!done(o)))h+=`<select onchange="setSt(this.value)">${opt(ST,o.st)}</select>`;
+ if(adm||rec)h+=`<small style="display:block;margin-top:8px">Mecânico responsável</small><select onchange="setMec(this.value)"><option value="">Atribuir mecânico…</option>${opt(mecs(),o.mec)}</select>`;
  h+=`</div><div class="card"><b>O que o cliente relatou</b><p>${e(o.relato)}</p>`;
  if(!cli){const pr=o.ck.filter(c=>c[1]>0);if(pr.length)h+=`<small>Checklist: ${pr.map(c=>(c[1]>1?'🔴 ':'🟡 ')+e(c[0])).join(' · ')}</small>`;if(o.ph.length)h+=`<div class="g3" style="margin-top:8px">${o.ph.map(p=>`<img src="${p}" alt="Foto de entrada" style="width:100%;border-radius:8px">`).join('')}</div>`;if((o.sp||[]).length)h+=`<b style="display:block;margin-top:10px">Fotos do serviço</b><div class="g3" style="margin-top:6px">${o.sp.map(p=>`<figure style="margin:0"><img src="${p.s}" alt="${e(p.c)}" style="width:100%;border-radius:8px"><small>${e(p.c)}</small></figure>`).join('')}</div>`}
  h+='</div>';
- if(adm||mec)h+=`<div class="card"><b>Diagnóstico técnico</b><textarea id="diag" placeholder="Problema encontrado, causa provável, testes realizados, solução recomendada">${e(o.diag)}</textarea><button class="btn w" onclick="saveDiag()">Salvar diagnóstico</button></div>
+ if(mec&&done(o)&&o.diag)h+=`<div class="card"><b>Diagnóstico técnico</b><p>${e(o.diag)}</p></div>`;
+ if(adm||(mec&&!done(o)))h+=`<div class="card"><b>Diagnóstico técnico</b><textarea id="diag" placeholder="Problema encontrado, causa provável, testes realizados, solução recomendada">${e(o.diag)}</textarea><button class="btn w" onclick="saveDiag()">Salvar diagnóstico</button></div>
 <div class="card"><b>🤖 Assistente WKK</b><textarea id="iaq" placeholder="Descreva o problema. Ex.: perde força ao acelerar e a luz da injeção está acesa"></textarea><button class="btn bl w" onclick="ia()">Consultar assistente</button><div id="iar" style="margin-top:8px"></div></div>
 <div class="card"><b>Fotos do serviço</b><input id="sp_c" placeholder="Legenda (ex.: amortecedor com vazamento)"><label class="btn w" style="display:block;text-align:center">📷 Tirar foto<input type="file" accept="image/*" capture="environment" hidden onchange="spho(this)"></label></div>`;
  if(showB){
@@ -206,7 +218,7 @@ function vOs(){
  return h;
 }
 function setSt(v){const o=F(),run=()=>{log(o,'status → '+v);o.st=v;save();render();toast('Status atualizado')};['FINALIZADO','ENTREGUE','CANCELADO'].includes(v)?ask('Alterar o status para '+v+'?',run):run()}
-function setMec(v){const o=F();o.mec=v;log(o,'mecânico → '+(v||'nenhum'));save();render();toast('Mecânico atribuído')}
+function setMec(v){const o=F();if(!v||v===o.mec){render();return}ask(o.mec?'Trocar o mecânico de '+o.mec+' para '+v+'?':'Atribuir '+v+' a esta OS?',()=>{log(o,'mecânico: '+(o.mec||'nenhum')+' → '+v);o.mec=v;save();render();toast('Mecânico atualizado')})}
 function saveDiag(){const o=F();o.diag=$('#diag').value;log(o,'diagnóstico salvo');save();toast('Diagnóstico salvo')}
 function addIt(){const o=F(),d=$('#i_d').value.trim(),q=parseInt($('#i_q').value),v=cents($('#i_v').value);if(!d||!(q>=1)||!(v>=0)){toast('Informe descrição, quantidade e valor');return}o.it.push({t:$('#i_t').value,d,q,v});log(o,'item adicionado: '+d+' '+R(v));save();render()}
 function delIt(n){const o=F();log(o,'item removido: '+o.it[n].d);o.it.splice(n,1);o.desc=Math.min(o.desc,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros'));save();render()}
@@ -214,21 +226,35 @@ function setDesc(v){const o=F(),c=cents(v),max=sub(o,'Serviço')+sub(o,'Peça')+
 function sendB(){const o=F();if(!o.it.length){toast('Adicione ao menos um item');return}o.bs='enviado';o.st='AGUARDANDO APROVAÇÃO';log(o,'orçamento enviado ao cliente');save();render();toast('Orçamento enviado ao cliente')}
 function resp(ok){const o=F();o.bs=ok?'aprovado':'recusado';if(ok)o.st='EM ANDAMENTO';log(o,(ok?'APROVOU':'RECUSOU')+' o orçamento de '+R(tot(o)));save();render();toast(ok?'Orçamento aprovado':'Orçamento recusado')}
 function pay(){const o=F(),v=cents($('#p_v').value),r=tot(o)-paid(o);if(!(v>0)||v>r){toast('Valor inválido. Restante: '+R(r));return}const f=$('#p_f').value;ask('Registrar pagamento de '+R(v)+' ('+f+')?',()=>{o.pg.push({f,v,d:new Date().toLocaleDateString('pt-BR')});log(o,'pagamento '+R(v));save();render();toast('Pagamento registrado')})}
-function wa(){const o=F(),m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}\n\nO orçamento completo está disponível no link:\n${location.href.split('#')[0]}\n\nWKK Oficina Mecânica Auto Center`;window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank')}
-function pdf(){
- const o=F(),P=o.it.filter(i=>i.t==='Peça'),S=o.it.filter(i=>i.t!=='Peça');
- const tr=(a,m)=>a.map(i=>m?`<tr><td>${e(i.d)}</td><td>${e(o.mec||'—')}</td><td>${i.q}</td><td>${R(i.q*i.v)}</td></tr>`:`<tr><td>${e(i.d)}</td><td>${i.q}</td><td>${R(i.v)}</td><td>${R(i.q*i.v)}</td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>';
- $('#pr').innerHTML=`<div class="hd"><b style="font-size:26px">WKK</b> OFICINA MECÂNICA AUTO CENTER<br>Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750 · CNPJ: ______________</div>
-<h2>ORÇAMENTO DA ORDEM DE SERVIÇO Nº ${pad(o.id)}</h2><p>Data: ${new Date().toLocaleDateString('pt-BR')}</p>
-<h4>CLIENTE</h4><p>${e(o.cli)} · ${e(o.tel)} · ${e(o.cpf||'—')}</p>
-<h4>VEÍCULO</h4><p>${e(o.vei)} ${e(o.ano)} · Placa ${e(o.placa)} · ${e(o.km)} km · Entrada ${br(o.data)}</p>
-<h4>O QUE O CLIENTE RELATOU</h4><p>${e(o.relato)}</p>
-<h4>PEÇAS / PRODUTOS</h4><table><tr><th>Descrição</th><th>Qtd</th><th>Unitário</th><th>Total</th></tr>${tr(P)}</table>
-<h4>SERVIÇOS A EXECUTAR</h4><table><tr><th>Serviço</th><th>Responsável</th><th>Qtd</th><th>Total</th></tr>${tr(S,1)}</table>
-<h4>TOTAIS</h4><table class="tt"><tr><td>Mão de obra/Serviços</td><td>${R(sub(o,'Serviço'))}</td></tr><tr><td>Peças/Produtos</td><td>${R(sub(o,'Peça'))}</td></tr><tr><td>Outros</td><td>${R(sub(o,'Outros'))}</td></tr><tr><td>Desconto</td><td>− ${R(o.desc)}</td></tr><tr><th>TOTAL</th><th>${R(tot(o))}</th></tr></table>
-<h4>CONDIÇÕES / OBSERVAÇÕES</h4><p>Validade do orçamento: 7 dias. Valores podem mudar se novos serviços forem identificados durante a execução.</p>
-<p style="margin-top:40px">Aprovação do cliente: ______________________________ Data: ___/___/_____</p>`;
- setTimeout(()=>print(),60);
+const num=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtTel=t=>{const d=String(t||'').replace(/\D/g,'');return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:e(t||'—')};
+function sheet(o){
+ const P=o.it.filter(i=>i.t==='Peça'),S=o.it.filter(i=>i.t!=='Peça'),hoje=new Date(),k=Number(String(o.km).replace(/\D/g,''));
+ const st={rascunho:'Em análise',enviado:'Aguardando aprovação',aprovado:'Aprovado',recusado:'Recusado'}[o.bs];
+ const rows=(a,m)=>a.map(i=>`<tr><td>${e(i.d)}</td>${m?`<td>${e(o.mec||'—')}</td>`:''}<td class="c">${i.q}</td>${m?'':`<td class="r">${num(i.v)}</td>`}<td class="r"><b>${num(i.q*i.v)}</b></td></tr>`).join('')||'<tr><td colspan="4">—</td></tr>';
+ const so=sub(o,'Outros');
+ return `<div class="qs"><div class="qh"><div><div class="t1">WKK OFICINA MECÂNICA</div><div class="t2">AUTO CENTER & SERVIÇOS AUTOMOTIVOS</div><div class="t3">Av. Patriarca, Qd. 42 Lt. 23 — Bairro de Lourdes, Anápolis - GO<br>Tel / WhatsApp: (62) 99210-6920 | (62) 99214-2750</div></div><div class="tr"><div class="bx">ORÇAMENTO Nº ${pad(o.id)}</div><div><b>Data de Emissão:</b> ${hoje.toLocaleDateString('pt-BR')}</div><div><b>Status:</b> ${st}</div></div></div>
+<div class="two"><div class="cd"><h5>DADOS DO CLIENTE</h5><p><i>Nome:</i><b>${e(o.cli)}</b></p><p><i>Telefone:</i>${fmtTel(o.tel)}</p><p><i>CPF / Ref:</i>${e(o.cpf||'—')}</p></div><div class="cd"><h5>DADOS DO VEÍCULO</h5><p><i>Veículo:</i><b>${e(o.vei)}${o.ano?' '+e(o.ano):''}</b></p><p><i>Placa:</i><b>${e(o.placa)}</b></p><p><i>KM / Entrada:</i>${k?k.toLocaleString('pt-BR'):e(o.km||'—')} km | ${br(o.data)}</p></div></div>
+<div class="rel"><b>Relato do Cliente:</b> ${e(o.relato)}</div>
+<h4>PEÇAS E COMPONENTES</h4><table><tr><th>DESCRIÇÃO DO PRODUTO / PEÇA</th><th class="c">QTD</th><th class="r">UNITÁRIO (R$)</th><th class="r">TOTAL (R$)</th></tr>${rows(P)}</table>
+<h4>SERVIÇOS E MÃO DE OBRA</h4><table><tr><th>DESCRIÇÃO DO SERVIÇO</th><th>RESPONSÁVEL TÉCNICO</th><th class="c">QTD</th><th class="r">TOTAL (R$)</th></tr>${rows(S,1)}</table>
+<div class="bt"><div class="tm"><h5>TERMOS E CONDIÇÕES</h5><p>• <b>Validade deste orçamento:</b> 7 dias corridos a contar da data de emissão.</p><p>• Os valores orçados referem-se estritamente aos itens listados. Caso sejam constatadas avarias ocultas ou serviços adicionais durante a execução, será solicitado novo alinhamento prévio.</p><p>• Peças e serviços cobertos pela garantia legal.</p></div>
+<div class="ts"><div><span>Total Mão de Obra / Serviços</span><span>${R(sub(o,'Serviço'))}</span></div><div><span>Total Peças e Produtos</span><span>${R(sub(o,'Peça'))}</span></div>${so?`<div><span>Outros</span><span>${R(so)}</span></div>`:''}<div><span>Desconto Aplicado</span><span>- ${R(o.desc)}</span></div><div class="tv"><span>VALOR TOTAL</span><span>${R(tot(o))}</span></div></div></div>
+<div class="sg"><div><hr><b>WKK OFICINA MECÂNICA AUTO CENTER</b><small>Responsável Técnico / Mecânica</small></div><div><hr><b>${e(o.cli.toUpperCase())}</b><small>Aprovação do Cliente (Data: ____/____/${hoje.getFullYear()})</small></div></div></div>`;
+}
+const PO=o=>({margin:0,filename:'Orcamento-WKK-OS'+pad(o.id)+'.pdf',image:{type:'jpeg',quality:.95},html2canvas:{scale:2},jsPDF:{unit:'mm',format:'a4'}});
+const mkEl=o=>{const d=document.createElement('div');d.innerHTML=sheet(o);return d.firstElementChild};
+const mkPdf=o=>html2pdf().set(PO(o)).from(mkEl(o)).outputPdf('blob');
+const viaPrint=o=>{$('#pr').innerHTML=sheet(o);setTimeout(()=>print(),60)};
+function pdf(){const o=F();if(!window.html2pdf){viaPrint(o);return}toast('Gerando PDF…');html2pdf().set(PO(o)).from(mkEl(o)).save().catch(()=>viaPrint(o))}
+const dl=(b,n)=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click()};
+async function wa(){
+ const o=F(),nm='Orcamento-WKK-OS'+pad(o.id)+'.pdf',m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}\n\nO orçamento completo está disponível abaixo no PDF`;
+ toast('Preparando o PDF…');let b=null;try{b=await mkPdf(o)}catch(_){}
+ if(b){const f=new File([b],nm,{type:'application/pdf'});
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:m});return}catch(x){if(x&&x.name==='AbortError')return}}
+  dl(b,nm);toast('PDF baixado. Anexe no WhatsApp.')}
+ window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank');
 }
 const IA=[[/inje|for[cç]a|acelera/,'Sonda lambda, sensor MAP/MAF ou bobinas/velas com falha; filtro ou bomba de combustível; entrada falsa de ar','Ler códigos de falha e dados ao vivo no scanner; medir a pressão de combustível; inspecionar velas, bobinas e mangueiras'],[/barulho|ru[ií]do|batida|suspens/,'Amortecedor ou coxim desgastado; bandeja, pivô, terminal ou bieleta com folga; batentes ressecados','Testar folgas com o veículo suspenso; verificar vazamento nos amortecedores; inspecionar buchas e batentes'],[/freio|pedal/,'Pastilhas ou discos gastos; ar ou vazamento no fluido; cilindro mestre com falha','Medir espessura de pastilhas e discos; verificar nível e umidade do fluido; testar o pedal com o motor ligado'],[/[\s\S]*/,'Faltam informações para sugerir causas','Fazer leitura de scanner, inspeção visual e teste de rodagem']];
 function ia(){
