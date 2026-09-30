@@ -8,11 +8,14 @@ service cloud.firestore {
     function staff() { return signed() && role() in ['admin','recepcao','financeiro','mecanico']; }
     function own() { return signed() && resource.data.customerUid == request.auth.uid; }
     function osMine(osId) { return get(/databases/$(database)/documents/workOrders/$(osId)).data.mechanicUid == request.auth.uid; }
+    function assignedMec(osId) { return hasRole('mecanico') && osMine(osId); }
 
     match /users/{uid} {
-      allow read: if signed() && (request.auth.uid == uid || isAdmin());
+      allow read: if signed() && (request.auth.uid == uid || staff());
       allow write: if isAdmin();
     }
+    match /counters/{id} { allow read, write: if staff(); }
+    match /security/{id} { allow read, write: if false; }
     match /customers/{id} {
       allow read: if staff() || own();
       allow create, update: if isAdmin() || hasRole('recepcao');
@@ -42,8 +45,9 @@ service cloud.firestore {
         || (hasRole('mecanico') && osMine(request.resource.data.workOrderId)));
     }
     match /budgets/{id} {
-      allow read: if isAdmin() || hasRole('financeiro') || (own() && resource.data.status != 'rascunho');
+      allow read: if isAdmin() || hasRole('financeiro') || assignedMec(id) || (own() && resource.data.status != 'rascunho');
       allow create, update: if isAdmin() || hasRole('financeiro');
+      allow update: if assignedMec(id) && resource.data.status in ['rascunho','recusado'];
       allow update: if own() && resource.data.status == 'enviado'
         && request.resource.data.status in ['aprovado','recusado']
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status','decidedAt','decisionReason']);

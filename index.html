@@ -1,55 +1,76 @@
 <!DOCTYPE html>
 <html lang="pt-BR"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#0a0c10">
+<meta name="theme-color" content="#05070b">
 <title>WKK Oficina</title>
 <link rel="manifest" href="manifest.json"><link rel="icon" href="icon-192.png"><link rel="apple-touch-icon" href="icon-192.png">
+<link rel="preconnect" href="https://fonts.googleapis.com"><link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800;900&display=swap" rel="stylesheet">
 <script defer src="https://cdn.jsdelivr.net/npm/pdf-lib@1.17.1/dist/pdf-lib.min.js"></script>
 <style>
-:root{--bg:#0a0c10;--card:#141821;--card2:#1c2230;--tx:#f4f6fa;--mut:#8b95a8;--bl:#1e6bff;--rd:#e5262f;--ye:#ffd21f;--gr:#22c55e;--or:#ff8a1f;--ln:#272e3f;box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
-@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef1f6;--card:#fff;--card2:#f1f4f9;--tx:#0d1220;--mut:#5b6579;--ln:#dbe1ec}}
+:root{--bg:#05070b;--card:#12161f;--card2:#1a2132;--tx:#f5f7fb;--mut:#8b93a8;--bl:#2f6bff;--bl2:#123a99;--rd:#ef4444;--rd2:#7f1d1d;--ye:#ffd21f;--or:#ff8a1f;--gr:#22c55e;--gd:#0f6b38;--pu:#a855f7;--ln:#232a3b;--shadow:0 10px 30px -16px rgba(0,0,0,.6);box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+@media (prefers-color-scheme:light){:root:not([data-theme="dark"]){--bg:#eef1f6;--card:#fff;--card2:#f1f4f9;--tx:#0d1220;--mut:#5b6579;--ln:#dbe1ec;--shadow:0 10px 24px -18px rgba(20,30,60,.3)}}
 html{scroll-padding-top:env(safe-area-inset-top,0px)}
 *{box-sizing:border-box}
-body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.45 system-ui,-apple-system,"Segoe UI",Roboto,sans-serif}
-h2{margin:6px 0 12px}h3{margin:18px 0 8px}small{color:var(--mut)}p{margin:6px 0}
-#app{max-width:980px;margin:0 auto;padding:14px 14px 96px}
-.card{background:var(--card);border:1px solid var(--ln);border-radius:14px;padding:14px;margin-bottom:10px}
-.os{cursor:pointer;display:grid;gap:4px}.os:active{transform:scale(.99)}
+body{margin:0;background:radial-gradient(1100px 560px at 50% -12%,color-mix(in srgb,var(--bl) 9%,transparent),transparent 60%),var(--bg);color:var(--tx);font:15px/1.5 'Inter',system-ui,-apple-system,"Segoe UI",Roboto,sans-serif;-webkit-font-smoothing:antialiased}
+h2{margin:2px 0 14px;font-size:21px;font-weight:800;letter-spacing:-.2px}h3{margin:22px 0 10px;font-size:13px;font-weight:800;color:var(--mut);text-transform:uppercase;letter-spacing:.07em}small{color:var(--mut)}p{margin:6px 0}
+#app{max-width:980px;margin:0 auto;padding:16px 14px 100px;animation:vw .3s ease both}
+@keyframes vw{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:none}}
+.card{background:var(--card);border:1px solid var(--ln);border-radius:18px;padding:16px;margin-bottom:12px;box-shadow:var(--shadow)}
+.os{cursor:pointer;display:grid;gap:6px;transition:transform .15s}.os:active{transform:scale(.98)}
 .row{display:flex;justify-content:space-between;align-items:center;gap:8px;flex-wrap:wrap}
 .grid{display:grid;grid-template-columns:repeat(2,1fr);gap:10px}
 @media(min-width:700px){.grid{grid-template-columns:repeat(4,1fr)}}
-.kpi{border-left:4px solid var(--c);margin:0}.kpi strong{display:block;font-size:22px;margin-top:4px}
-.b{font-size:11px;font-weight:700;padding:3px 9px;border-radius:99px;color:var(--c);border:1px solid var(--c);background:color-mix(in srgb,var(--c) 14%,transparent);white-space:nowrap}
-.btn{background:var(--card2);color:var(--tx);border:1px solid var(--ln);border-radius:12px;padding:12px 16px;font:inherit;font-weight:700;cursor:pointer;min-height:48px}
-.btn.bl{background:var(--bl);border-color:var(--bl);color:#fff}.btn.gr{background:var(--gr);border-color:var(--gr);color:#04170b}.btn.rd{background:var(--rd);border-color:var(--rd);color:#fff}
+.kpi{border:1px solid var(--ln);position:relative;overflow:hidden;margin:0}.kpi::before{content:'';position:absolute;left:0;top:0;bottom:0;width:4px;background:var(--c)}
+.kpi small{display:block;font-weight:700;color:var(--tx);font-size:12.5px}.kpi strong{display:block;font-size:23px;font-weight:800;margin-top:8px;letter-spacing:-.3px}
+.kico{width:32px;height:32px;border-radius:10px;display:grid;place-items:center;font-size:16px;background:color-mix(in srgb,var(--c) 20%,transparent);margin-bottom:8px}
+.b{font-size:10.5px;font-weight:800;padding:4px 10px;border-radius:99px;color:var(--c);border:1px solid color-mix(in srgb,var(--c) 55%,transparent);background:color-mix(in srgb,var(--c) 16%,transparent);white-space:nowrap;letter-spacing:.02em}
+.btn{background:var(--card2);color:var(--tx);border:1px solid var(--ln);border-radius:14px;padding:13px 16px;font:inherit;font-weight:700;cursor:pointer;min-height:50px;transition:transform .12s,filter .12s}
+.btn:active{transform:scale(.97)}
+.btn.bl{background:linear-gradient(135deg,var(--bl),var(--bl2));border-color:var(--bl);color:#fff;box-shadow:0 8px 20px -10px color-mix(in srgb,var(--bl) 65%,transparent)}.btn.gr{background:var(--gr);border-color:var(--gr);color:#04170b}.btn.rd{background:var(--rd);border-color:var(--rd);color:#fff}
 .w{width:100%;margin-top:8px}
 .btns{display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:10px}
-input,select,textarea{width:100%;background:var(--card2);color:var(--tx);border:1px solid var(--ln);border-radius:10px;padding:12px;font:inherit;margin:4px 0}
-textarea{min-height:90px}
-.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
-.ph{aspect-ratio:1;border:2px dashed var(--ln);border-radius:12px;position:relative;overflow:hidden;color:var(--mut);font-size:12px;text-align:center}
-.ph label{cursor:pointer;display:grid;place-content:center;gap:2px;width:100%;height:100%;font-size:26px}.ph label span{font-size:12px}
+input,select,textarea{width:100%;background:var(--card2);color:var(--tx);border:1px solid var(--ln);border-radius:12px;padding:13px;font:inherit;margin:5px 0;transition:border-color .15s}
+input:focus,select:focus,textarea:focus{outline:none;border-color:var(--bl)}
+textarea{min-height:92px;resize:vertical}
+.f2{display:grid;grid-template-columns:1fr 1fr;gap:8px}.g3{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.ph{aspect-ratio:1;border:2px dashed var(--ln);border-radius:14px;position:relative;overflow:hidden;color:var(--mut);font-size:12px;text-align:center;background:var(--card2)}
+.ph label{cursor:pointer;display:grid;place-content:center;gap:4px;width:100%;height:100%;font-size:24px}.ph label span{font-size:11px;font-weight:600}
 .ph img{width:100%;height:100%;object-fit:cover;display:block}
-.ph button{position:absolute;top:4px;right:4px;width:32px;height:32px;border-radius:50%;border:0;background:var(--rd);color:#fff}
-.ph i{position:absolute;bottom:0;left:0;right:0;background:#000a;color:#fff;font-style:normal;padding:2px}
-.ck{font-size:13px;padding:10px}.ck[data-v="0"]{color:var(--gr)}.ck[data-v="1"]{color:var(--ye)}.ck[data-v="2"]{color:var(--rd)}
-.tot{font-size:22px;font-weight:800;color:var(--ye)}
-.login{max-width:420px;margin:0 auto;padding-top:24px}
-.wm{text-align:center;margin-bottom:18px;background:#0a0c10;border-radius:16px;padding:22px;border-bottom:5px solid var(--bl)}
-.wm b{display:block;font-size:64px;font-style:italic;font-weight:900;letter-spacing:-2px;background:linear-gradient(#fff,#8f99aa);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1}
-.wm span{display:block;color:#3d8bff;font-weight:800;font-size:18px}.wm small{letter-spacing:.35em;color:#dfe5f0}
-.prof{display:grid;gap:8px;margin-top:8px}.ctr{display:block;text-align:center;margin-top:14px}
-nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;background:var(--card);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
-nav button{flex:1;background:none;border:0;color:var(--mut);padding:8px 2px;font:600 11px system-ui;min-height:56px;cursor:pointer}
-nav span{display:block;font-size:20px}nav .on{color:var(--ye)}
-@media(min-width:900px){nav{top:0;right:auto;width:180px;flex-direction:column;justify-content:flex-start;padding-top:20px;border-top:0;border-right:1px solid var(--ln)}nav button{flex:none;text-align:left;padding:12px 18px;font-size:14px;min-height:0}nav span{display:inline;margin-right:8px}#app{margin-left:200px;max-width:none;padding:14px 24px 30px}}
-#toast{position:fixed;left:50%;bottom:90px;transform:translate(-50%,20px);background:var(--bl);color:#fff;padding:10px 16px;border-radius:99px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:90%}#toast.on{opacity:1;transform:translate(-50%,0)}
-.aviso{background:color-mix(in srgb,var(--ye) 12%,transparent);border:1px solid var(--ye);border-radius:10px;padding:8px 10px;margin-top:8px;font-size:13px}
-.dots{display:flex;justify-content:center;gap:14px;margin:14px 0}.dots i{width:16px;height:16px;border-radius:50%;border:2px solid var(--mut)}.dots i.f{background:var(--ye);border-color:var(--ye)}.dots.err{animation:sh .35s}.dots.err i{border-color:var(--rd)}
+.ph button{position:absolute;top:5px;right:5px;width:30px;height:30px;border-radius:50%;border:0;background:var(--rd);color:#fff;min-height:0;padding:0}
+.ph i{position:absolute;bottom:0;left:0;right:0;background:linear-gradient(0deg,#000c,transparent);color:#fff;font-style:normal;padding:6px 4px 4px;font-size:10.5px;font-weight:600}
+.ck{font-size:12.5px;padding:11px 8px;border-radius:12px;border:1px solid var(--ln);background:var(--card2);font-weight:700;transition:.15s}
+.ck[data-v="0"]{color:var(--gr);border-color:color-mix(in srgb,var(--gr) 45%,var(--ln));background:color-mix(in srgb,var(--gr) 10%,var(--card2))}
+.ck[data-v="1"]{color:var(--ye);border-color:color-mix(in srgb,var(--ye) 45%,var(--ln));background:color-mix(in srgb,var(--ye) 10%,var(--card2))}
+.ck[data-v="2"]{color:var(--rd);border-color:color-mix(in srgb,var(--rd) 45%,var(--ln));background:color-mix(in srgb,var(--rd) 10%,var(--card2))}
+.tot{font-size:25px;font-weight:900;color:var(--ye);letter-spacing:-.3px}
+.plate{font-family:ui-monospace,Menlo,Consolas,monospace;font-weight:800;letter-spacing:.03em;background:var(--card2);border:1px solid var(--ln);border-radius:8px;padding:2px 8px;font-size:12.5px}
+.hdr{display:flex;align-items:center;justify-content:space-between;gap:10px;margin-bottom:16px;padding-bottom:14px;border-bottom:1px solid var(--ln)}
+.hlogo{font-size:19px;font-weight:900;font-style:italic}.hlogo span{color:var(--bl);font-style:normal}
+.hu{display:flex;align-items:center;gap:10px}
+.havatar{width:38px;height:38px;border-radius:11px;background:var(--card2);border:1px solid var(--ln);display:grid;place-items:center;font-size:17px;flex:none}
+.hu b{display:block;font-size:13px;line-height:1.25}.hu small{display:block;font-size:10.5px}
+.ai{border-color:color-mix(in srgb,var(--bl) 55%,var(--ln));background:linear-gradient(160deg,color-mix(in srgb,var(--bl) 12%,var(--card)),var(--card))}
+.login{max-width:420px;margin:0 auto;min-height:calc(100vh - env(safe-area-inset-top,0px) - env(safe-area-inset-bottom,0px));display:flex;flex-direction:column;justify-content:center;padding:24px 6px}
+.wm{text-align:center;margin-bottom:20px;background:radial-gradient(120% 140% at 50% -20%,color-mix(in srgb,var(--bl) 26%,transparent),transparent 60%),#05070b;border-radius:22px;padding:34px 22px;border:1px solid var(--ln);position:relative;overflow:hidden}
+.wm::after{content:'';position:absolute;inset:0;background:repeating-linear-gradient(115deg,transparent 0 26px,color-mix(in srgb,var(--bl) 7%,transparent) 26px 27px);pointer-events:none}
+.wm b{display:block;font-size:56px;font-style:italic;font-weight:900;letter-spacing:-2px;background:linear-gradient(180deg,#fff,#8f99aa);-webkit-background-clip:text;background-clip:text;color:transparent;line-height:1;position:relative}
+.wm span{display:block;color:#5b9bff;font-weight:800;font-size:15px;margin-top:10px;letter-spacing:.06em;position:relative}
+.wm small{letter-spacing:.4em;color:#dfe5f0;position:relative;font-size:10.5px}
+.prof{display:grid;gap:8px;margin-top:8px}.ctr{display:block;text-align:center;margin-top:16px;line-height:1.6}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:5;display:flex;background:color-mix(in srgb,var(--card) 92%,transparent);backdrop-filter:blur(14px);border-top:1px solid var(--ln);padding-bottom:env(safe-area-inset-bottom,0px)}
+nav button{flex:1;background:none;border:0;color:var(--mut);padding:9px 2px 8px;font:700 10.5px 'Inter',system-ui;min-height:58px;cursor:pointer;transition:color .15s,transform .15s}
+nav button:active{transform:scale(.94)}
+nav span{display:block;font-size:19px;margin-bottom:2px;transition:transform .15s}nav .on{color:var(--bl)}nav .on span{transform:translateY(-1px) scale(1.08)}
+@media(min-width:900px){nav{top:0;right:auto;width:200px;flex-direction:column;justify-content:flex-start;padding-top:22px;border-top:0;border-right:1px solid var(--ln);backdrop-filter:none}nav button{flex:none;text-align:left;padding:12px 18px;border-radius:12px;margin:2px 10px;font-size:14px;min-height:0}nav .on{background:color-mix(in srgb,var(--bl) 14%,transparent)}nav span{display:inline;margin-right:10px;font-size:16px}#app{margin-left:200px;max-width:none;padding:18px 26px 30px}}
+#toast{position:fixed;left:50%;bottom:94px;transform:translate(-50%,20px);background:var(--card2);border:1px solid var(--ln);color:var(--tx);padding:12px 18px;border-radius:14px;opacity:0;transition:.25s;pointer-events:none;z-index:9;max-width:90%;box-shadow:var(--shadow);font-weight:600;font-size:13.5px}#toast.on{opacity:1;transform:translate(-50%,0)}
+.aviso{background:color-mix(in srgb,var(--ye) 12%,transparent);border:1px solid color-mix(in srgb,var(--ye) 50%,transparent);border-radius:12px;padding:10px 12px;margin-top:8px;font-size:13px}
+.dots{display:flex;justify-content:center;gap:14px;margin:18px 0}.dots i{width:14px;height:14px;border-radius:50%;border:2px solid var(--mut);display:block;transition:.15s}.dots i.f{background:var(--bl);border-color:var(--bl)}.dots.err{animation:sh .35s}.dots.err i{border-color:var(--rd)}
 @keyframes sh{20%,60%{transform:translateX(-8px)}40%,80%{transform:translateX(8px)}}
 @media (prefers-reduced-motion:reduce){.dots.err{animation:none}}
-.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:14px 0}.pad .btn{min-height:60px;font-size:24px}.btn.alt{opacity:.7}
-#md{position:fixed;inset:0;background:#000a;display:none;place-items:center;z-index:20;padding:20px}#md.on{display:grid}#md>div{background:var(--card);border:1px solid var(--ln);border-radius:16px;padding:20px;max-width:360px;width:100%}
+.pad{display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin:16px 0}.pad .btn{min-height:62px;font-size:22px;border-radius:16px}.btn.alt{opacity:.65}
+#md{position:fixed;inset:0;background:#000a;backdrop-filter:blur(3px);display:none;place-items:center;z-index:20;padding:20px}#md.on{display:grid}#md>div{background:var(--card);border:1px solid var(--ln);border-radius:18px;padding:22px;max-width:360px;width:100%;box-shadow:var(--shadow);animation:pop .18s ease}
+@keyframes pop{from{opacity:0;transform:scale(.94)}to{opacity:1;transform:none}}
 .qs{width:794px;padding:36px 40px;background:#fff;color:#1c2333;font:12px/1.45 Arial,Helvetica,sans-serif}.qs *{box-sizing:border-box}
 .qh{display:flex;justify-content:space-between;gap:16px;padding-bottom:14px;border-bottom:2px solid #0d8bd9}.t1{font-size:22px;font-weight:800;color:#0f1b33}.t2{font-size:11px;font-weight:700;color:#0d8bd9;margin:2px 0 6px}.t3{color:#6b7385;font-size:10.5px}
 .tr{text-align:right;font-size:10.5px;color:#3a4256;line-height:1.6}.bx{background:#0f1b33;color:#fff;font-weight:800;font-size:14px;padding:8px 14px;border-radius:6px;margin-bottom:6px;display:inline-block}
@@ -62,6 +83,12 @@ nav span{display:block;font-size:20px}nav .on{color:var(--ye)}
 @media print{body>*{display:none!important}body>#pr{display:block!important}.qs{width:auto}*{-webkit-print-color-adjust:exact;print-color-adjust:exact}@page{size:A4;margin:0}}
 </style></head><body>
 <div id="app"></div><nav id="nav"></nav><div id="toast"></div><div id="md"><div><p id="mt"></p><div class="btns"><button class="btn" onclick="ask.no()">Cancelar</button><button class="btn bl" onclick="ask.ok()">Confirmar</button></div></div></div><div id="pr"></div>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-functions-compat.js"></script>
+<script src="firebase-config.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const e=s=>String(s??'').replace(/[&<>"]/g,c=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c]));
@@ -69,103 +96,225 @@ const R=c=>'R$ '+(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximum
 const pad=n=>String(n).padStart(6,'0'),br=d=>d.split('-').reverse().join('/');
 const cents=v=>Math.round(parseFloat(String(v||'0').replace(',','.'))*100);
 const ST=['AGUARDANDO DIAGNÓSTICO','DIAGNÓSTICO','AGUARDANDO ORÇAMENTO','AGUARDANDO APROVAÇÃO','AGUARDANDO PEÇA','EM ANDAMENTO','PAUSADO','FINALIZADO','PRONTO PARA ENTREGA','ENTREGUE','CANCELADO'];
-const SC={'AGUARDANDO DIAGNÓSTICO':'--rd','DIAGNÓSTICO':'--rd','AGUARDANDO ORÇAMENTO':'--ye','AGUARDANDO APROVAÇÃO':'--bl','AGUARDANDO PEÇA':'--ye','EM ANDAMENTO':'--or','PAUSADO':'--mut','FINALIZADO':'--gr','PRONTO PARA ENTREGA':'--gr','ENTREGUE':'--gr','CANCELADO':'--mut'};
+const SC={'AGUARDANDO DIAGNÓSTICO':'--rd','DIAGNÓSTICO':'--bl','AGUARDANDO ORÇAMENTO':'--ye','AGUARDANDO APROVAÇÃO':'--pu','AGUARDANDO PEÇA':'--or','EM ANDAMENTO':'--bl','PAUSADO':'--mut','FINALIZADO':'--gr','PRONTO PARA ENTREGA':'--gr','ENTREGUE':'--gd','CANCELADO':'--rd2'};
 const BC={rascunho:'--mut',enviado:'--bl',aprovado:'--gr',recusado:'--rd'};
 const RL={admin:'Administrador',recepcao:'Recepção',financeiro:'Financeiro',mecanico:'Mecânico',cliente:'Cliente'};
 const PL=['Frente','Traseira','Lateral esq.','Lateral dir.','Painel / KM','Área do problema'];
 const CK=['Riscos','Amassados','Para-brisa','Faróis','Pneus','Bancos','Painel','Motor','Freios','Suspensão'];
 const ROLES={admin:['Administrador','🛠️',[['dash','Painel','📊'],['ent','Entrada','➕'],['list','OS','📋'],['fin','Financeiro','💰'],['usr','Usuários','👥']]],recepcao:['Recepção','🧾',[['ent','Entrada','➕'],['list','OS','📋']]],financeiro:['Financeiro','💵',[['fin','Financeiro','💰'],['list','OS','📋']]],mecanico:['Mecânico','🔧',[['list','Meus serviços','🔧'],['hist','Histórico','🗂️']]],cliente:['Cliente','🚗',[['list','Meus veículos','🚗']]]};
 const mk=o=>({diag:'',it:[],desc:0,bs:'rascunho',pg:[],ph:[],sp:[],log:[],ck:[],hora:'08:30',...o});
-const seed=()=>[
-mk({id:128,cli:'João da Silva',tel:'62999990001',vei:'Honda Civic',ano:2018,placa:'ABC-1D23',km:84200,relato:'Veículo apresenta barulho na suspensão dianteira quando passa em quebra-molas.',mec:'Felipe',st:'EM ANDAMENTO',serv:'Suspensão dianteira',data:'2026-09-21',bs:'aprovado',it:[{t:'Serviço',d:'Substituição de amortecedor dianteiro',q:1,v:44000},{t:'Peça',d:'Amortecedor dianteiro',q:2,v:21000}],pg:[{f:'Pix',v:30000,d:'21/09/2026'}]}),
-mk({id:129,cli:'Maria Oliveira',tel:'62999990002',vei:'Chevrolet Onix',ano:2021,placa:'QWE-4F56',km:41000,relato:'Luz da injeção acesa e o carro perde força ao acelerar.',mec:'Felipe',st:'AGUARDANDO DIAGNÓSTICO',serv:'Injeção eletrônica',data:'2026-09-23'}),
-mk({id:127,cli:'Carlos Henrique',tel:'62999990003',vei:'Chevrolet Prisma',ano:2016,placa:'HJK-7L89',km:132500,relato:'Freio com barulho e pedal baixo.',mec:'Henrique',st:'AGUARDANDO APROVAÇÃO',serv:'Freios',data:'2026-09-22',bs:'enviado',it:[{t:'Serviço',d:'Troca de pastilhas e discos',q:1,v:28000},{t:'Peça',d:'Kit pastilhas e discos',q:1,v:32000}]}),
-mk({id:126,cli:'Maria Oliveira',tel:'62999990004',vei:'Honda CG 160',tipo:'Moto',ano:2020,placa:'MNB-2C34',km:60100,relato:'Revisão e troca de óleo.',mec:'João',st:'FINALIZADO',serv:'Troca de óleo',data:'2026-09-19',bs:'aprovado',it:[{t:'Serviço',d:'Troca de óleo e filtros',q:1,v:18000},{t:'Peça',d:'Óleo 10W30 (1L)',q:1,v:22000}],pg:[{f:'Pix',v:40000,d:'20/09/2026'}]}),
-mk({id:120,cli:'João da Silva',tel:'62999990001',vei:'Honda Civic',ano:2018,placa:'ABC-1D23',km:79800,relato:'Troca de óleo e revisão geral.',mec:'João',st:'ENTREGUE',serv:'Troca de óleo',data:'2026-06-10',bs:'aprovado',it:[{t:'Serviço',d:'Troca de óleo',q:1,v:15000},{t:'Peça',d:'Óleo 5W30 e filtro',q:1,v:20000}],pg:[{f:'Dinheiro',v:35000,d:'10/06/2026'}]})];
-const K='wkk-oficina-v2';let q='',fst='',fbs='',srt='etapa',LB=()=>'',me=null,pin='',bad=0,lockUntil=0,shake=false,editU=null,db=null,role=null,view='',sel=null,draft={ph:[]};
-try{db=JSON.parse(localStorage.getItem(K))}catch(_){}
-if(!Array.isArray(db))db=seed();
-const save=()=>{try{localStorage.setItem(K,JSON.stringify(db))}catch(_){}};
-const getSeq=()=>{try{return +localStorage.getItem('wkk-seq-v1')||0}catch(_){return 0}};
-const setSeq=n=>{try{localStorage.setItem('wkk-seq-v1',n)}catch(_){}};
-const seedU=()=>[{id:1,nome:'Administrador',role:'admin',pin:'123456',ativo:true},{id:2,nome:'Recepção',role:'recepcao',pin:'111111',ativo:true},{id:3,nome:'Financeiro',role:'financeiro',pin:'222222',ativo:true},{id:4,nome:'Felipe',role:'mecanico',pin:'333333',ativo:true},{id:5,nome:'Henrique',role:'mecanico',pin:'444444',ativo:true},{id:6,nome:'João',role:'mecanico',pin:'555555',ativo:true},{id:7,nome:'João da Silva',role:'cliente',pin:'666666',ativo:true}];
-let users=null;try{users=JSON.parse(localStorage.getItem('wkk-users-v1'))}catch(_){}
-if(!Array.isArray(users))users=seedU();
-const saveU=()=>{try{localStorage.setItem('wkk-users-v1',JSON.stringify(users))}catch(_){}};
-const mecs=()=>users.filter(u=>u.role==='mecanico'&&u.ativo).map(u=>u.nome);
+const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
+const fkm=v=>{const k=Number(String(v).replace(/\D/g,''));return k?k.toLocaleString('pt-BR'):e(v||'—')};
+const num=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
+const fmtTel=t=>{const d=String(t||'').replace(/\D/g,'');return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:e(t||'—')};
+const sha256=async s=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(s)));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
+
+/* ===== Firebase ===== */
+firebase.initializeApp(window.FIREBASE_CONFIG);
+const auth=firebase.auth(),FS=firebase.firestore(),FSTORE=firebase.storage(),FN=firebase.app().functions('southamerica-east1');
+const call=(name,data)=>FN.httpsCallable(name)(data).then(r=>r.data);
+const FV=firebase.firestore.FieldValue;
+
+/* ===== Estado local (o "db" continua sendo um array em memória — só que agora alimentado por listeners do Firestore, não por localStorage) ===== */
+let q='',fst='',fbs='',srt='etapa',LB=()=>'',me=null,pin='',bad=0,lockUntil=0,shake=false,busy=false,showBoot=false;
+let editU=null,db=[],users=[],role=null,view='',sel=null,draft={ph:[]};
+let woMap=new Map(),bgMap=new Map(),usersUnsub=null,woUnsub=null,bgAllUnsub=null,bgOneUnsub=null;
+
+/* ===== Camada de sincronização com o Firestore =====
+   Ideia: cada OS = 1 doc em workOrders/{osNumber} + 1 doc irmão em budgets/{osNumber}
+   (o mesmo número/ID nos dois, então não precisa de busca extra).
+   O array local "db" continua tendo o mesmo formato de campos de antes
+   (o.cli, o.vei, o.st, o.it, o.bs, o.desc, o.pg, o.ph, o.sp, o.ck, o.log...):
+   quem muda são só as funções que leem/gravam — as telas (vDash, vList, vOs, card, kpi, sheet, mkPdf...)
+   continuam iguais. */
+const logLine=t=>new Date().toLocaleString('pt-BR')+' · '+(me?me.nome:'—')+' · '+t;
+function mergedObj(id){
+ const w=woMap.get(id);if(!w)return null;
+ const b=bgMap.get(id)||{};
+ return mk({
+  id,cli:w.cli,tel:w.tel,cpf:w.cpf,tipo:w.tipo,vei:w.vehicleLabel,ano:w.ano,placa:w.placa,km:w.km,
+  relato:w.complaint,diag:w.diagnosis||'',mec:w.mechanicName||'',mechanicUid:w.mechanicUid||'',
+  st:w.status,serv:w.serv||'',data:w.data,hora:w.hora||'',
+  ph:w.entryPhotoUrls||[],sp:(w.servicePhotos||[]).map(p=>({s:p.url,c:p.c})),ck:w.checklist||[],
+  log:w.log||[],pg:w.pg||[],
+  it:(b.items||[]).map(i=>({t:i.type,d:i.description,q:i.qty,v:i.unitCents==null?null:i.unitCents,by:i.by})),
+  desc:b.discountCents||0,bs:b.status||'rascunho',approvalToken:b.approvalToken||''
+ });
+}
+function rebuild(){ db=[...woMap.keys()].map(mergedObj).filter(Boolean); render(); }
+function stopListeners(){
+ woUnsub&&woUnsub();bgAllUnsub&&bgAllUnsub();usersUnsub&&usersUnsub();bgOneUnsub&&bgOneUnsub();
+ woUnsub=bgAllUnsub=usersUnsub=bgOneUnsub=null;woMap=new Map();bgMap=new Map();db=[];users=[];
+}
+function startListeners(){
+ stopListeners();
+ let wq;
+ if(role==='mecanico')wq=FS.collection('workOrders').where('mechanicUid','==',me.id);
+ else if(role==='cliente')wq=FS.collection('workOrders').where('customerUid','==',me.id);
+ else wq=FS.collection('workOrders');
+ woUnsub=wq.onSnapshot(snap=>{
+  snap.docChanges().forEach(c=>{const id=Number(c.doc.id);c.type==='removed'?woMap.delete(id):woMap.set(id,c.doc.data())});
+  rebuild();
+ },err=>toast('Erro ao sincronizar OS: '+err.message));
+ if(role==='admin'||role==='financeiro'){
+  bgAllUnsub=FS.collection('budgets').onSnapshot(snap=>{
+   snap.docChanges().forEach(c=>{const id=Number(c.doc.id);c.type==='removed'?bgMap.delete(id):bgMap.set(id,c.doc.data())});
+   rebuild();
+  },err=>toast('Erro ao sincronizar orçamentos: '+err.message));
+ }
+ if(role==='admin'||role==='recepcao'||role==='financeiro'){
+  usersUnsub=FS.collection('users').onSnapshot(snap=>{users=snap.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{});
+ }
+}
+function watchBudget(id){
+ bgOneUnsub&&bgOneUnsub();bgOneUnsub=null;
+ if(role==='recepcao'||id==null)return;
+ bgOneUnsub=FS.doc('budgets/'+id).onSnapshot(snap=>{if(snap.exists)bgMap.set(id,snap.data());rebuild()},()=>{});
+}
+async function updateBudget(id,fn){
+ const ref=FS.doc('budgets/'+id);
+ await FS.runTransaction(async tx=>{
+  const snap=await tx.get(ref);
+  const d=snap.data()||{items:[],discountCents:0};
+  const patch=fn(JSON.parse(JSON.stringify(d)));
+  tx.update(ref,patch);
+ });
+}
+async function upsertCustomer(nome,tel,cpf){
+ let ref=null;
+ if(cpf){const s=await FS.collection('customers').where('cpf','==',cpf).limit(1).get();if(!s.empty)ref=s.docs[0].ref}
+ if(!ref&&tel){const s=await FS.collection('customers').where('tel','==',tel).limit(1).get();if(!s.empty)ref=s.docs[0].ref}
+ if(ref){await ref.update({nome,tel,cpf:cpf||''});return ref.id}
+ const nr=FS.collection('customers').doc();
+ await nr.set({nome,tel,cpf:cpf||'',criadoEm:FV.serverTimestamp()});
+ return nr.id;
+}
+async function upsertVehicle(customerId,tipo,vei,ano,placa,km){
+ const pn=norm(placa).toUpperCase();
+ const s=await FS.collection('vehicles').where('placaNorm','==',pn).limit(1).get();
+ if(!s.empty){const ref=s.docs[0].ref;await ref.update({customerId,tipo,vehicleLabel:vei,ano,km});return ref.id}
+ const nr=FS.collection('vehicles').doc();
+ await nr.set({customerId,tipo,vehicleLabel:vei,ano,placa,placaNorm:pn,km,criadoEm:FV.serverTimestamp()});
+ return nr.id;
+}
+
+/* ===== Cálculos (iguais a antes) ===== */
 const sub=(o,t)=>o.it.filter(i=>i.t===t).reduce((s,i)=>s+i.q*(i.v||0),0);
 const tot=o=>Math.max(0,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros')-o.desc);
 const paid=o=>o.pg.reduce((s,p)=>s+p.v,0);
 const F=()=>db.find(o=>o.id===sel);
-const mine=()=>db.filter(o=>role==='mecanico'?o.mec===me.nome:role==='cliente'?o.cli===me.nome:true).sort((a,b)=>b.id-a.id);
+const mine=()=>db.slice().sort((a,b)=>b.id-a.id);
 const bd=s=>`<span class="b" style="--c:var(${SC[s]})">${s}</span>`;
 const opt=(a,s)=>a.map(x=>`<option ${x===s?'selected':''}>${x}</option>`).join('');
-const kpi=([i,l,v,c])=>`<div class="card kpi" style="--c:var(${c})"><small>${i} ${l}</small><strong>${v}</strong></div>`;
 function ask(m,fn){$('#mt').textContent=m;$('#md').classList.add('on');ask.ok=()=>{$('#md').classList.remove('on');fn()};ask.no=()=>{$('#md').classList.remove('on');render()}}
-function resetDemo(){db=seed();users=seedU();saveU();save();toast('Dados de exemplo restaurados')}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2400)}
-function log(o,t){o.log.push(new Date().toLocaleString('pt-BR')+' · '+me.nome+' · '+t)}
-function go(v,id){view=v;if(id)sel=id;render();scrollTo(0,0)}
+
+/* ===== Login por PIN (agora fala com o Cloud Function signInWithPin) ===== */
+function go(v,id){view=v;if(id!=null)sel=id;if(v==='os')watchBudget(sel);else{bgOneUnsub&&bgOneUnsub();bgOneUnsub=null}render();scrollTo(0,0)}
 function nv(k){q='';fst='';fbs='';go(k)}
-function login(r){role=r;view=ROLES[r][2][0][0];render()}
-function out(){role=null;me=null;pin='';q='';fst='';fbs='';render()}
-function key(k){
+function out(){auth.signOut()}
+async function key(k){
+ if(busy)return;
  if(Date.now()<lockUntil){toast('Muitas tentativas. Aguarde '+Math.ceil((lockUntil-Date.now())/1000)+'s');return}
  if(k==='C')pin='';else if(k==='B')pin=pin.slice(0,-1);else if(pin.length<6)pin+=k;
- if(pin.length===6){
-  const u=users.find(x=>x.pin===pin&&x.ativo);pin='';
-  if(u){bad=0;me=u;role=u.role;view=ROLES[role][2][0][0];toast('Bem-vindo, '+u.nome);return render()}
-  shake=true;bad++;if(bad>=5){lockUntil=Date.now()+30000;bad=0;toast('Muitas tentativas. Tente de novo em 30s')}else toast('PIN incorreto ou acesso desativado')
- }
  render();
+ if(pin.length===6){
+  const p=pin;pin='';busy=true;render();
+  try{
+   const r=await call('signInWithPin',{pin:p});
+   await auth.signInWithCustomToken(r.token);
+   bad=0;
+  }catch(err){
+   shake=true;bad++;
+   if(err&&err.code==='functions/resource-exhausted')lockUntil=Date.now()+30000;
+   toast((err&&err.message)||'PIN incorreto ou acesso desativado');
+  }
+  busy=false;render();
+ }
 }
-const genPin=()=>{let p;do{p=String(crypto.getRandomValues(new Uint32Array(1))[0]%900000+100000)}while(users.some(x=>x.pin===p));return p};
+function toggleBoot(v){showBoot=v;render()}
+async function bootAdmin(){
+ const nome=$('#bo_n').value.trim(),p1=$('#bo_p').value.trim(),p2=$('#bo_p2').value.trim();
+ if(nome.length<2){toast('Informe seu nome');return}
+ if(!/^\d{6}$/.test(p1)){toast('O PIN deve ter 6 números');return}
+ if(p1!==p2){toast('Os PINs não coincidem');return}
+ if(busy)return; busy=true;
+ try{
+  const r=await call('bootstrapFirstAdmin',{nome,pin:p1});
+  await auth.signInWithCustomToken(r.token);
+  showBoot=false;
+ }catch(err){toast(err.message||'Não foi possível criar o administrador')}
+ busy=false;render();
+}
+const genPin=()=>String(crypto.getRandomValues(new Uint32Array(1))[0]%900000+100000);
+
+/* ===== Usuários e acessos (grava direto no Firestore — o hash da PIN nunca sai do aparelho) ===== */
 function vUsr(){
- const u=editU==='new'?{nome:'',role:'mecanico',pin:''}:users.find(x=>x.id===editU);
+ const cur=editU==='new'?{nome:'',role:'mecanico'}:users.find(x=>x.id===editU);
  let h=`<div class="row"><h2>Usuários e acessos</h2><button class="btn bl" onclick="editU='new';render()">+ Novo login</button></div>`;
- if(u)h+=`<div class="card"><b>${editU==='new'?'Novo login':'Editar login'}</b><input id="u_n" placeholder="Nome" value="${e(u.nome)}"><select id="u_r">${Object.entries(RL).map(([k,v])=>`<option value="${k}" ${k===u.role?'selected':''}>${v}</option>`).join('')}</select><small>Para cliente, use o mesmo nome do cadastro nas OS.</small><div class="f2"><input id="u_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números" value="${e(u.pin)}"><button class="btn" onclick="$('#u_p').value=genPin()">Gerar PIN</button></div><div class="btns"><button class="btn" onclick="editU=null;render()">Cancelar</button><button class="btn bl" onclick="saveUsr()">Salvar</button></div></div>`;
- return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]} · PIN ${e(x.pin)}</small><div class="btns"><button class="btn" onclick="editU=${x.id};render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU(${x.id})">${x.ativo?'Desativar':'Reativar'}</button><button class="btn" style="grid-column:1/-1;color:var(--rd)" onclick="delU(${x.id})">Excluir</button>`}</div></div>`).join('');
+ if(cur)h+=`<div class="card"><b>${editU==='new'?'Novo login':'Editar login'}</b><input id="u_n" placeholder="Nome" value="${e(cur.nome)}"><select id="u_r">${Object.entries(RL).map(([k,v])=>`<option value="${k}" ${k===cur.role?'selected':''}>${v}</option>`).join('')}</select><small>Para cliente, use o mesmo nome do cadastro nas OS.</small><div class="f2"><input id="u_p" inputmode="numeric" maxlength="6" placeholder="${editU==='new'?'PIN de 6 números':'Nova PIN (deixe em branco p/ manter)'}"><button class="btn" onclick="$('#u_p').value=genPin()">Gerar PIN</button></div><div class="btns"><button class="btn" onclick="editU=null;render()">Cancelar</button><button class="btn bl" onclick="saveUsr()">Salvar</button></div></div>`;
+ return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]}</small><div class="btns"><button class="btn" onclick="editU='${x.id}';render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU('${x.id}')">${x.ativo?'Desativar':'Reativar'}</button><button class="btn" style="grid-column:1/-1;color:var(--rd)" onclick="delU('${x.id}')">Excluir</button>`}</div></div>`).join('');
 }
-function saveUsr(){
- const nome=$('#u_n').value.trim(),r=$('#u_r').value,p=$('#u_p').value.trim(),cur=users.find(x=>x.id===editU);
+async function saveUsr(){
+ const nome=$('#u_n').value.trim(),r=$('#u_r').value,pv=$('#u_p').value.trim(),isNew=editU==='new';
  if(nome.length<2){toast('Informe o nome do usuário');return}
- if(!/^\d{6}$/.test(p)){toast('O PIN deve ter exatamente 6 números');return}
- if(users.some(x=>x.pin===p&&x!==cur)){toast('Este PIN já está em uso. Gere outro.');return}
- if(users.some(x=>x.nome.toLowerCase()===nome.toLowerCase()&&x!==cur)){toast('Já existe um usuário com este nome');return}
- if(cur===me&&r!==cur.role){toast('Você não pode mudar o próprio perfil');return}
- if(cur){db.forEach(o=>{if(o.mec===cur.nome)o.mec=nome;if(o.cli===cur.nome)o.cli=nome});Object.assign(cur,{nome,role:r,pin:p})}
- else users.push({id:Math.max(0,...users.map(x=>x.id))+1,nome,role:r,pin:p,ativo:true});
- editU=null;save();saveU();render();toast('Login salvo')
+ if((isNew||pv)&&!/^\d{6}$/.test(pv)){toast('O PIN deve ter exatamente 6 números');return}
+ if(!isNew&&editU===me.id&&r!==me.role){toast('Você não pode mudar o próprio perfil');return}
+ if(users.some(x=>x.nome.toLowerCase()===nome.toLowerCase()&&x.id!==editU)){toast('Já existe um usuário com este nome');return}
+ if(busy)return; busy=true;
+ try{
+  let hash=null;
+  if(pv){
+   hash=await sha256(pv);
+   const dup=await FS.collection('users').where('pinHash','==',hash).limit(1).get();
+   if(!dup.empty&&dup.docs[0].id!==editU){toast('Este PIN já está em uso. Gere outro.');busy=false;return}
+  }
+  if(isNew)await FS.collection('users').add({nome,role:r,pinHash:hash,ativo:true,criadoEm:FV.serverTimestamp()});
+  else{const patch={nome,role:r};if(hash)patch.pinHash=hash;await FS.doc('users/'+editU).update(patch)}
+  editU=null;toast('Login salvo');
+ }catch(err){toast(err.message||'Não foi possível salvar')}
+ busy=false;
 }
-function delU(id){
+async function delU(id){
  const x=users.find(u=>u.id===id);if(!x)return;
- if(x===me){toast('Você não pode excluir o próprio acesso');return}
- if(x.role==='admin'&&!users.some(u=>u!==x&&u.role==='admin'&&u.ativo)){toast('Mantenha ao menos um administrador ativo');return}
- const n=x.role==='mecanico'?db.filter(o=>o.mec===x.nome&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
+ if(x.id===me.id){toast('Você não pode excluir o próprio acesso');return}
+ if(x.role==='admin'&&!users.some(u=>u.id!==x.id&&u.role==='admin'&&u.ativo)){toast('Mantenha ao menos um administrador ativo');return}
+ const n=x.role==='mecanico'?db.filter(o=>o.mechanicUid===x.id&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
  if(n){toast(x.nome+' tem '+n+' OS em aberto. Troque o mecânico dessas OS ou use Desativar.');return}
- ask('Excluir o acesso de '+x.nome+'? Isso não pode ser desfeito.',()=>{users=users.filter(u=>u!==x);if(editU===id)editU=null;saveU();render();toast('Usuário excluído')})
+ ask('Excluir o acesso de '+x.nome+'? Isso não pode ser desfeito.',async()=>{
+  try{await FS.doc('users/'+id).delete();if(editU===id)editU=null;toast('Usuário excluído')}catch(err){toast(err.message)}
+ })
 }
-function togU(id){
- const x=users.find(u=>u.id===id),n=x.role==='mecanico'?db.filter(o=>o.mec===x.nome&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
- ask((x.ativo?'Desativar':'Reativar')+' o acesso de '+x.nome+'?'+(x.ativo&&n?' Ele tem '+n+' OS em aberto.':''),()=>{x.ativo=!x.ativo;saveU();render();toast(x.ativo?'Acesso reativado':'Acesso desativado')})
+async function togU(id){
+ const x=users.find(u=>u.id===id),n=x.role==='mecanico'?db.filter(o=>o.mechanicUid===x.id&&!['ENTREGUE','CANCELADO','FINALIZADO'].includes(o.st)).length:0;
+ ask((x.ativo?'Desativar':'Reativar')+' o acesso de '+x.nome+'?'+(x.ativo&&n?' Ele tem '+n+' OS em aberto.':''),async()=>{
+  try{await FS.doc('users/'+id).update({ativo:!x.ativo});toast(x.ativo?'Acesso desativado':'Acesso reativado')}catch(err){toast(err.message)}
+ })
 }
+const mecs=()=>users.filter(u=>u.role==='mecanico'&&u.ativo).map(u=>u.nome);
+
+/* ===== Render principal, nav e login (iguais a antes na estrutura) ===== */
 function render(){
  const a=$('#app'),n=$('#nav');
  if(!role){n.style.display='none';a.innerHTML=vLogin();return}
  n.style.display='';
  n.innerHTML=ROLES[role][2].map(([k,l,i])=>`<button class="${k===(view==='os'?(role==='mecanico'&&F()&&done(F())?'hist':'list'):view)?'on':''}" onclick="nv('${k}')"><span>${i}</span>${l}</button>`).join('')+`<button onclick="out()"><span>🚪</span>Sair</button>`;
- a.innerHTML=`<div class="row" style="margin-bottom:10px"><b style="font-size:18px">WKK <span style="color:var(--bl)">Oficina</span></b><small>${ROLES[role][1]} ${e(me.nome)} · ${ROLES[role][0]}</small></div>`+({dash:vDash,ent:vEnt,list:vList,fin:vFin,os:vOs,usr:vUsr,hist:vHist}[view])();
+ a.innerHTML=`<div class="hdr"><div class="hlogo">WKK <span>Oficina</span></div><div class="hu"><div class="havatar">${ROLES[role][1]}</div><div><b>${e(me.nome)}</b><small>${ROLES[role][0]}</small></div></div></div>`+({dash:vDash,ent:vEnt,list:vList,fin:vFin,os:vOs,usr:vUsr,hist:vHist}[view])();
 }
-const vLogin=()=>{const sh=shake;shake=false;return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:20px">WKK Oficina</b><p><small>Digite seu PIN de acesso</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div></div><small class="ctr">Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750</small></div>`};
+const vLogin=()=>{
+ const sh=shake;shake=false;
+ if(showBoot)return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card"><b style="font-size:17px">Criar administrador</b><p><small>Use isso só no primeiro acesso do sistema.</small></p><input id="bo_n" placeholder="Seu nome"><input id="bo_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números"><input id="bo_p2" inputmode="numeric" maxlength="6" placeholder="Confirme o PIN"><button class="btn bl w" onclick="bootAdmin()">Criar administrador</button><button class="btn w" onclick="toggleBoot(false)">Cancelar</button></div></div>`;
+ return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:19px">Acesso ao sistema</b><p><small>Digite seu PIN de 6 dígitos</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div></div><small class="ctr">WKK Oficina Mecânica Auto Center<br>Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750<br><a href="javascript:void(0)" onclick="toggleBoot(true)" style="color:var(--mut)">Primeiro acesso? Criar administrador</a></small></div>`;
+};
 const done=o=>['ENTREGUE','CANCELADO'].includes(o.st);
-const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div>${e(o.vei)} · <b>${e(o.placa)}</b></div><small>${e(svc(o))} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'&&!done(o)?'<div class="btn bl" style="text-align:center;margin-top:6px">ABRIR SERVIÇO</div>':''}</div>`;
+const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div style="display:flex;align-items:center;gap:8px;font-weight:600">🚗 ${e(o.vei)}<span class="plate">${e(o.placa)}</span></div><small>${e(svc(o))} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'&&!done(o)?'<div class="btn bl w" style="text-align:center">ABRIR SERVIÇO</div>':''}</div>`;
+const kpi=([i,l,v,c])=>`<div class="card kpi" style="--c:var(${c})"><div class="kico">${i}</div><small>${l}</small><strong>${v}</strong></div>`;
 const pend=()=>db.filter(o=>o.bs==='aprovado').reduce((s,o)=>s+Math.max(0,tot(o)-paid(o)),0);
 function vDash(){
  const c=f=>db.filter(f).length,st=s=>c(o=>o.st===s),open=o=>!['ENTREGUE','CANCELADO'].includes(o.st);
- const k=[['🚗','Em atendimento',c(open),'--bl'],['🔴','Aguard. diagnóstico',st('AGUARDANDO DIAGNÓSTICO'),'--rd'],['🟠','Em andamento',st('EM ANDAMENTO'),'--or'],['🟡','Aguard. peça',st('AGUARDANDO PEÇA'),'--ye'],['💰','Aguard. aprovação',st('AGUARDANDO APROVAÇÃO'),'--bl'],['🟢','Concluídos',c(o=>['FINALIZADO','PRONTO PARA ENTREGA','ENTREGUE'].includes(o.st)),'--gr'],['💵','Faturamento',R(db.reduce((s,o)=>s+paid(o),0)),'--gr'],['⏳','A receber',R(pend()),'--ye']];
+ const k=[['🚗','Em atendimento',c(open),'--bl'],['🔴','Aguard. diagnóstico',st('AGUARDANDO DIAGNÓSTICO'),'--rd'],['🟠','Em andamento',st('EM ANDAMENTO'),'--bl'],['🟡','Aguard. peça',st('AGUARDANDO PEÇA'),'--or'],['🟣','Aguard. aprovação',st('AGUARDANDO APROVAÇÃO'),'--pu'],['🟢','Concluídos',c(o=>['FINALIZADO','PRONTO PARA ENTREGA','ENTREGUE'].includes(o.st)),'--gr'],['💰','Faturamento',R(db.reduce((s,o)=>s+paid(o),0)),'--gr'],['⏳','A receber',R(pend()),'--ye']];
  return `<h2>Painel</h2><div class="grid">${k.map(kpi).join('')}</div><h3>Serviços em andamento</h3>${db.filter(open).sort((a,b)=>b.id-a.id).map(card).join('')}`;
 }
-const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLowerCase().replace(/[^a-z0-9]/g,'');
 const svc=o=>{const l=o.it.filter(i=>i.t!=='Peça').map(i=>i.d);return l.length?l.join(', '):o.serv};
 const isStaff=()=>['admin','financeiro','recepcao'].includes(role);
 const hit=o=>{const n=norm(q);if(!n)return true;const fl=[o.cli,o.placa,o.vei,pad(o.id),o.id,svc(o)];if(isStaff())fl.push(o.tel,o.cpf);return fl.some(x=>x!=null&&norm(x).includes(n))};
@@ -190,20 +339,36 @@ function vFin(){
  LB=()=>sorted(db.filter(o=>(!fbs||o.bs===fbs)&&hit(o))).map(o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)} · ${e(o.cli)}</b><span class="b" style="--c:var(${BC[o.bs]})">${o.bs.toUpperCase()}</span></div><small>Total ${R(tot(o))} · Pago ${R(paid(o))} · Restante ${R(Math.max(0,tot(o)-paid(o)))}</small></div>`).join('')||'<small>Nenhuma OS encontrada.</small>';
  return `<h2>Financeiro</h2><div class="grid">${[['⏳','Orç. pendentes',b('enviado'),'--bl'],['✅','Aprovados',b('aprovado'),'--gr'],['❌','Recusados',b('recusado'),'--rd'],['💵','Recebido',R(db.reduce((s,o)=>s+paid(o),0)),'--gr']].map(kpi).join('')}</div><h3>Orçamentos e pagamentos</h3>${bar()}<select onchange="setFB(this.value)"><option value="">Todos os orçamentos (${db.length})</option>${Object.keys(BL).map(k=>`<option value="${k}" ${k===fbs?'selected':''}>${BL[k]} (${b(k)})</option>`).join('')}</select><div id="lst" style="margin-top:8px">${LB()}</div>`;
 }
+
+/* ===== Autofill (agora consulta o Firestore em vez do array local) ===== */
 const onlyN=(el,n)=>{el.value=el.value.replace(/\D/g,'').slice(0,n)};
-const lastOS=fn=>db.slice().sort((a,b)=>b.id-a.id).find(fn);
 const setAF=(id,v)=>{const el=$('#'+id);if(!el.value.trim()||el.dataset.af===el.value){el.value=v;el.dataset.af=v}};
-function fillCpf(v){const d=String(v).replace(/\D/g,'');if(d.length!==11&&d.length!==14)return;
- const o=lastOS(x=>String(x.cpf||'').replace(/\D/g,'')===d);if(!o)return;
- setAF('f_cli',o.cli);setAF('f_tel',String(o.tel||'').replace(/\D/g,'').slice(0,11));toast('Cliente já cadastrado: '+o.cli)}
-function fillPlaca(v){const n=norm(v);if(n.length!==7)return;
- const o=lastOS(x=>norm(x.placa)===n);if(!o)return;
- setAF('f_vei',o.vei);setAF('f_ano',String(o.ano||''));if(o.tipo)$('#f_tipo').value=o.tipo;toast('Veículo já cadastrado: '+o.vei)}
+async function fillCpf(v){
+ const d=String(v).replace(/\D/g,'');if(d.length!==11&&d.length!==14)return;
+ try{const s=await FS.collection('customers').where('cpf','==',d).limit(1).get();if(s.empty)return;
+  const c=s.docs[0].data();setAF('f_cli',c.nome);setAF('f_tel',String(c.tel||'').replace(/\D/g,'').slice(0,11));toast('Cliente já cadastrado: '+c.nome)}catch(_){}
+}
+async function fillPlaca(v){
+ const n=norm(v);if(n.length!==7)return;
+ try{const s=await FS.collection('vehicles').where('placaNorm','==',n.toUpperCase()).limit(1).get();if(s.empty)return;
+  const ve=s.docs[0].data();setAF('f_vei',ve.vehicleLabel);setAF('f_ano',String(ve.ano||''));if(ve.tipo)$('#f_tipo').value=ve.tipo;toast('Veículo já cadastrado: '+ve.vehicleLabel)}catch(_){}
+}
+/* ===== Fotos (as de entrada ficam em memória até criar a OS; aí sobem pro Storage) ===== */
 const slot=i=>draft.ph[i]?`<img src="${draft.ph[i]}" alt="${PL[i]}"><button type="button" onclick="delPh(${i})">✕</button><i>${PL[i]}</i>`:`<label>📷<span>${PL[i]}</span><input type="file" accept="image/*" capture="environment" hidden onchange="pho(${i},this)"></label>`;
 function shrink(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,480/im.width);c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.7))};im.src=r.result};r.readAsDataURL(f)}
 function pho(i,inp){shrink(inp,d=>{draft.ph[i]=d;$('#ph'+i).innerHTML=slot(i)})}
-function spho(inp){const o=F(),cap=$('#sp_c').value.trim();shrink(inp,d=>{o.sp=o.sp||[];o.sp.push({s:d,c:cap||'Sem legenda'});log(o,'foto do serviço adicionada');save();render();toast('Foto do serviço salva')})}
 function delPh(i){draft.ph[i]=null;$('#ph'+i).innerHTML=slot(i)}
+function spho(inp){
+ const o=F(),cap=$('#sp_c').value.trim();
+ shrink(inp,async d=>{
+  try{
+   const snap=await FSTORE.ref('workOrders/'+o.id+'/servico/'+Date.now()+'.jpg').putString(d,'data_url');
+   const url=await snap.ref.getDownloadURL();
+   await FS.doc('workOrders/'+o.id).update({servicePhotos:FV.arrayUnion({url,c:cap||'Sem legenda'}),log:FV.arrayUnion(logLine('foto do serviço adicionada'))});
+   toast('Foto do serviço salva');
+  }catch(err){toast(err.message||'Não foi possível enviar a foto')}
+ });
+}
 function cyc(b){const v=(+b.dataset.v+1)%3;b.dataset.v=v;b.textContent=b.dataset.n+' · '+['OK','ATENÇÃO','PROBLEMA'][v]}
 function vEnt(){
  draft={ph:[]};
@@ -213,18 +378,47 @@ function vEnt(){
 <div class="card"><b>O que o cliente relatou?</b><textarea id="f_relato" placeholder="Escreva exatamente o que o cliente contou"></textarea></div>
 <div class="card"><b>Fotos de entrada</b><div class="g3" style="margin-top:8px">${PL.map((_,i)=>`<div class="ph" id="ph${i}">${slot(i)}</div>`).join('')}</div></div>
 <div class="card"><b>Checklist</b> <small>toque para alternar</small><div class="f2" style="margin-top:8px">${CK.map(n=>`<button type="button" class="btn ck" data-n="${n}" data-v="0" onclick="cyc(this)">${n} · OK</button>`).join('')}</div></div>
-<button class="btn bl w" onclick="criar()">Criar ordem de serviço</button>`;
+<button class="btn bl w" onclick="criar()" ${busy?'disabled':''}>Criar ordem de serviço</button>`;
 }
-function criar(){
+async function criar(){
  const g=id=>$('#'+id).value.trim();
  if(!g('f_cli')||!g('f_placa')||!g('f_relato')){toast('Preencha nome, placa e relato do cliente');return}
  if(g('f_tel').replace(/\D/g,'').length<10){toast('Informe o WhatsApp com DDD, só números');return}
  if(g('f_km')&&!(+g('f_km')>=0)){toast('A quilometragem deve ser um número');return}
  if(g('f_cpf')&&![11,14].includes(g('f_cpf').length)){toast('O CPF tem 11 números e o CNPJ tem 14');return}
- const id=Math.max(getSeq(),0,...db.map(o=>o.id))+1,now=new Date();setSeq(id);
- const o=mk({id,cli:g('f_cli'),tel:g('f_tel'),cpf:g('f_cpf'),tipo:$('#f_tipo').value,vei:g('f_vei')||'Veículo',ano:g('f_ano'),placa:g('f_placa').toUpperCase(),km:g('f_km'),relato:g('f_relato'),mec:'',st:'AGUARDANDO DIAGNÓSTICO',serv:'A diagnosticar',data:now.toISOString().slice(0,10),hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),ph:draft.ph.filter(Boolean),ck:[...document.querySelectorAll('.ck')].map(b=>[b.dataset.n,+b.dataset.v])});
- db.push(o);sel=id;log(o,'OS criada');save();toast('OS #'+pad(id)+' criada');go('os',id);
+ if(busy)return;busy=true;toast('Criando OS…');
+ try{
+  const cli=g('f_cli'),tel=g('f_tel'),cpf=g('f_cpf'),tipo=$('#f_tipo').value,vei=g('f_vei')||'Veículo',ano=g('f_ano'),placa=g('f_placa').toUpperCase(),km=g('f_km'),relato=g('f_relato');
+  const ck=[...document.querySelectorAll('.ck')].map(b=>[b.dataset.n,+b.dataset.v]);
+  const photos=draft.ph.slice();
+  const customerId=await upsertCustomer(cli,tel,cpf);
+  const vehicleId=await upsertVehicle(customerId,tipo,vei,ano,placa,km);
+  let customerUid='';
+  try{const cu=await FS.collection('users').where('role','==','cliente').where('nome','==',cli).limit(1).get();if(!cu.empty)customerUid=cu.docs[0].id}catch(_){}
+  const now=new Date(),seqRef=FS.doc('counters/workOrders');
+  const id=await FS.runTransaction(async tx=>{
+   const s=await tx.get(seqRef),next=(s.exists?s.data().seq:0)+1;
+   tx.set(seqRef,{seq:next});
+   tx.set(FS.doc('workOrders/'+next),{osNumber:next,cli,tel,cpf,customerId,customerUid,tipo,vehicleLabel:vei,vehicleId,ano,placa,km,
+    complaint:relato,diagnosis:'',mechanicName:'',mechanicUid:'',status:'AGUARDANDO DIAGNÓSTICO',serv:'A diagnosticar',
+    data:now.toISOString().slice(0,10),hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
+    entryPhotoUrls:[],servicePhotos:[],checklist:ck,pg:[],log:[logLine('OS criada')],criadoEm:FV.serverTimestamp(),criadoPor:me.id});
+   tx.set(FS.doc('budgets/'+next),{workOrderId:next,osNumber:next,customerUid,vehicleLabel:vei,plate:placa,complaint:relato,notes:'',
+    items:[],discountCents:0,status:'rascunho',version:0,criadoEm:FV.serverTimestamp()});
+   return next;
+  });
+  const files=photos.map((d,i)=>d?{i,d}:null).filter(Boolean);
+  if(files.length){
+   const urls=new Array(photos.length).fill(null);
+   await Promise.all(files.map(async f=>{const snap=await FSTORE.ref('workOrders/'+id+'/entrada/'+f.i+'.jpg').putString(f.d,'data_url');urls[f.i]=await snap.ref.getDownloadURL()}));
+   await FS.doc('workOrders/'+id).update({entryPhotoUrls:urls.filter(Boolean)});
+  }
+  toast('OS #'+pad(id)+' criada');go('os',id);
+ }catch(err){toast(err.message||'Não foi possível criar a OS')}
+ busy=false;
 }
+
+/* ===== Detalhe da OS (mesmo layout de antes) ===== */
 function vOs(){
  const o=F();if(!o)return vList();
  const adm=role==='admin',rec=role==='recepcao',mec=role==='mecanico',fin=role==='financeiro',cli=role==='cliente';
@@ -237,7 +431,7 @@ function vOs(){
  h+='</div>';
  if(mec&&done(o)&&o.diag)h+=`<div class="card"><b>Diagnóstico técnico</b><p>${e(o.diag)}</p></div>`;
  if(adm||(mec&&!done(o)))h+=`<div class="card"><b>Diagnóstico técnico</b><textarea id="diag" placeholder="Problema encontrado, causa provável, testes realizados, solução recomendada">${e(o.diag)}</textarea><button class="btn w" onclick="saveDiag()">Salvar diagnóstico</button></div>
-<div class="card"><b>🤖 Assistente WKK</b><textarea id="iaq" placeholder="Descreva o problema. Ex.: perde força ao acelerar e a luz da injeção está acesa"></textarea><button class="btn bl w" onclick="ia()">Consultar assistente</button><div id="iar" style="margin-top:8px"></div></div>
+<div class="card ai"><b>🤖 Assistente WKK</b><textarea id="iaq" placeholder="Descreva o problema. Ex.: perde força ao acelerar e a luz da injeção está acesa"></textarea><button class="btn bl w" onclick="ia()">Consultar assistente</button><div id="iar" style="margin-top:8px"></div></div>
 <div class="card"><b>Fotos do serviço</b><input id="sp_c" placeholder="Legenda (ex.: amortecedor com vazamento)"><label class="btn w" style="display:block;text-align:center">📷 Tirar foto<input type="file" accept="image/*" capture="environment" hidden onchange="spho(this)"></label></div>`;
  if(mec&&!done(o))h+=mecCard(o);
  if(showB){
@@ -258,21 +452,85 @@ function vOs(){
  if(adm)h+=`<button class="btn w" style="color:var(--rd)" onclick="delOS()">Excluir OS</button>`;
  return h;
 }
-function delOS(){const o=F();if(role!=='admin'||!o)return;
- if(o.pg.length){toast('Esta OS tem pagamento lançado. Cancele a OS em vez de excluir.');return}
- ask('Excluir a OS #'+pad(o.id)+' ('+o.vei+' '+o.placa+')? Isso não pode ser desfeito.',()=>{setSeq(Math.max(getSeq(),o.id));db=db.filter(x=>x!==o);save();sel=null;go('dash');toast('OS excluída')})}
-function delPg(n){const o=F();if(role!=='admin'||!o.pg[n])return;log(o,'pagamento apagado: '+R(o.pg[n].v)+' ('+o.pg[n].f+')');o.pg.splice(n,1);save();render();toast('Pagamento apagado')}
-function setSt(v){const o=F(),run=()=>{log(o,'status → '+v);o.st=v;save();render();toast('Status atualizado')};['FINALIZADO','ENTREGUE','CANCELADO'].includes(v)?ask('Alterar o status para '+v+'?',run):run()}
-function setMec(v){const o=F();if(!v||v===o.mec){render();return}ask(o.mec?'Trocar o mecânico de '+o.mec+' para '+v+'?':'Atribuir '+v+' a esta OS?',()=>{log(o,'mecânico: '+(o.mec||'nenhum')+' → '+v);o.mec=v;save();render();toast('Mecânico atualizado')})}
-function saveDiag(){const o=F();o.diag=$('#diag').value;log(o,'diagnóstico salvo');save();toast('Diagnóstico salvo')}
-function addIt(){const o=F(),d=$('#i_d').value.trim(),q=parseInt($('#i_q').value),v=cents($('#i_v').value);if(!d||!(q>=1)||!(v>=0)){toast('Informe descrição, quantidade e valor');return}o.it.push({t:$('#i_t').value,d,q,v});log(o,'item adicionado: '+d+' '+R(v));save();render()}
-function delIt(n){const o=F();log(o,'item removido: '+o.it[n].d);o.it.splice(n,1);o.desc=Math.min(o.desc,sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros'));save();render()}
-function setDesc(v){const o=F(),c=cents(v),max=sub(o,'Serviço')+sub(o,'Peça')+sub(o,'Outros');o.desc=isNaN(c)||c<0?0:Math.min(c,max);log(o,'desconto '+R(o.desc));save();render()}
-function resp(ok){const o=F();o.bs=ok?'aprovado':'recusado';o.st=ok?'EM ANDAMENTO':'AGUARDANDO ORÇAMENTO';log(o,(role==='cliente'?(ok?'APROVOU':'RECUSOU')+' o orçamento':'registrou que o cliente '+(ok?'aprovou':'recusou')+' o orçamento')+' de '+R(tot(o)));save();render();toast(ok?'Orçamento aprovado':'Orçamento recusado')}
-function pay(){const o=F(),v=cents($('#p_v').value),r=tot(o)-paid(o);if(!(v>0)||v>r){toast('Valor inválido. Restante: '+R(r));return}const f=$('#p_f').value;ask('Registrar pagamento de '+R(v)+' ('+f+')?',()=>{o.pg.push({f,v,d:new Date().toLocaleDateString('pt-BR')});log(o,'pagamento '+R(v));save();render();toast('Pagamento registrado')})}
-const fkm=v=>{const k=Number(String(v).replace(/\D/g,''));return k?k.toLocaleString('pt-BR'):e(v||'—')};
-const num=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
-const fmtTel=t=>{const d=String(t||'').replace(/\D/g,'');return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:e(t||'—')};
+
+/* ===== Ações da OS — agora gravam no Firestore; a tela atualiza sozinha pelos listeners ===== */
+function delOS(){
+ const o=F();if(role!=='admin'||!o)return;
+ ask('Por segurança, o sistema não permite excluir uma OS (fica registrado para auditoria). Deseja marcar como CANCELADO em vez disso?',()=>setSt('CANCELADO'));
+}
+async function delPg(n){
+ const o=F();if(role!=='admin'||!o.pg[n])return;
+ try{
+  await FS.runTransaction(async tx=>{
+   const ref=FS.doc('workOrders/'+o.id),snap=await tx.get(ref),data=snap.data(),pg=(data.pg||[]).slice(),removed=pg.splice(n,1)[0];
+   tx.update(ref,{pg,log:FV.arrayUnion(logLine('pagamento apagado: '+R(removed.v)+' ('+removed.f+')'))});
+  });
+  toast('Pagamento apagado');
+ }catch(err){toast(err.message)}
+}
+function setSt(v){
+ const o=F();
+ const run=async()=>{try{await FS.doc('workOrders/'+o.id).update({status:v,log:FV.arrayUnion(logLine('status → '+v))});toast('Status atualizado')}catch(err){toast(err.message)}};
+ ['FINALIZADO','ENTREGUE','CANCELADO'].includes(v)?ask('Alterar o status para '+v+'?',run):run();
+}
+function setMec(v){
+ const o=F();if(!v||v===o.mec){render();return}
+ const target=users.find(u=>u.nome===v&&u.role==='mecanico');
+ if(!target){toast('Mecânico não encontrado');return}
+ ask(o.mec?'Trocar o mecânico de '+o.mec+' para '+v+'?':'Atribuir '+v+' a esta OS?',async()=>{
+  try{await FS.doc('workOrders/'+o.id).update({mechanicUid:target.id,mechanicName:v,log:FV.arrayUnion(logLine('mecânico: '+(o.mec||'nenhum')+' → '+v))});toast('Mecânico atualizado')}
+  catch(err){toast(err.message)}
+ })
+}
+async function saveDiag(){
+ const o=F();
+ try{await FS.doc('workOrders/'+o.id).update({diagnosis:$('#diag').value,log:FV.arrayUnion(logLine('diagnóstico salvo'))});toast('Diagnóstico salvo')}
+ catch(err){toast(err.message)}
+}
+async function addIt(){
+ const o=F(),d=$('#i_d').value.trim(),qv=parseInt($('#i_q').value),v=cents($('#i_v').value),t=$('#i_t').value;
+ if(!d||!(qv>=1)||!(v>=0)){toast('Informe descrição, quantidade e valor');return}
+ try{await updateBudget(o.id,data=>({items:[...(data.items||[]),{type:t,description:d,qty:qv,unitCents:v,by:me.nome}]}));toast('Item adicionado')}
+ catch(err){toast(err.message)}
+}
+async function delIt(n){
+ const o=F();
+ try{
+  await updateBudget(o.id,data=>{
+   const items=(data.items||[]).slice();items.splice(n,1);
+   const max=items.reduce((s,i)=>s+Math.round(i.qty)*Math.round(i.unitCents||0),0);
+   return{items,discountCents:Math.min(data.discountCents||0,max)};
+  });
+ }catch(err){toast(err.message)}
+}
+async function setDesc(v){
+ const o=F(),c=cents(v);
+ try{
+  await updateBudget(o.id,data=>{
+   const max=(data.items||[]).reduce((s,i)=>s+Math.round(i.qty)*Math.round(i.unitCents||0),0);
+   return{discountCents:isNaN(c)||c<0?0:Math.min(c,max)};
+  });
+ }catch(err){toast(err.message)}
+}
+async function resp(ok){
+ const o=F();
+ if(!o.approvalToken){toast('Este orçamento não tem um link de aprovação ativo no momento.');return}
+ if(busy)return;busy=true;
+ try{await call('decideBudget',{token:o.approvalToken,decision:ok?'aprovado':'recusado',reason:role==='cliente'?'Aprovado pelo cliente no app':'Registrado pela equipe'});toast(ok?'Orçamento aprovado':'Orçamento recusado')}
+ catch(err){toast(err.message||'Não foi possível registrar a decisão')}
+ busy=false;
+}
+async function pay(){
+ const o=F(),v=cents($('#p_v').value),r=tot(o)-paid(o);
+ if(!(v>0)||v>r){toast('Valor inválido. Restante: '+R(r));return}
+ const f=$('#p_f').value;
+ ask('Registrar pagamento de '+R(v)+' ('+f+')?',async()=>{
+  try{await FS.doc('workOrders/'+o.id).update({pg:FV.arrayUnion({f,v,d:new Date().toLocaleDateString('pt-BR')}),log:FV.arrayUnion(logLine('pagamento '+R(v)))});toast('Pagamento registrado')}
+  catch(err){toast(err.message)}
+ })
+}
+
+/* ===== PDF / impressão (lógica idêntica a antes — só lê o objeto já adaptado) ===== */
 function sheet(o){
  const P=o.it.filter(i=>i.t==='Peça'),S=o.it.filter(i=>i.t!=='Peça'),hoje=new Date(),k=Number(String(o.km).replace(/\D/g,''));
  const st={rascunho:'Em análise',enviado:'Aguardando aprovação',aprovado:'Aprovado',recusado:'Recusado'}[o.bs];
@@ -330,12 +588,8 @@ async function mkPdf(o){
 }
 async function pdf(){const o=F();if(!window.PDFLib){viaPrint(o);return}toast('Gerando PDF…');try{dl(await mkPdf(o),'Orcamento-WKK-OS'+pad(o.id)+'.pdf');toast('PDF gerado. Veja em Downloads.')}catch(_){viaPrint(o)}}
 const dl=(b,n)=>{const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download=n;a.click()};
-const mark=o=>{if(o.bs==='rascunho'||o.bs==='recusado'){o.bs='enviado';o.st='AGUARDANDO APROVAÇÃO';log(o,'orçamento enviado ao cliente pelo WhatsApp');save();render()}};
-function waBtn(){const o=F();if(!o.it.length){toast('Adicione itens ao orçamento primeiro');return}if(o.it.some(i=>i.v==null)){toast('Defina o valor de todos os itens antes de enviar');return}
- if(o.bs==='enviado'||o.bs==='aprovado')return wa();ask('Enviar o orçamento ao cliente? A OS passa para Aguardando aprovação.',wa)}
-function setV(n){const o=F(),i=o.it[n],d=$('#pd'+n).value.trim(),raw=$('#pv'+n).value.trim(),v=cents(raw);
- if(d.length<3||raw===''||!(v>=0)){toast('Informe a descrição e o valor unitário');return}
- i.d=d;i.v=v;log(o,'definiu o valor de '+d+': '+R(v));save();render();toast('Valor definido')}
+
+/* ===== Mecânico adiciona itens / envia pro financeiro ===== */
 function mecCard(o){
  const lock=o.bs==='enviado'||o.bs==='aprovado';
  let h=`<div class="card"><b>Serviços e peças necessários</b>`;
@@ -345,28 +599,115 @@ function mecCard(o){
  h+=o.st==='AGUARDANDO ORÇAMENTO'?`<div class="aviso" style="margin-top:10px">✔ Enviado ao financeiro. Você ainda pode adicionar itens.</div>`:`<button class="btn bl w" onclick="sendFin()">Enviar para o financeiro</button>`;
  return h+'</div>';
 }
-function addM(){const o=F(),d=$('#m_d').value.trim(),q=parseInt($('#m_q').value),t=$('#m_t').value;
+async function addM(){
+ const o=F(),d=$('#m_d').value.trim(),qv=parseInt($('#m_q').value),t=$('#m_t').value;
  if(o.bs==='enviado'||o.bs==='aprovado'){toast('Orçamento já enviado, fale com o financeiro');return}
- if(d.length<3||!(q>=1)){toast('Informe a descrição e a quantidade');return}
- o.it.push({t,d,q,v:null,by:me.nome});log(o,'adicionou '+t.toLowerCase()+': '+d);save();render();toast('Item adicionado')}
-function sendFin(){const o=F();if(!o.it.length){toast('Adicione ao menos um serviço ou peça');return}
- ask('Enviar a lista para o financeiro montar o orçamento?',()=>{o.st='AGUARDANDO ORÇAMENTO';log(o,'enviou serviços e peças para o financeiro');save();render();toast('Enviado ao financeiro')})}
+ if(d.length<3||!(qv>=1)){toast('Informe a descrição e a quantidade');return}
+ try{await updateBudget(o.id,data=>({items:[...(data.items||[]),{type:t,description:d,qty:qv,unitCents:null,by:me.nome}]}));toast('Item adicionado')}
+ catch(err){toast(err.message)}
+}
+function sendFin(){
+ const o=F();if(!o.it.length){toast('Adicione ao menos um serviço ou peça');return}
+ ask('Enviar a lista para o financeiro montar o orçamento?',async()=>{
+  try{await FS.doc('workOrders/'+o.id).update({status:'AGUARDANDO ORÇAMENTO',log:FV.arrayUnion(logLine('enviou serviços e peças para o financeiro'))});toast('Enviado ao financeiro')}
+  catch(err){toast(err.message)}
+ })
+}
+
+/* ===== Envio do orçamento (agora via Cloud Function sendBudget, que gera o link público de aprovação) ===== */
+async function setV(n){
+ const o=F(),d=$('#pd'+n).value.trim(),raw=$('#pv'+n).value.trim(),v=cents(raw);
+ if(d.length<3||raw===''||!(v>=0)){toast('Informe a descrição e o valor unitário');return}
+ try{await updateBudget(o.id,data=>{const items=data.items||[];if(items[n])items[n]={...items[n],description:d,unitCents:v};return{items}});toast('Valor definido')}
+ catch(err){toast(err.message)}
+}
+function waBtn(){
+ const o=F();if(!o.it.length){toast('Adicione itens ao orçamento primeiro');return}
+ if(o.it.some(i=>i.v==null)){toast('Defina o valor de todos os itens antes de enviar');return}
+ if(o.bs==='enviado'||o.bs==='aprovado')return wa();
+ ask('Enviar o orçamento ao cliente? A OS passa para Aguardando aprovação.',wa)
+}
+async function mark(o){
+ if(o.bs==='rascunho'||o.bs==='recusado'){try{return(await call('sendBudget',{budgetId:o.id})).link}catch(err){toast(err.message);return null}}
+ return null;
+}
 async function wa(){
- const o=F(),nm='Orcamento-WKK-OS'+pad(o.id)+'.pdf',m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}\n\nO orçamento completo está disponível abaixo no PDF`;
+ const o=F(),nm='Orcamento-WKK-OS'+pad(o.id)+'.pdf';
+ if(busy)return;busy=true;
+ const link=await mark(o);
+ const m=`Olá, ${o.cli.split(' ')[0]}!\n\nA WKK Oficina Mecânica Auto Center preparou o orçamento referente ao seu veículo.\n\n🚗 Veículo: ${o.vei}\n🔢 Placa: ${o.placa}\n📋 OS: #${pad(o.id)}\n💰 Total: ${R(tot(o))}${link?'\n\n✅ Aprovar ou recusar: '+link:''}\n\nO orçamento completo está disponível abaixo no PDF`;
  toast('Preparando o PDF…');let b=null;try{b=await mkPdf(o)}catch(_){}
  if(b){const f=new File([b],nm,{type:'application/pdf'});
-  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:m});mark(o);return}catch(x){if(x&&x.name==='AbortError')return}}
+  if(navigator.canShare&&navigator.canShare({files:[f]})){try{await navigator.share({files:[f],text:m});busy=false;return}catch(x){if(x&&x.name==='AbortError'){busy=false;return}}}
   dl(b,nm);toast('PDF baixado. Anexe no WhatsApp.')}
- window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank');mark(o);
+ window.open('https://wa.me/55'+o.tel.replace(/\D/g,'')+'?text='+encodeURIComponent(m),'_blank');
+ busy=false;
 }
-const IA=[[/inje|for[cç]a|acelera/,'Sonda lambda, sensor MAP/MAF ou bobinas/velas com falha; filtro ou bomba de combustível; entrada falsa de ar','Ler códigos de falha e dados ao vivo no scanner; medir a pressão de combustível; inspecionar velas, bobinas e mangueiras'],[/barulho|ru[ií]do|batida|suspens/,'Amortecedor ou coxim desgastado; bandeja, pivô, terminal ou bieleta com folga; batentes ressecados','Testar folgas com o veículo suspenso; verificar vazamento nos amortecedores; inspecionar buchas e batentes'],[/freio|pedal/,'Pastilhas ou discos gastos; ar ou vazamento no fluido; cilindro mestre com falha','Medir espessura de pastilhas e discos; verificar nível e umidade do fluido; testar o pedal com o motor ligado'],[/[\s\S]*/,'Faltam informações para sugerir causas','Fazer leitura de scanner, inspeção visual e teste de rodagem']];
-function ia(){
- const q=$('#iaq').value.toLowerCase();if(!q.trim()){toast('Descreva o problema primeiro');return}
- const r=IA.find(x=>x[0].test(q));
- $('#iar').innerHTML=`<p><b>Possíveis causas:</b> ${r[1]}.</p><p><b>Inspeção e testes:</b> ${r[2]}.</p><p><b>Perguntas:</b> Quando ocorre (frio/quente, velocidade)? Há códigos de falha? Houve manutenção recente?</p><div class="aviso">Esta sugestão é apenas um auxílio técnico. O diagnóstico final deve ser realizado e validado pelo profissional responsável.</div><small>Modo demonstração: a IA real ainda não está conectada.</small>`;
+
+/* ===== Assistente WKK de verdade (Cloud Function askAssistant → Claude) ===== */
+async function ia(){
+ const o=F(),qv=$('#iaq').value.trim();
+ if(!qv){toast('Descreva o problema primeiro');return}
+ if(busy)return;busy=true;
+ $('#iar').innerHTML='<small>Consultando o assistente…</small>';
+ try{
+  const r=await call('askAssistant',{osId:o.id,question:qv});
+  $('#iar').innerHTML=`<p>${e(r.text).replace(/\n/g,'<br>')}</p><div class="aviso">${e(r.aviso)}</div>${r.demo?'<small>Modo demonstração: configure a chave da IA no servidor (veja o README).</small>':''}`;
+ }catch(err){$('#iar').innerHTML='';toast(err.message||'O assistente não respondeu')}
+ busy=false;
 }
 addEventListener('keydown',ev=>{if(role||document.activeElement.tagName==='INPUT')return;if(/^\d$/.test(ev.key))key(ev.key);else if(ev.key==='Backspace')key('B')});
-render();
+
+/* ===== Página pública de aprovação (/aprovar?t=...) — sem login, só com o token do link ===== */
+function isApprovalRoute(){return new URLSearchParams(location.search).has('t')||location.pathname.replace(/\/$/,'').endsWith('/aprovar')}
+let approvalData=null,approvalToken=null;
+const wm=()=>'<div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div>';
+async function loadApproval(){
+ approvalToken=new URLSearchParams(location.search).get('t');
+ $('#nav').style.display='none';
+ $('#app').innerHTML=`<div class="login">${wm()}<div class="card" style="text-align:center"><small>Carregando orçamento…</small></div></div>`;
+ try{approvalData=await call('getBudgetByToken',{token:approvalToken});renderApproval()}
+ catch(err){$('#app').innerHTML=`<div class="login">${wm()}<div class="card" style="text-align:center"><b>Link indisponível</b><p><small>${e(err.message||'Este link não é válido ou já foi utilizado.')}</small></p></div></div>`}
+}
+function renderApproval(){
+ const d=approvalData;
+ const sub2=t=>(d.items||[]).filter(i=>i.type===t).reduce((s,i)=>s+Math.round(i.qty)*Math.round(i.unitCents||0),0);
+ const rows=t=>(d.items||[]).filter(i=>i.type===t).map(i=>`<div class="row" style="padding:6px 0;border-bottom:1px solid var(--ln)"><span>${e(i.description)} <small>×${i.qty}</small></span><b>${R(Math.round(i.qty)*Math.round(i.unitCents||0))}</b></div>`).join('')||'<small>—</small>';
+ $('#app').innerHTML=`<div class="login" style="max-width:460px">${wm()}
+<div class="card"><b style="font-size:17px">Orçamento da OS #${pad(d.osNumber)}</b><p>🚗 ${e(d.vehicle)} · <b>${e(d.plate)}</b></p>${d.complaint?`<small>Relato: ${e(d.complaint)}</small>`:''}</div>
+<div class="card"><b>Serviços</b>${rows('Serviço')}</div>
+<div class="card"><b>Peças</b>${rows('Peça')}</div>
+${sub2('Outros')?`<div class="card"><b>Outros</b>${rows('Outros')}</div>`:''}
+<div class="card"><div class="row"><small>Desconto</small><span>− ${R(d.discountCents||0)}</span></div><div class="row" style="margin-top:6px"><b>TOTAL</b><span class="tot">${R(d.totalCents||0)}</span></div></div>
+<div class="card"><p style="text-align:center"><small>Você confirma que está de acordo com os serviços e valores apresentados?</small></p><div class="btns"><button class="btn gr" onclick="decideApproval('aprovado')">🟢 APROVAR ORÇAMENTO</button><button class="btn rd" onclick="decideApproval('recusado')">🔴 RECUSAR ORÇAMENTO</button></div></div>
+</div>`;
+}
+async function decideApproval(decision){
+ if(busy)return;busy=true;
+ try{
+  await call('decideBudget',{token:approvalToken,decision});
+  $('#app').innerHTML=`<div class="login">${wm()}<div class="card" style="text-align:center"><b>${decision==='aprovado'?'✅ Orçamento aprovado':'❌ Orçamento recusado'}</b><p><small>Obrigado! A oficina já foi avisada.</small></p></div></div>`;
+ }catch(err){toast(err.message||'Não foi possível registrar sua decisão')}
+ busy=false;
+}
+
+/* ===== Inicialização ===== */
+if(isApprovalRoute()){
+ loadApproval();
+}else{
+ render();
+ auth.onAuthStateChanged(async u=>{
+  if(!u){me=null;role=null;view='';sel=null;stopListeners();render();return}
+  try{
+   const snap=await FS.doc('users/'+u.uid).get();
+   if(!snap.exists||snap.data().ativo===false){await auth.signOut();toast('Acesso desativado');return}
+   const d=snap.data();
+   me={id:u.uid,nome:d.nome,role:d.role};role=d.role;view=ROLES[role][2][0][0];sel=null;
+   startListeners();render();
+  }catch(err){toast('Erro ao carregar sua sessão: '+err.message)}
+ });
+}
+
 </script>
 <button id="inst" class="btn bl" style="display:none;position:fixed;top:10px;right:10px;z-index:9">Instalar WKK Oficina</button>
 <script>let dp;addEventListener("beforeinstallprompt",ev=>{ev.preventDefault();dp=ev;$("#inst").style.display="block"});$("#inst").onclick=()=>{dp.prompt();$("#inst").style.display="none"};if("serviceWorker" in navigator)navigator.serviceWorker.register("sw.js")</script>

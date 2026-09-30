@@ -10,6 +10,7 @@ const BASE_URL = defineString('BASE_URL', { default: 'https://SEU-PROJETO.web.ap
 const AI_MODEL = defineString('AI_MODEL', { default: 'claude-sonnet-5' });
 const opts = { region: 'southamerica-east1' };
 const AVISO = 'Esta sugestão é apenas um auxílio técnico. O diagnóstico final deve ser realizado e validado pelo profissional responsável.';
+const sha256 = s => crypto.createHash('sha256').update(String(s)).digest('hex');
 
 async function roleOf(req) {
   if (!req.auth) throw new HttpsError('unauthenticated', 'Faça login para continuar.');
@@ -22,6 +23,45 @@ const calc = d => {
   const s = t => (d.items || []).filter(i => i.type === t).reduce((a, i) => a + Math.round(i.qty) * Math.round(i.unitCents), 0);
   return Math.max(0, s('Serviço') + s('Peça') + s('Outros') - (d.discountCents || 0));
 };
+
+// Login por PIN: verifica contra o hash salvo em Firestore e devolve um token do Firebase Auth.
+// Mantém o teclado de PIN do app, só que agora a sessão é uma sessão real do Firebase.
+exports.signInWithPin = onCall(opts, async req => {
+  const pin = String((req.data || {}).pin || '');
+  if (!/^\d{6}$/.test(pin)) throw new HttpsError('invalid-argument', 'O PIN deve ter 6 números.');
+  const ip = (req.rawRequest && req.rawRequest.ip) || 'sem-ip';
+  const lockRef = db.doc('security/' + sha256(ip));
+  const lockSnap = await lockRef.get();
+  const lock = lockSnap.exists ? lockSnap.data() : { fails: 0, lockUntil: 0 };
+  if (lock.lockUntil && lock.lockUntil > Date.now()) {
+    throw new HttpsError('resource-exhausted', 'Muitas tentativas. Aguarde ' + Math.ceil((lock.lockUntil - Date.now()) / 1000) + 's.');
+  }
+  const q = await db.collection('users').where('pinHash', '==', sha256(pin)).where('ativo', '==', true).limit(1).get();
+  if (q.empty) {
+    const fails = (lock.fails || 0) + 1;
+    const upd = { fails, at: FV.serverTimestamp() };
+    if (fails >= 5) { upd.lockUntil = Date.now() + 30000; upd.fails = 0; }
+    await lockRef.set(upd, { merge: true });
+    throw new HttpsError('unauthenticated', fails >= 5 ? 'Muitas tentativas. Tente de novo em 30s.' : 'PIN incorreto ou acesso desativado.');
+  }
+  await lockRef.set({ fails: 0, lockUntil: 0 }, { merge: true });
+  const u = q.docs[0];
+  const token = await admin.auth().createCustomToken(u.id, { role: u.data().role });
+  return { token, uid: u.id, nome: u.data().nome, role: u.data().role };
+});
+
+// Cria o primeiro administrador. Só funciona enquanto não existir nenhum usuário — depois disso, use a tela de Usuários.
+exports.bootstrapFirstAdmin = onCall(opts, async req => {
+  const { nome, pin } = req.data || {};
+  if (!nome || String(nome).trim().length < 2) throw new HttpsError('invalid-argument', 'Informe o nome.');
+  if (!/^\d{6}$/.test(String(pin || ''))) throw new HttpsError('invalid-argument', 'O PIN deve ter 6 números.');
+  const existing = await db.collection('users').limit(1).get();
+  if (!existing.empty) throw new HttpsError('failed-precondition', 'Já existe um administrador. Peça para ele criar seu acesso na tela de Usuários.');
+  const ref = db.collection('users').doc();
+  await ref.set({ nome: String(nome).trim(), role: 'admin', pinHash: sha256(pin), ativo: true, criadoEm: FV.serverTimestamp() });
+  const token = await admin.auth().createCustomToken(ref.id, { role: 'admin' });
+  return { token, uid: ref.id, nome, role: 'admin' };
+});
 
 // Assistente WKK: a chave da IA fica só aqui, nunca no frontend.
 exports.askAssistant = onCall({ ...opts, secrets: [AI_KEY] }, async req => {
