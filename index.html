@@ -84,10 +84,7 @@ nav span{display:block;font-size:19px;margin-bottom:2px;transition:transform .15
 </style></head><body>
 <div id="app"></div><nav id="nav"></nav><div id="toast"></div><div id="md"><div><p id="mt"></p><div class="btns"><button class="btn" onclick="ask.no()">Cancelar</button><button class="btn bl" onclick="ask.ok()">Confirmar</button></div></div></div><div id="pr"></div>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-app-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-auth-compat.js"></script>
 <script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-firestore-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-storage-compat.js"></script>
-<script src="https://www.gstatic.com/firebasejs/10.13.2/firebase-functions-compat.js"></script>
 <script src="firebase-config.js"></script>
 <script>
 const $=s=>document.querySelector(s);
@@ -107,18 +104,16 @@ const norm=s=>String(s??'').normalize('NFD').replace(/[\u0300-\u036f]/g,'').toLo
 const fkm=v=>{const k=Number(String(v).replace(/\D/g,''));return k?k.toLocaleString('pt-BR'):e(v||'—')};
 const num=c=>(c/100).toLocaleString('pt-BR',{minimumFractionDigits:2,maximumFractionDigits:2});
 const fmtTel=t=>{const d=String(t||'').replace(/\D/g,'');return d.length===11?`(${d.slice(0,2)}) ${d.slice(2,7)}-${d.slice(7)}`:d.length===10?`(${d.slice(0,2)}) ${d.slice(2,6)}-${d.slice(6)}`:e(t||'—')};
-const sha256=async s=>{const b=await crypto.subtle.digest('SHA-256',new TextEncoder().encode(String(s)));return[...new Uint8Array(b)].map(x=>x.toString(16).padStart(2,'0')).join('')};
 
 /* ===== Firebase ===== */
 firebase.initializeApp(window.FIREBASE_CONFIG);
-const auth=firebase.auth(),FS=firebase.firestore(),FSTORE=firebase.storage(),FN=firebase.app().functions('southamerica-east1');
-const call=(name,data)=>FN.httpsCallable(name)(data).then(r=>r.data);
+const FS=firebase.firestore();
 const FV=firebase.firestore.FieldValue;
 
 /* ===== Estado local (o "db" continua sendo um array em memória — só que agora alimentado por listeners do Firestore, não por localStorage) ===== */
-let q='',fst='',fbs='',srt='etapa',LB=()=>'',me=null,pin='',bad=0,lockUntil=0,shake=false,busy=false,showBoot=false;
+let q='',fst='',fbs='',srt='etapa',LB=()=>'',me=null,pin='',bad=0,lockUntil=0,shake=false,busy=false,usersReady=false,usersErr='',pendR=false;
 let editU=null,db=[],users=[],role=null,view='',sel=null,draft={ph:[]};
-let woMap=new Map(),bgMap=new Map(),usersUnsub=null,woUnsub=null,bgAllUnsub=null,bgOneUnsub=null;
+let woMap=new Map(),bgMap=new Map(),phMap=new Map(),usersUnsub=null,woUnsub=null,bgAllUnsub=null,bgOneUnsub=null,phUnsub=null;
 
 /* ===== Camada de sincronização com o Firestore =====
    Ideia: cada OS = 1 doc em workOrders/{osNumber} + 1 doc irmão em budgets/{osNumber}
@@ -135,16 +130,26 @@ function mergedObj(id){
   id,cli:w.cli,tel:w.tel,cpf:w.cpf,tipo:w.tipo,vei:w.vehicleLabel,ano:w.ano,placa:w.placa,km:w.km,
   relato:w.complaint,diag:w.diagnosis||'',mec:w.mechanicName||'',mechanicUid:w.mechanicUid||'',
   st:w.status,serv:w.serv||'',data:w.data,hora:w.hora||'',
-  ph:w.entryPhotoUrls||[],sp:(w.servicePhotos||[]).map(p=>({s:p.url,c:p.c})),ck:w.checklist||[],
+  ph:(phMap.get(id)||[]).filter(p=>p.kind==='entrada').sort((x,y)=>x.idx-y.idx).map(p=>p.d),sp:(phMap.get(id)||[]).filter(p=>p.kind==='servico').sort((x,y)=>x.t-y.t).map(p=>({s:p.d,c:p.c})),ck:w.checklist||[],
   log:w.log||[],pg:w.pg||[],
   it:(b.items||[]).map(i=>({t:i.type,d:i.description,q:i.qty,v:i.unitCents==null?null:i.unitCents,by:i.by})),
   desc:b.discountCents||0,bs:b.status||'rascunho',approvalToken:b.approvalToken||''
  });
 }
-function rebuild(){ db=[...woMap.keys()].map(mergedObj).filter(Boolean); render(); }
+function softRender(){const a=document.activeElement;if(role&&a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.id!=='sq'){pendR=true;return}render()}
+function rebuild(){ db=[...woMap.keys()].map(mergedObj).filter(Boolean); softRender(); }
+/* Usuários: lista sempre carregada (a tela de PIN compara aqui, no próprio aparelho — modo beta) */
+function startUsers(){
+ usersUnsub&&usersUnsub();
+ usersUnsub=FS.collection('users').onSnapshot(snap=>{
+  users=snap.docs.map(d=>({id:d.id,...d.data()}));usersReady=true;usersErr='';
+  if(me){const cur=users.find(u=>u.id===me.id);if(!cur||cur.ativo===false){out();toast('Seu acesso foi desativado');return}}
+  softRender();
+ },err=>{usersErr=(err&&err.code)||'erro';usersReady=false;render()});
+}
 function stopListeners(){
- woUnsub&&woUnsub();bgAllUnsub&&bgAllUnsub();usersUnsub&&usersUnsub();bgOneUnsub&&bgOneUnsub();
- woUnsub=bgAllUnsub=usersUnsub=bgOneUnsub=null;woMap=new Map();bgMap=new Map();db=[];users=[];
+ woUnsub&&woUnsub();bgAllUnsub&&bgAllUnsub();bgOneUnsub&&bgOneUnsub();phUnsub&&phUnsub();
+ woUnsub=bgAllUnsub=bgOneUnsub=phUnsub=null;woMap=new Map();bgMap=new Map();phMap=new Map();db=[];
 }
 function startListeners(){
  stopListeners();
@@ -162,14 +167,13 @@ function startListeners(){
    rebuild();
   },err=>toast('Erro ao sincronizar orçamentos: '+err.message));
  }
- if(role==='admin'||role==='recepcao'||role==='financeiro'){
-  usersUnsub=FS.collection('users').onSnapshot(snap=>{users=snap.docs.map(d=>({id:d.id,...d.data()}));render()},()=>{});
- }
 }
-function watchBudget(id){
- bgOneUnsub&&bgOneUnsub();bgOneUnsub=null;
- if(role==='recepcao'||id==null)return;
+/* Ao abrir uma OS: acompanha o orçamento dela (se não vier da lista geral) e as fotos */
+function watchOS(id){
+ bgOneUnsub&&bgOneUnsub();bgOneUnsub=null;phUnsub&&phUnsub();phUnsub=null;
+ if(id==null)return;
  bgOneUnsub=FS.doc('budgets/'+id).onSnapshot(snap=>{if(snap.exists)bgMap.set(id,snap.data());rebuild()},()=>{});
+ phUnsub=FS.collection('photos').where('osId','==',id).onSnapshot(snap=>{phMap.set(id,snap.docs.map(d=>d.data()));rebuild()},()=>{});
 }
 async function updateBudget(id,fn){
  const ref=FS.doc('budgets/'+id);
@@ -209,71 +213,64 @@ const opt=(a,s)=>a.map(x=>`<option ${x===s?'selected':''}>${x}</option>`).join('
 function ask(m,fn){$('#mt').textContent=m;$('#md').classList.add('on');ask.ok=()=>{$('#md').classList.remove('on');fn()};ask.no=()=>{$('#md').classList.remove('on');render()}}
 function toast(m){const t=$('#toast');t.textContent=m;t.classList.add('on');clearTimeout(toast.t);toast.t=setTimeout(()=>t.classList.remove('on'),2400)}
 
-/* ===== Login por PIN (agora fala com o Cloud Function signInWithPin) ===== */
-function go(v,id){view=v;if(id!=null)sel=id;if(v==='os')watchBudget(sel);else{bgOneUnsub&&bgOneUnsub();bgOneUnsub=null}render();scrollTo(0,0)}
+/* ===== Login por PIN (modo beta: o PIN é conferido aqui no aparelho, contra a lista de usuários do Firestore) ===== */
+function go(v,id){view=v;if(id!=null)sel=id;if(v==='os')watchOS(sel);else{bgOneUnsub&&bgOneUnsub();bgOneUnsub=null;phUnsub&&phUnsub();phUnsub=null}render();scrollTo(0,0)}
 function nv(k){q='';fst='';fbs='';go(k)}
-function out(){auth.signOut()}
-async function key(k){
- if(busy)return;
+function enter(u){bad=0;me={id:u.id,nome:u.nome,role:u.role};role=u.role;view=ROLES[role][2][0][0];sel=null;startListeners();toast('Bem-vindo, '+u.nome);render()}
+function out(){stopListeners();me=null;role=null;view='';sel=null;pin='';q='';fst='';fbs='';render()}
+function key(k){
  if(Date.now()<lockUntil){toast('Muitas tentativas. Aguarde '+Math.ceil((lockUntil-Date.now())/1000)+'s');return}
  if(k==='C')pin='';else if(k==='B')pin=pin.slice(0,-1);else if(pin.length<6)pin+=k;
- render();
  if(pin.length===6){
-  const p=pin;pin='';busy=true;render();
-  try{
-   const r=await call('signInWithPin',{pin:p});
-   await auth.signInWithCustomToken(r.token);
-   bad=0;
-  }catch(err){
-   shake=true;bad++;
-   if(err&&err.code==='functions/resource-exhausted')lockUntil=Date.now()+30000;
-   toast((err&&err.message)||'PIN incorreto ou acesso desativado');
-  }
-  busy=false;render();
+  if(!usersReady){pin='';toast(usersErr?'Sem acesso ao banco ('+usersErr+'). Veja as regras do Firestore.':'Conectando ao banco… tente de novo em instantes');return render()}
+  const u=users.find(x=>x.pin===pin&&x.ativo!==false);pin='';
+  if(u)return enter(u);
+  shake=true;bad++;if(bad>=5){lockUntil=Date.now()+30000;bad=0;toast('Muitas tentativas. Tente de novo em 30s')}else toast('PIN incorreto ou acesso desativado')
  }
+ render();
 }
-function toggleBoot(v){showBoot=v;render()}
 async function bootAdmin(){
  const nome=$('#bo_n').value.trim(),p1=$('#bo_p').value.trim(),p2=$('#bo_p2').value.trim();
  if(nome.length<2){toast('Informe seu nome');return}
  if(!/^\d{6}$/.test(p1)){toast('O PIN deve ter 6 números');return}
  if(p1!==p2){toast('Os PINs não coincidem');return}
- if(busy)return; busy=true;
+ if(busy)return;busy=true;
  try{
-  const r=await call('bootstrapFirstAdmin',{nome,pin:p1});
-  await auth.signInWithCustomToken(r.token);
-  showBoot=false;
+  const ref=await FS.collection('users').add({nome,role:'admin',pin:p1,ativo:true,criadoEm:FV.serverTimestamp()});
+  busy=false;enter({id:ref.id,nome,role:'admin'});return;
  }catch(err){toast(err.message||'Não foi possível criar o administrador')}
  busy=false;render();
 }
 const genPin=()=>String(crypto.getRandomValues(new Uint32Array(1))[0]%900000+100000);
 
-/* ===== Usuários e acessos (grava direto no Firestore — o hash da PIN nunca sai do aparelho) ===== */
+/* ===== Usuários e acessos (grava direto no Firestore) ===== */
 function vUsr(){
- const cur=editU==='new'?{nome:'',role:'mecanico'}:users.find(x=>x.id===editU);
+ const cur=editU==='new'?{nome:'',role:'mecanico',pin:''}:users.find(x=>x.id===editU);
  let h=`<div class="row"><h2>Usuários e acessos</h2><button class="btn bl" onclick="editU='new';render()">+ Novo login</button></div>`;
- if(cur)h+=`<div class="card"><b>${editU==='new'?'Novo login':'Editar login'}</b><input id="u_n" placeholder="Nome" value="${e(cur.nome)}"><select id="u_r">${Object.entries(RL).map(([k,v])=>`<option value="${k}" ${k===cur.role?'selected':''}>${v}</option>`).join('')}</select><small>Para cliente, use o mesmo nome do cadastro nas OS.</small><div class="f2"><input id="u_p" inputmode="numeric" maxlength="6" placeholder="${editU==='new'?'PIN de 6 números':'Nova PIN (deixe em branco p/ manter)'}"><button class="btn" onclick="$('#u_p').value=genPin()">Gerar PIN</button></div><div class="btns"><button class="btn" onclick="editU=null;render()">Cancelar</button><button class="btn bl" onclick="saveUsr()">Salvar</button></div></div>`;
- return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]}</small><div class="btns"><button class="btn" onclick="editU='${x.id}';render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU('${x.id}')">${x.ativo?'Desativar':'Reativar'}</button><button class="btn" style="grid-column:1/-1;color:var(--rd)" onclick="delU('${x.id}')">Excluir</button>`}</div></div>`).join('');
+ if(cur)h+=`<div class="card"><b>${editU==='new'?'Novo login':'Editar login'}</b><input id="u_n" placeholder="Nome" value="${e(cur.nome)}"><select id="u_r">${Object.entries(RL).map(([k,v])=>`<option value="${k}" ${k===cur.role?'selected':''}>${v}</option>`).join('')}</select><small>Para cliente, use o mesmo nome do cadastro nas OS.</small><div class="f2"><input id="u_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números" value="${e(cur.pin||'')}"><button class="btn" onclick="$('#u_p').value=genPin()">Gerar PIN</button></div><div class="btns"><button class="btn" onclick="editU=null;render()">Cancelar</button><button class="btn bl" onclick="saveUsr()">Salvar</button></div></div>`;
+ return h+users.map(x=>`<div class="card"><div class="row"><b>${e(x.nome)}</b><span class="b" style="--c:var(${x.ativo?'--gr':'--mut'})">${x.ativo?'ATIVO':'INATIVO'}</span></div><small>${RL[x.role]} · PIN ${e(x.pin||'—')}</small><div class="btns"><button class="btn" onclick="editU='${x.id}';render()">Editar</button>${x.id===me.id?'':`<button class="btn ${x.ativo?'rd':'gr'}" onclick="togU('${x.id}')">${x.ativo?'Desativar':'Reativar'}</button><button class="btn" style="grid-column:1/-1;color:var(--rd)" onclick="delU('${x.id}')">Excluir</button>`}</div></div>`).join('');
 }
 async function saveUsr(){
  const nome=$('#u_n').value.trim(),r=$('#u_r').value,pv=$('#u_p').value.trim(),isNew=editU==='new';
  if(nome.length<2){toast('Informe o nome do usuário');return}
- if((isNew||pv)&&!/^\d{6}$/.test(pv)){toast('O PIN deve ter exatamente 6 números');return}
+ if(!/^\d{6}$/.test(pv)){toast('O PIN deve ter exatamente 6 números');return}
  if(!isNew&&editU===me.id&&r!==me.role){toast('Você não pode mudar o próprio perfil');return}
+ if(users.some(x=>x.pin===pv&&x.id!==editU)){toast('Este PIN já está em uso. Gere outro.');return}
  if(users.some(x=>x.nome.toLowerCase()===nome.toLowerCase()&&x.id!==editU)){toast('Já existe um usuário com este nome');return}
- if(busy)return; busy=true;
+ if(busy)return;busy=true;
  try{
-  let hash=null;
-  if(pv){
-   hash=await sha256(pv);
-   const dup=await FS.collection('users').where('pinHash','==',hash).limit(1).get();
-   if(!dup.empty&&dup.docs[0].id!==editU){toast('Este PIN já está em uso. Gere outro.');busy=false;return}
+  if(isNew)await FS.collection('users').add({nome,role:r,pin:pv,ativo:true,criadoEm:FV.serverTimestamp()});
+  else{
+   const cur=users.find(x=>x.id===editU);
+   await FS.doc('users/'+editU).update({nome,role:r,pin:pv});
+   if(cur&&cur.nome!==nome&&cur.role==='mecanico'){
+    const s=await FS.collection('workOrders').where('mechanicUid','==',editU).get();
+    await Promise.all(s.docs.map(d=>d.ref.update({mechanicName:nome})));
+   }
   }
-  if(isNew)await FS.collection('users').add({nome,role:r,pinHash:hash,ativo:true,criadoEm:FV.serverTimestamp()});
-  else{const patch={nome,role:r};if(hash)patch.pinHash=hash;await FS.doc('users/'+editU).update(patch)}
   editU=null;toast('Login salvo');
  }catch(err){toast(err.message||'Não foi possível salvar')}
- busy=false;
+ busy=false;render();
 }
 async function delU(id){
  const x=users.find(u=>u.id===id);if(!x)return;
@@ -295,6 +292,7 @@ const mecs=()=>users.filter(u=>u.role==='mecanico'&&u.ativo).map(u=>u.nome);
 
 /* ===== Render principal, nav e login (iguais a antes na estrutura) ===== */
 function render(){
+ pendR=false;
  const a=$('#app'),n=$('#nav');
  if(!role){n.style.display='none';a.innerHTML=vLogin();return}
  n.style.display='';
@@ -303,8 +301,10 @@ function render(){
 }
 const vLogin=()=>{
  const sh=shake;shake=false;
- if(showBoot)return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card"><b style="font-size:17px">Criar administrador</b><p><small>Use isso só no primeiro acesso do sistema.</small></p><input id="bo_n" placeholder="Seu nome"><input id="bo_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números"><input id="bo_p2" inputmode="numeric" maxlength="6" placeholder="Confirme o PIN"><button class="btn bl w" onclick="bootAdmin()">Criar administrador</button><button class="btn w" onclick="toggleBoot(false)">Cancelar</button></div></div>`;
- return `<div class="login"><div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div><div class="card" style="text-align:center"><b style="font-size:19px">Acesso ao sistema</b><p><small>Digite seu PIN de 6 dígitos</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div></div><small class="ctr">WKK Oficina Mecânica Auto Center<br>Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750<br><a href="javascript:void(0)" onclick="toggleBoot(true)" style="color:var(--mut)">Primeiro acesso? Criar administrador</a></small></div>`;
+ const logo='<div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div>';
+ if(usersReady&&users.length===0)return `<div class="login">${logo}<div class="card"><b style="font-size:17px">Criar administrador</b><p><small>Ainda não existe nenhum usuário. Crie o primeiro acesso (Administrador).</small></p><input id="bo_n" placeholder="Seu nome"><input id="bo_p" inputmode="numeric" maxlength="6" placeholder="PIN de 6 números"><input id="bo_p2" inputmode="numeric" maxlength="6" placeholder="Confirme o PIN"><button class="btn bl w" onclick="bootAdmin()">Criar administrador</button></div></div>`;
+ const st=usersErr?`⚠️ Sem acesso ao banco (${e(usersErr)})`:usersReady?'':'🔄 Conectando ao banco…';
+ return `<div class="login">${logo}<div class="card" style="text-align:center"><b style="font-size:19px">Acesso ao sistema</b><p><small>Digite seu PIN de 6 dígitos</small></p><div class="dots${sh?' err':''}">${[0,1,2,3,4,5].map(i=>`<i class="${i<pin.length?'f':''}"></i>`).join('')}</div><div class="pad">${[1,2,3,4,5,6,7,8,9,'C',0,'B'].map(k=>`<button class="btn${k==='C'||k==='B'?' alt':''}" onclick="key('${k}')">${k==='B'?'⌫':k}</button>`).join('')}</div><small>${st}</small></div><small class="ctr">WKK Oficina Mecânica Auto Center<br>Av. Patriarca, Qd. 42 Lt. 23 · Bairro de Lourdes · Anápolis<br>(62) 99210-6920 · (62) 99214-2750</small></div>`;
 };
 const done=o=>['ENTREGUE','CANCELADO'].includes(o.st);
 const card=o=>`<div class="card os" onclick="go('os',${o.id})"><div class="row"><b>OS #${pad(o.id)}</b>${bd(o.st)}</div><div style="display:flex;align-items:center;gap:8px;font-weight:600">🚗 ${e(o.vei)}<span class="plate">${e(o.placa)}</span></div><small>${e(svc(o))} · ${e(o.cli)} · 🔧 ${e(o.mec||'—')} · ${br(o.data)}</small>${role==='mecanico'&&!done(o)?'<div class="btn bl w" style="text-align:center">ABRIR SERVIÇO</div>':''}</div>`;
@@ -353,7 +353,7 @@ async function fillPlaca(v){
  try{const s=await FS.collection('vehicles').where('placaNorm','==',n.toUpperCase()).limit(1).get();if(s.empty)return;
   const ve=s.docs[0].data();setAF('f_vei',ve.vehicleLabel);setAF('f_ano',String(ve.ano||''));if(ve.tipo)$('#f_tipo').value=ve.tipo;toast('Veículo já cadastrado: '+ve.vehicleLabel)}catch(_){}
 }
-/* ===== Fotos (as de entrada ficam em memória até criar a OS; aí sobem pro Storage) ===== */
+/* ===== Fotos (reduzidas no aparelho e guardadas no próprio Firestore, coleção photos) ===== */
 const slot=i=>draft.ph[i]?`<img src="${draft.ph[i]}" alt="${PL[i]}"><button type="button" onclick="delPh(${i})">✕</button><i>${PL[i]}</i>`:`<label>📷<span>${PL[i]}</span><input type="file" accept="image/*" capture="environment" hidden onchange="pho(${i},this)"></label>`;
 function shrink(inp,cb){const f=inp.files[0];if(!f)return;const r=new FileReader();r.onload=()=>{const im=new Image();im.onload=()=>{const c=document.createElement('canvas'),s=Math.min(1,480/im.width);c.width=im.width*s;c.height=im.height*s;c.getContext('2d').drawImage(im,0,0,c.width,c.height);cb(c.toDataURL('image/jpeg',.7))};im.src=r.result};r.readAsDataURL(f)}
 function pho(i,inp){shrink(inp,d=>{draft.ph[i]=d;$('#ph'+i).innerHTML=slot(i)})}
@@ -362,9 +362,8 @@ function spho(inp){
  const o=F(),cap=$('#sp_c').value.trim();
  shrink(inp,async d=>{
   try{
-   const snap=await FSTORE.ref('workOrders/'+o.id+'/servico/'+Date.now()+'.jpg').putString(d,'data_url');
-   const url=await snap.ref.getDownloadURL();
-   await FS.doc('workOrders/'+o.id).update({servicePhotos:FV.arrayUnion({url,c:cap||'Sem legenda'}),log:FV.arrayUnion(logLine('foto do serviço adicionada'))});
+   await FS.collection('photos').add({osId:o.id,kind:'servico',c:cap||'Sem legenda',d,t:Date.now()});
+   await FS.doc('workOrders/'+o.id).update({log:FV.arrayUnion(logLine('foto do serviço adicionada'))});
    toast('Foto do serviço salva');
   }catch(err){toast(err.message||'Não foi possível enviar a foto')}
  });
@@ -393,8 +392,7 @@ async function criar(){
   const photos=draft.ph.slice();
   const customerId=await upsertCustomer(cli,tel,cpf);
   const vehicleId=await upsertVehicle(customerId,tipo,vei,ano,placa,km);
-  let customerUid='';
-  try{const cu=await FS.collection('users').where('role','==','cliente').where('nome','==',cli).limit(1).get();if(!cu.empty)customerUid=cu.docs[0].id}catch(_){}
+  const cu=users.find(u=>u.role==='cliente'&&u.nome.toLowerCase()===cli.toLowerCase()),customerUid=cu?cu.id:'';
   const now=new Date(),seqRef=FS.doc('counters/workOrders');
   const id=await FS.runTransaction(async tx=>{
    const s=await tx.get(seqRef),next=(s.exists?s.data().seq:0)+1;
@@ -402,17 +400,14 @@ async function criar(){
    tx.set(FS.doc('workOrders/'+next),{osNumber:next,cli,tel,cpf,customerId,customerUid,tipo,vehicleLabel:vei,vehicleId,ano,placa,km,
     complaint:relato,diagnosis:'',mechanicName:'',mechanicUid:'',status:'AGUARDANDO DIAGNÓSTICO',serv:'A diagnosticar',
     data:now.toISOString().slice(0,10),hora:now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),
-    entryPhotoUrls:[],servicePhotos:[],checklist:ck,pg:[],log:[logLine('OS criada')],criadoEm:FV.serverTimestamp(),criadoPor:me.id});
+    checklist:ck,pg:[],log:[logLine('OS criada')],criadoEm:FV.serverTimestamp(),criadoPor:me.id});
    tx.set(FS.doc('budgets/'+next),{workOrderId:next,osNumber:next,customerUid,vehicleLabel:vei,plate:placa,complaint:relato,notes:'',
     items:[],discountCents:0,status:'rascunho',version:0,criadoEm:FV.serverTimestamp()});
    return next;
   });
-  const files=photos.map((d,i)=>d?{i,d}:null).filter(Boolean);
-  if(files.length){
-   const urls=new Array(photos.length).fill(null);
-   await Promise.all(files.map(async f=>{const snap=await FSTORE.ref('workOrders/'+id+'/entrada/'+f.i+'.jpg').putString(f.d,'data_url');urls[f.i]=await snap.ref.getDownloadURL()}));
-   await FS.doc('workOrders/'+id).update({entryPhotoUrls:urls.filter(Boolean)});
-  }
+  const wb=FS.batch();
+  photos.forEach((d,i)=>{if(d)wb.set(FS.collection('photos').doc(),{osId:id,kind:'entrada',idx:i,c:PL[i],d,t:Date.now()})});
+  await wb.commit();
   toast('OS #'+pad(id)+' criada');go('os',id);
  }catch(err){toast(err.message||'Não foi possível criar a OS')}
  busy=false;
@@ -456,7 +451,15 @@ function vOs(){
 /* ===== Ações da OS — agora gravam no Firestore; a tela atualiza sozinha pelos listeners ===== */
 function delOS(){
  const o=F();if(role!=='admin'||!o)return;
- ask('Por segurança, o sistema não permite excluir uma OS (fica registrado para auditoria). Deseja marcar como CANCELADO em vez disso?',()=>setSt('CANCELADO'));
+ if(o.pg.length){toast('Esta OS tem pagamentos registrados. Apague os pagamentos antes de excluir.');return}
+ ask('Excluir a OS #'+pad(o.id)+' definitivamente? Isso apaga também o orçamento e as fotos.',async()=>{
+  try{
+   const ph=await FS.collection('photos').where('osId','==',o.id).get();
+   const b=FS.batch();ph.docs.forEach(d=>b.delete(d.ref));b.delete(FS.doc('budgets/'+o.id));b.delete(FS.doc('workOrders/'+o.id));
+   await b.commit();bgMap.delete(o.id);phMap.delete(o.id);woMap.delete(o.id);
+   toast('OS excluída');nv(ROLES[role][2][0][0]);
+  }catch(err){toast(err.message||'Não foi possível excluir')}
+ });
 }
 async function delPg(n){
  const o=F();if(role!=='admin'||!o.pg[n])return;
@@ -514,11 +517,17 @@ async function setDesc(v){
 }
 async function resp(ok){
  const o=F();
- if(!o.approvalToken){toast('Este orçamento não tem um link de aprovação ativo no momento.');return}
+ if(o.bs!=='enviado'){toast('Envie o orçamento ao cliente antes de registrar a decisão.');return}
  if(busy)return;busy=true;
- try{await call('decideBudget',{token:o.approvalToken,decision:ok?'aprovado':'recusado',reason:role==='cliente'?'Aprovado pelo cliente no app':'Registrado pela equipe'});toast(ok?'Orçamento aprovado':'Orçamento recusado')}
+ try{await decide(o.id,ok?'aprovado':'recusado',role==='cliente'?'Aprovado pelo cliente no app':'Registrado pela equipe');toast(ok?'Orçamento aprovado':'Orçamento recusado')}
  catch(err){toast(err.message||'Não foi possível registrar a decisão')}
  busy=false;
+}
+async function decide(id,decision,reason){
+ const b=FS.batch();
+ b.update(FS.doc('budgets/'+id),{status:decision,decidedAt:FV.serverTimestamp(),decisionReason:reason||'',approvalToken:FV.delete()});
+ b.update(FS.doc('workOrders/'+id),{status:decision==='aprovado'?'EM ANDAMENTO':'AGUARDANDO ORÇAMENTO',log:FV.arrayUnion(logLine('orçamento '+decision+(reason?' ('+reason+')':'')))});
+ await b.commit();
 }
 async function pay(){
  const o=F(),v=cents($('#p_v').value),r=tot(o)-paid(o);
@@ -628,7 +637,18 @@ function waBtn(){
  ask('Enviar o orçamento ao cliente? A OS passa para Aguardando aprovação.',wa)
 }
 async function mark(o){
- if(o.bs==='rascunho'||o.bs==='recusado'){try{return(await call('sendBudget',{budgetId:o.id})).link}catch(err){toast(err.message);return null}}
+ const base=location.origin+location.pathname;
+ if(o.bs==='rascunho'||o.bs==='recusado'){
+  try{
+   const token=Array.from(crypto.getRandomValues(new Uint8Array(16)),x=>x.toString(16).padStart(2,'0')).join('');
+   const b=FS.batch();
+   b.update(FS.doc('budgets/'+o.id),{status:'enviado',approvalToken:token,totalCents:tot(o),sentAt:FV.serverTimestamp()});
+   b.update(FS.doc('workOrders/'+o.id),{status:'AGUARDANDO APROVAÇÃO',log:FV.arrayUnion(logLine('orçamento enviado ao cliente'))});
+   await b.commit();
+   return base+'?o='+o.id+'&t='+token;
+  }catch(err){toast(err.message);return null}
+ }
+ if(o.bs==='enviado'&&o.approvalToken)return base+'?o='+o.id+'&t='+o.approvalToken;
  return null;
 }
 async function wa(){
@@ -644,29 +664,40 @@ async function wa(){
  busy=false;
 }
 
-/* ===== Assistente WKK de verdade (Cloud Function askAssistant → Claude) ===== */
-async function ia(){
- const o=F(),qv=$('#iaq').value.trim();
+/* ===== Assistente WKK (beta: sugestões por palavras-chave, sem IA externa) ===== */
+const IA=[
+ [/freio|fren|pastilha|disco/i,'Verificar espessura de pastilhas e discos, nível e umidade do fluido de freio, vazamentos em mangueiras e funcionamento do cilindro/pinça.'],
+ [/superaquec|temperatura|radiador|arrefec|água/i,'Checar nível e vazamentos do líquido de arrefecimento, válvula termostática, ventoinha, tampa do radiador e bomba d\'água.'],
+ [/luz da inje|injeção|falha|perde força|engasg/i,'Fazer leitura com scanner, checar velas, bobinas, bicos injetores, sonda lambda, filtro de combustível e mangueiras de vácuo.'],
+ [/bateria|não pega|nao pega|partida|motor de arranque/i,'Testar bateria e alternador, bornes, motor de partida, fusíveis e relés do sistema de partida.'],
+ [/barulho|ruído|ruido|estalo|suspens|amortec|batida/i,'Inspecionar buchas, pivôs, terminais, amortecedores, coxins e rolamentos; fazer teste de rodagem para localizar o ruído.'],
+ [/óleo|oleo|vazamento|vaza/i,'Localizar a origem do vazamento (retentores, juntas, cárter), conferir nível de óleo e estado do filtro.'],
+ [/embreagem|marcha|câmbio|cambio|troca de marcha/i,'Verificar folga e curso do pedal, atuador/cilindro da embreagem, fluido e o kit (platô, disco e rolamento).'],
+ [/ar condicionado|ar-condicionado|ar condic|não gela|nao gela/i,'Checar pressão do gás, compressor, condensador, filtro de cabine e vazamentos no sistema.']
+];
+function ia(){
+ const qv=$('#iaq').value.trim();
  if(!qv){toast('Descreva o problema primeiro');return}
- if(busy)return;busy=true;
- $('#iar').innerHTML='<small>Consultando o assistente…</small>';
- try{
-  const r=await call('askAssistant',{osId:o.id,question:qv});
-  $('#iar').innerHTML=`<p>${e(r.text).replace(/\n/g,'<br>')}</p><div class="aviso">${e(r.aviso)}</div>${r.demo?'<small>Modo demonstração: configure a chave da IA no servidor (veja o README).</small>':''}`;
- }catch(err){$('#iar').innerHTML='';toast(err.message||'O assistente não respondeu')}
- busy=false;
+ const hits=IA.filter(([r])=>r.test(qv)).map(x=>x[1]);
+ $('#iar').innerHTML=(hits.length?hits.map(t=>`<p>${e(t)}</p>`).join(''):'<p>Faça um diagnóstico geral: scanner, inspeção visual, teste de rodagem e verificação dos fluidos.</p>')+'<div class="aviso">Sugestão automática por palavras-chave. Confirme sempre com a inspeção do mecânico.</div>';
 }
+addEventListener('focusout',()=>setTimeout(()=>{if(pendR&&!/^(INPUT|TEXTAREA|SELECT)$/.test(document.activeElement.tagName))render()},300));
 addEventListener('keydown',ev=>{if(role||document.activeElement.tagName==='INPUT')return;if(/^\d$/.test(ev.key))key(ev.key);else if(ev.key==='Backspace')key('B')});
 
 /* ===== Página pública de aprovação (/aprovar?t=...) — sem login, só com o token do link ===== */
-function isApprovalRoute(){return new URLSearchParams(location.search).has('t')||location.pathname.replace(/\/$/,'').endsWith('/aprovar')}
-let approvalData=null,approvalToken=null;
+function isApprovalRoute(){const u=new URLSearchParams(location.search);return u.has('t')&&u.has('o')}
+let approvalData=null,approvalToken=null,approvalId=null;
 const wm=()=>'<div class="wm"><b>WKK</b><span>OFICINA MECÂNICA</span><small>AUTO CENTER</small></div>';
 async function loadApproval(){
- approvalToken=new URLSearchParams(location.search).get('t');
+ const u=new URLSearchParams(location.search);approvalToken=u.get('t');approvalId=Number(u.get('o'));
  $('#nav').style.display='none';
  $('#app').innerHTML=`<div class="login">${wm()}<div class="card" style="text-align:center"><small>Carregando orçamento…</small></div></div>`;
- try{approvalData=await call('getBudgetByToken',{token:approvalToken});renderApproval()}
+ try{
+  const [bs,ws]=await Promise.all([FS.doc('budgets/'+approvalId).get(),FS.doc('workOrders/'+approvalId).get()]);
+  if(!bs.exists||bs.data().approvalToken!==approvalToken||bs.data().status!=='enviado')throw new Error('Este link não é válido ou já foi utilizado.');
+  const b=bs.data(),w=ws.data()||{};
+  approvalData={osNumber:approvalId,vehicle:b.vehicleLabel||w.vehicleLabel||'',plate:b.plate||w.placa||'',complaint:b.complaint||'',items:b.items||[],discountCents:b.discountCents||0,totalCents:b.totalCents||0};
+  renderApproval()}
  catch(err){$('#app').innerHTML=`<div class="login">${wm()}<div class="card" style="text-align:center"><b>Link indisponível</b><p><small>${e(err.message||'Este link não é válido ou já foi utilizado.')}</small></p></div></div>`}
 }
 function renderApproval(){
@@ -685,7 +716,9 @@ ${sub2('Outros')?`<div class="card"><b>Outros</b>${rows('Outros')}</div>`:''}
 async function decideApproval(decision){
  if(busy)return;busy=true;
  try{
-  await call('decideBudget',{token:approvalToken,decision});
+  const bs=await FS.doc('budgets/'+approvalId).get();
+  if(!bs.exists||bs.data().approvalToken!==approvalToken)throw new Error('Este link não é mais válido.');
+  await decide(approvalId,decision,'Decidido pelo cliente pelo link');
   $('#app').innerHTML=`<div class="login">${wm()}<div class="card" style="text-align:center"><b>${decision==='aprovado'?'✅ Orçamento aprovado':'❌ Orçamento recusado'}</b><p><small>Obrigado! A oficina já foi avisada.</small></p></div></div>`;
  }catch(err){toast(err.message||'Não foi possível registrar sua decisão')}
  busy=false;
@@ -696,16 +729,8 @@ if(isApprovalRoute()){
  loadApproval();
 }else{
  render();
- auth.onAuthStateChanged(async u=>{
-  if(!u){me=null;role=null;view='';sel=null;stopListeners();render();return}
-  try{
-   const snap=await FS.doc('users/'+u.uid).get();
-   if(!snap.exists||snap.data().ativo===false){await auth.signOut();toast('Acesso desativado');return}
-   const d=snap.data();
-   me={id:u.uid,nome:d.nome,role:d.role};role=d.role;view=ROLES[role][2][0][0];sel=null;
-   startListeners();render();
-  }catch(err){toast('Erro ao carregar sua sessão: '+err.message)}
- });
+ startUsers();
+
 }
 
 </script>
