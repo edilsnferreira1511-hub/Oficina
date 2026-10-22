@@ -20,6 +20,8 @@
     { id: 'conferir', label: 'Conferir pacotes de uma operação' },
     { id: 'operacao', label: 'Criar/atribuir operações' },
     { id: 'correcao', label: 'Corrigir registros (com motivo)' },
+    { id: 'confirmar_saida', label: 'Confirmar saída dos pacotes conferidos' },
+    { id: 'encerrar', label: 'Encerrar operação (bloqueia conferências)' },
     { id: 'devolucao', label: 'Decidir devolução ao remetente' },
     { id: 'usuarios', label: 'Administrar usuários e bases' },
     { id: 'config', label: 'Alterar configurações (motivos, limites)' },
@@ -28,10 +30,10 @@
   // true = permitido na PROPOSTA. Nada aprovado (D-06).
   var M = {
     admin_sistema: { usuarios: 1, config: 1 },
-    administrador: { ver_global: 1, ver_base: 1, correcao: 1, config: 1, operacao: 1 },
+    administrador: { ver_global: 1, ver_base: 1, correcao: 1, config: 1, operacao: 1, encerrar: 1 },
     coord_geral: { ver_global: 1, ver_base: 1 },
-    supervisor: { ver_base: 1, operacao: 1, correcao: 1, devolucao: 1 },
-    coord_base: { ver_base: 1, operacao: 1, correcao: 1, devolucao: 1 },
+    supervisor: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, encerrar: 1, correcao: 1, devolucao: 1 },
+    coord_base: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, correcao: 1, devolucao: 1 },
     despacho: { ver_base: 1, entrada: 1, conferir: 1 },
     motorista: { minhas_ops: 1 },
   };

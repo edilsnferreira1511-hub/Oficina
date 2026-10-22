@@ -6,7 +6,7 @@
   var TILE = 256;
   var LOC_KINDS = ['marcada', 'aproximada', 'desconhecida', 'pendente'];
   var LOC_LABEL = {
-    marcada: 'Ponto marcado',
+    marcada: 'Localização confirmada',
     aproximada: 'Localização aproximada',
     desconhecida: 'Localização desconhecida',
     pendente: 'Localização pendente',

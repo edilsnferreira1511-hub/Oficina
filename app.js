@@ -17,12 +17,14 @@
     { id: 'help', label: 'Ajuda', icon: 'help', title: 'Ajuda e configurações' },
     { id: 'package', label: 'Pacote', icon: 'box', title: 'Detalhes do pacote', nav: false },
     { id: 'operation', label: 'Operação', icon: 'truck', title: 'Detalhes da operação', nav: false },
+    { id: 'separation', label: 'Separação', icon: 'truck', title: 'Separação da ambulância', nav: false },
   ];
 
   function start(opts) {
     opts = opts || {};
     var D = opts.D || NS.data.createDemoData(Date.now());
-    var store = NS.store.createStore(D);
+    // relógio vivo: eventos novos usam a hora atual (os dados demonstrativos continuam ancorados em D.nowMs)
+    var store = NS.store.createStore(D, { nowFn: function () { return Math.max(D.nowMs, Date.now()); } });
     var state = { xptId: 'x1', profile: 'despacho', theme: 'light', route: 'overview', params: [] };
     var main = document.getElementById('main'), nav = document.getElementById('nav'), top = document.getElementById('topbar');
     var sidebar = document.getElementById('sidebar'), overlay = document.getElementById('overlay');
@@ -47,7 +49,7 @@
     function closeMenu() { sidebar.classList.remove('open'); overlay.hidden = true; var b = document.getElementById('menu-btn'); if (b) b.setAttribute('aria-expanded', 'false'); }
     function renderNav() {
       nav.replaceChildren.apply(nav, ROUTES.filter(function (r) { return r.nav !== false; }).map(function (r) {
-        var active = r.id === state.route || (state.route === 'package' && r.id === 'packages') || (state.route === 'operation' && r.id === 'ops');
+        var active = r.id === state.route || (state.route === 'package' && r.id === 'packages') || ((state.route === 'operation' || state.route === 'separation') && r.id === 'ops');
         return el('a', { href: '#/' + r.id, class: 'nav-item' + (active ? ' active' : ''), 'aria-current': active ? 'page' : null, onclick: closeMenu }, ui.icon(r.icon), el('span', { text: r.label }));
       }));
     }

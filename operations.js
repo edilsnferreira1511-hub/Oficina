@@ -7,7 +7,10 @@
   var OP_STATE = {
     rascunho_demo: 'Rascunho demonstrativo',
     em_conferencia: 'Em conferência (demo)',
-    aguardando_confirmacao: 'Aguardando confirmação (bloqueada)',
+    aguardando_confirmacao: 'Aguardando confirmação (demo)',
+    em_separacao: 'Em separação',
+    saida_confirmada: 'Saída confirmada',
+    encerrada: 'Encerrada',
   };
   function opsOf(D, xptId) { return D.operations.filter(function (o) { return o.xptId === xptId; }); }
   function opPackages(D, op) {
@@ -15,33 +18,24 @@
   }
 
   /**
-   * Conferência local de UMA operação (isolada por operação e XPT).
-   * scan() devolve {status: 'ok'|'repetido'|'invalido'|'outra_operacao'|'inexistente', ...}. Nunca expede nada.
+   * Conferência de UMA operação (isolada por operação e XPT). O registro fica em op.checked (memória da demonstração),
+   * então a tela de Saída e a página do QR sempre mostram o mesmo progresso. Conferir NUNCA muda o estado do pacote.
+   * scan() devolve {status: 'ok'|'repetido'|'invalido'|'outra_operacao'|'nao_vinculado'|'inexistente'|'bloqueado', message}.
    */
-  function createConference(D, op) {
-    var expected = opPackages(D, op);
-    var byCode = {};
-    expected.forEach(function (p) { byCode[p.code] = p; });
-    var done = [];
-    function scan(raw) {
-      var v = NS.codes.validate(raw);
-      if (!v.ok) return { status: 'invalido', message: v.message };
-      if (done.indexOf(v.code) >= 0) return { status: 'repetido', code: v.code, message: 'Código já conferido — não contado de novo.' };
-      if (byCode[v.code]) { done.push(v.code); return { status: 'ok', code: v.code, message: 'Conferido (demonstração).' }; }
-      // só procura na MESMA XPT da operação; nunca revela pacotes de outras bases
-      var other = D.packages.filter(function (p) { return p.code === v.code && p.xptId === op.xptId; })[0];
-      if (other) return { status: 'outra_operacao', code: v.code, message: 'Este pacote não pertence à operação selecionada.' };
-      return { status: 'inexistente', code: v.code, message: 'Código não encontrado nesta base.' };
-    }
+  function createConference(D, op, ctx) {
+    ctx = ctx || {};
+    function c() { return { nowMs: ctx.nowFn ? ctx.nowFn() : D.nowMs, operator: ctx.operator, authorized: ctx.authorized }; }
+    function codesDone() { var k = op.checked || {}; return opPackages(D, op).map(function (p) { return p.code; }).filter(function (x) { return k[x]; }); }
     return {
-      opId: op.id, xptId: op.xptId, scan: scan,
-      remove: function (code) { var k = done.indexOf(code); if (k < 0) return false; done.splice(k, 1); return true; },
-      clear: function () { done.length = 0; },
-      checked: function () { return done.slice(); },
-      pending: function () { return expected.filter(function (p) { return done.indexOf(p.code) < 0; }); },
-      expected: function () { return expected.slice(); },
-      progress: function () { return { done: done.length, total: expected.length }; },
-      complete: function () { return expected.length > 0 && done.length === expected.length; },
+      opId: op.id, xptId: op.xptId,
+      scan: function (raw) { return NS.ambulance.scan(D, op, raw, c()); },
+      remove: function (code) { return NS.ambulance.unscan(D, op, code, c()); },
+      clear: function () { codesDone().forEach(function (x) { NS.ambulance.unscan(D, op, x, c()); }); },
+      checked: codesDone,
+      pending: function () { var k = op.checked || {}; return opPackages(D, op).filter(function (p) { return !k[p.code]; }); },
+      expected: function () { return opPackages(D, op); },
+      progress: function () { return { done: codesDone().length, total: op.packageIds.length }; },
+      complete: function () { return op.packageIds.length > 0 && codesDone().length === op.packageIds.length; },
     };
   }
 

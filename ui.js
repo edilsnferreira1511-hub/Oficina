@@ -138,11 +138,35 @@
     back.appendChild(dlg); document.body.appendChild(back); document.addEventListener('keydown', key); okBtn.focus();
     return close;
   }
+  /** Modal genérico: content é um nó; buttons = [{label, cls, id, onClick(close)}]. Foco no primeiro botão, Esc fecha. */
+  function modal(title, content, buttons, opts) {
+    opts = opts || {};
+    var prev = document.activeElement;
+    var back = el('div', { class: 'modal-back' });
+    function close() { back.remove(); document.removeEventListener('keydown', key); if (opts.onClose) opts.onClose(); if (prev && prev.focus && prev.isConnected) prev.focus(); }
+    function key(e) { if (e.key === 'Escape') close(); }
+    var btns = (buttons || []).map(function (b) {
+      return el('button', { type: 'button', class: 'btn ' + (b.cls || 'btn--ghost'), id: b.id || null, onclick: function () { b.onClick(close); } }, b.label);
+    });
+    var dlg = el('div', { class: 'modal modal--wide', role: 'dialog', 'aria-modal': 'true', 'aria-label': title, id: opts.id || null },
+      el('h2', { text: title }), content, el('div', { class: 'row-actions' }, btns));
+    back.appendChild(dlg); document.body.appendChild(back); document.addEventListener('keydown', key);
+    var f = dlg.querySelector('button'); if (f) f.focus();
+    return { close: close, node: dlg };
+  }
   var liveEl = null;
   function announce(msg) {
     if (!liveEl) liveEl = document.getElementById('live');
     if (liveEl) { liveEl.textContent = ''; setTimeout(function () { liveEl.textContent = msg; }, 20); }
   }
+  // replaceChildren(null) insere o texto "null": ignora valores vazios para que condicionais (cond ? nó : null) sejam seguros em todas as telas
+  if (typeof Element !== 'undefined' && !Element.prototype.__cxptSafe) {
+    var _rc = Element.prototype.replaceChildren;
+    Element.prototype.replaceChildren = function () {
+      return _rc.apply(this, Array.prototype.slice.call(arguments).filter(function (x) { return x !== null && x !== undefined && x !== false; }));
+    };
+    Element.prototype.__cxptSafe = true;
+  }
   NS.ui = { el: el, icon: icon, badge: badge, kpi: kpi, callout: callout, empty: empty, card: card, blocked: blocked, field: field, select: select,
-    table: table, pager: pager, bars: bars, columns: columns, confirmModal: confirmModal, announce: announce, fmtDate: fmtDate, fmtDateTime: fmtDateTime };
+    table: table, pager: pager, bars: bars, columns: columns, confirmModal: confirmModal, modal: modal, announce: announce, fmtDate: fmtDate, fmtDateTime: fmtDateTime };
 })(typeof window !== 'undefined' ? window : globalThis);

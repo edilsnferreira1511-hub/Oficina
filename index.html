@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- CSP restritiva: nada de scripts/estilos inline, nada de rede. Para ativar um provedor de mapas aprovado,
-       acrescente o host dos ladrilhos em img-src (ver map-config.js). -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data:; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <!-- CSP restritiva: nada de scripts/estilos inline; a única rede permitida é a de IMAGENS de ladrilhos do provedor de mapas
+       (img-src). Ao trocar de provedor, troque o host aqui e em map-config.js. connect-src continua 'none'. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="color-scheme" content="light dark">
   <title>COOPMETRO XPT · Demonstração</title>
   <link rel="stylesheet" href="styles.css">
@@ -62,6 +63,9 @@
   <script src="reports.js"></script>
   <script src="permissions.js"></script>
   <script src="audit.js"></script>
+  <script src="registry.js"></script>
+  <script src="ambulance.js"></script>
+  <script src="qr.js"></script>
   <script src="operations.js"></script>
   <script src="store.js"></script>
   <script src="map-config.js"></script>
@@ -72,6 +76,7 @@
   <script src="views-ops.js"></script>
   <script src="views-map.js"></script>
   <script src="views-admin.js"></script>
+  <script src="views-amb.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

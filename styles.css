@@ -154,3 +154,4 @@ input[readonly] { background: var(--surface2); }
 .gmap { scroll-margin-top: 130px; }
 .pin--focus { z-index: 2; }
 .pin--sel { z-index: 3; }
+.loc-info { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; } .loc-info[hidden] { display: none; }

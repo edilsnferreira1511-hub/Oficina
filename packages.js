@@ -60,6 +60,14 @@
     return { ok: true, pkg: p, event: ev };
   }
 
+  /** Acrescenta um evento ao histórico (cópia); nunca altera nem apaga eventos anteriores. */
+  function addEvent(pkg, e) {
+    var p = clone(pkg);
+    var ev = mkEvent(p, e.type, e.at, e.from || null, e.to || null, e.operator, e.note);
+    p.history.push(ev);
+    return { pkg: p, event: ev };
+  }
+
   /** Correção exige motivo e gera evento; XPT de origem e código nunca mudam. */
   function correct(pkg, field, value, reason, opts) {
     opts = opts || {};
@@ -102,7 +110,7 @@
 
   NS.packages = {
     TRANSITIONS: TRANSITIONS, IN_WAREHOUSE: IN_WAREHOUSE, validTs: validTs, inWarehouse: inWarehouse, canTransition: canTransition,
-    stayDays: stayDays, returnFlag: returnFlag, transition: transition, correct: correct, filter: filter, paginate: paginate,
+    stayDays: stayDays, returnFlag: returnFlag, transition: transition, correct: correct, addEvent: addEvent, filter: filter, paginate: paginate,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.packages;
 })(typeof window !== 'undefined' ? window : globalThis);

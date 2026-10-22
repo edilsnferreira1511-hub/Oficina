@@ -6,10 +6,10 @@
 | D-04 | Estados oficiais e transições permitidas | Proposta demonstrativa em `packages.js` |
 | D-05 | Fluxo de devolução ao remetente e critérios | Apenas sinalização (3º/4º retorno); nada automático |
 | D-06 | Matriz de permissões detalhada; Administrador × Administrador do sistema | Matriz proposta em `permissions.js`, só visual |
-| D-07 | Confirmação real de entrada e saída; prevenção de saída duplicada | Botões bloqueados com motivo |
+| D-07 | Confirmação real de entrada e saída; prevenção de saída duplicada | Confirmação **local em memória** com permissão (sem backend); a real depende de D-07 |
 | D-08 | Origem diferente da base do usuário; transferência entre XPTs | Origem permanente; sem transferência |
 | D-09 | Limites por XPT (alerta × bloqueio) | Não implementado |
-| D-10 | Provedor de mapas, atribuição, política de segurança (CSP `img-src`) | Sem provedor → "mapa indisponível" |
+| D-10 | Provedor de mapas, atribuição, política de segurança (CSP `img-src`) | **OpenStreetMap configurado provisoriamente** (uso leve; exige Referer → http(s); atribuição exibida; CSP libera só `tile.openstreetmap.org`). **Não aprovado para produção**: política de uso em https://operations.osmfoundation.org/policies/tiles/ ; avaliar provedor próprio/pago |
 | D-11 | Geocodificação e roteamento (otimização de rotas) | Não implementado; nada prometido |
 | D-12 | Formato oficial das etiquetas/códigos | Regra provisória (A–Z, 0–9, `.`, `_`, `-`, ≤ 64) |
 | D-13 | Leitura por câmera (biblioteca) e leitores físicos | Câmera não implementada; leitor só por teclado, sem teste com hardware |
@@ -21,3 +21,7 @@
 | D-19 | Semântica de "sem localização" (desconhecida × pendente) | Ambas contam no alerta "sem localização" |
 | — | Nomes de tamanho ("Grande" × "volumoso") | Mantido "Pequeno/Médio/Grande" |
 | — | Identidade visual oficial | Logotipo enviado usado; paleta aproximada |
+| D-20 | Pacote não conferido ao confirmar a saída | Volta ao estoque com evento, listado nas pendências da operação (hipótese a aprovar) |
+| D-21 | Pacote sem coordenadas em ambulância | Só por inclusão manual explícita; nunca automático |
+| D-22 | QR Code entre aparelhos | Só funciona no mesmo navegador (memória); exige backend |
+| D-23 | Reentrada de código existente (evento/ciclo por estado) | Evento registrado sem duplicar; retorno de rota inicia novo ciclo (proposta) |

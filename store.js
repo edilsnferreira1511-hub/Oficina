@@ -20,14 +20,25 @@
       group: function (xptId) { return groups[xptId] || (groups[xptId] = NS.operations.createGroupDraft(xptId)); },
       conference: function (op) {
         var k = op.xptId + '|' + op.id;
-        return confs[k] || (confs[k] = NS.operations.createConference(D, op));
+        return confs[k] || (confs[k] = NS.operations.createConference(D, op, { nowFn: nowFn, operator: 'Operador Demo' }));
       },
-      /** Pontos (somente desta XPT) e seleção sempre reconciliados com o rascunho atual. */
+      /** Pontos salvos: pacotes CONFIRMADOS desta XPT com coordenadas válidas (a localização é reutilizada; não é marcada de novo). */
+      savedPoints: function (xptId) {
+        return D.packages.filter(function (p) { return p.xptId === xptId && NS.geo.hasCoords(p.location); }).map(function (p) {
+          var why = NS.ambulance.ineligible(D, xptId, p);
+          return { id: p.id, code: p.code, xptId: p.xptId, kind: p.location.kind, lat: p.location.lat, lng: p.location.lng, regionId: p.location.regionId,
+            size: p.size, reasonId: p.reasonId, source: 'pacote', state: p.state, eligible: !why, why: why };
+        });
+      },
+      /** Pontos (somente desta XPT): rascunho de Entrada + pacotes confirmados com coordenadas. A seleção é reconciliada com o que é selecionável. */
       mapPoints: function (xptId) {
-        var pts = s.draft(xptId).geoPoints();
-        s.group(xptId).reconcile(pts);
+        var drafts = s.draft(xptId).geoPoints().map(function (pt) { return Object.assign({ source: 'rascunho', eligible: true, why: null }, pt); });
+        var pts = drafts.concat(s.savedPoints(xptId));
+        s.group(xptId).reconcile(pts.filter(function (p) { return p.eligible; }));
         return pts;
       },
+      /** Somente os pontos que podem entrar numa seleção (pacotes já em operação ativa ficam de fora). */
+      selectable: function (pts) { return pts.filter(function (p) { return p.eligible; }); },
       on: function (fn) { listeners.push(fn); },
       changed: function (src) { listeners.slice().forEach(function (fn) { fn(src); }); },
     };

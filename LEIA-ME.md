@@ -1,54 +1,52 @@
-# COOPMETRO XPT — protótipo local V1 (demonstração)
+# COOPMETRO XPT — protótipo local V1 (atualizado: fluxo operacional completo)
 
 > **AMBIENTE DE DEMONSTRAÇÃO — dados fictícios, sem gravação no sistema real.**
-> Não há backend, login real, Firebase, Mercado Livre nem serviços externos. Tudo vive na memória da página e é perdido ao recarregar.
+> Não há backend, login real, Firebase nem Mercado Livre. Tudo vive na memória da página e é perdido ao recarregar.
+> A única rede usada é a de **imagens de ladrilhos do mapa** (OpenStreetMap), quando há internet.
 
-## Como abrir
-- **Mais simples:** abra `index.html` no navegador (duplo clique). Funciona via `file://`.
-- **Servidor local (opcional):** `python3 -m http.server 8765` dentro desta pasta e abra `http://127.0.0.1:8765/`.
-- Requisitos: um navegador atual com JavaScript. Nenhuma instalação, nenhuma internet.
+## Como abrir (IMPORTANTE para o mapa)
+- **Para o mapa aparecer, abra por `http(s)`**, não com duplo clique: o servidor público do OpenStreetMap exige o cabeçalho `Referer`, que o navegador **não envia** para arquivos abertos como `file://`. Nesse caso a tela diz exatamente isso ("mapa indisponível") em vez de desenhar um mapa falso.
+  - Local: `python3 -m http.server 8765` nesta pasta e abra `http://127.0.0.1:8765/`.
+  - Publicado: GitHub Pages (envie todos os arquivos desta pasta para a raiz do repositório).
+- Requer internet para os ladrilhos. Sem internet ou com ladrilhos recusados, o mapa mostra "indisponível" com o motivo, e dá para registrar o pacote como **pendente de localização**.
 
-## Telas (menu)
-Visão Geral · Mapa e Regiões · Operações (+ detalhe) · Pacotes (+ detalhe) · Entrada de Pacotes · Saída e Conferência · Alertas e Devoluções · Relatórios · Motoristas · XPT/Galpões · Ajuda e configurações.
+## Fluxo implementado (em memória)
+Entrada (bipar/digitar → validar → tamanho/motivo/observação → mapa: tocar, ajustar, **confirmar localização** → rascunho → **confirmar entrada local**) → pacote com latitude/longitude salvos → **Mapa e Regiões** (planejamento: pontos reutilizados, aproximados diferenciados, sem localização em lista separada, filtro por XPT, seleção individual/múltipla/**região desenhada**, revisão) → **criar ambulância** (coordenador) → **QR Code** (visualizar/imprimir) → **página de separação** (bipagem, X de Y, lista recolhível, mapa-resumo) → **confirmar saída** (só conferidos) → **encerrar operação** (supervisor/administrador; bloqueia conferências) → histórico.
 
 ## Estrutura (pasta única, sem subpastas — pronta para enviar ao GitHub)
 ```
-index.html  styles.css  logo-coopmetro.jpg      casca (CSP estrita), tema claro/escuro, logotipo enviado pelo proprietário
+index.html  styles.css  logo-coopmetro.jpg     casca (CSP estrita), tema claro/escuro, logotipo enviado pelo proprietário
 data.js          dados demonstrativos determinísticos + configuração (tamanhos, motivos, estados)
-packages.js      estados, transições demonstrativas, correção com motivo, filtros, paginação (puro)
-alerts.js        permanência > limite, retornos, divergências (puro, calculado ao abrir)
-codes.js         normalização/validação de códigos, índice global, rascunho de entrada (puro)
+packages.js      estados, transições, correção com motivo, filtros, paginação (puro)
+alerts.js        permanência > limite, retornos, divergências (puro)
+codes.js         validação/normalização de códigos, índice global, rascunho de entrada (puro)
 geo.js           validação de coordenadas/localização, Web Mercator, seleção por área (puro)
-operations.js    operações, conferência (X de Y) e rascunho de grupo geográfico (puro)
+registry.js      confirmação de entrada/reentrada em memória, sem duplicar, preservando localização e histórico
+ambulance.js     criar ambulância, bipagem, confirmar saída, encerrar (regras puras; autorização como parâmetro)
+qr.js            gerador de QR Code local (sem bibliotecas, sem rede); o QR leva só o endereço da operação
+operations.js    operações demonstrativas, conferência e rascunho de grupo
 permissions.js   perfis e matriz PROPOSTA (não é segurança)
-audit.js         registro de auditoria em memória (somente anexar)
-reports.js       agregações e CSV demonstrativo
-store.js         estado em memória por XPT (rascunhos, grupos, conferências)
-map-config.js    configuração do provedor de mapas (hoje: nenhum → mapa indisponível)
-map.js           componente de mapa por ladrilhos (só funciona com provedor configurado)
-ui.js, views.js, views-entry.js, views-ops.js, views-map.js, views-admin.js, app.js   componentes, telas, roteador
-unit.test.js, e2e.js, run-all.js, helpers.js, tile-simulado.png, tile-simulado-LEIA-ME.txt   testes e fixture simulada
-ARQUITETURA-FUNCIONAL.md  DECISOES-PENDENTES.md  TESTES.md  STATUS-DO-PROJETO.md  LEIA-ME.md   documentação
+audit.js  reports.js  store.js                 auditoria em memória, relatórios/CSV, estado por XPT
+map-config.js    provedor de mapas (OpenStreetMap) + condições de uso;  map.js: componente (toque, pinça, região desenhada)
+ui.js  views.js  views-entry.js  views-ops.js  views-map.js  views-amb.js  views-admin.js  app.js    interface
+unit.test.js  unit-fluxo.test.js  e2e.js  e2e-fluxo.js  run-all.js  helpers.js  qr-verificacao.py  tile-simulado.png  tile-simulado-LEIA-ME.txt   testes
+ARQUITETURA-FUNCIONAL.md  DECISOES-PENDENTES.md  TESTES.md  STATUS-DO-PROJETO.md  LEIA-ME.md      documentação
 make-zip.sh      gera o ZIP de entrega
 ```
-**Importante:** todos os arquivos precisam ficar juntos na mesma pasta (o `index.html` os carrega pelo nome).
+**Todos os arquivos precisam ficar juntos na mesma pasta** (o `index.html` os carrega pelo nome).
 
 ## Executar os testes
 ```
-node unit.test.js        # unitários (Node, sem dependências)
-node e2e.js              # navegador (requer Playwright + Chromium; ver TESTES.md)
-node run-all.js          # tudo
+node unit.test.js && node unit-fluxo.test.js     # unitários (Node, sem dependências)
+node e2e.js && node e2e-fluxo.js                 # navegador (Playwright + Chromium; Python+OpenCV opcional p/ ler o QR)
+node run-all.js                                  # tudo
 ```
-O e2e procura o Playwright em `/opt/node22/lib/node_modules/playwright` ou no módulo `playwright` instalado.
-
 ## Gerar um ZIP atualizado
-`sh make-zip.sh` (cria `COOPMETRO-XPT-V1.zip` ao lado da pasta; o ZIP contém uma única pasta com todos os arquivos, sem subpastas; exclui capturas, caches e dependências).
+`sh make-zip.sh [destino.zip]` → uma única pasta `coopmetro-xpt` com todos os arquivos, sem subpastas.
 
 ## Limitações conhecidas
-- **Sem persistência** (nem localStorage/cookies): recarregar volta aos dados demonstrativos.
-- **Mapa:** nenhum provedor foi aprovado (D-10) → a tela mostra "mapa indisponível" e **não desenha grade/imagem**. Seleção, detalhes e grupo preliminar funcionam pela lista. Os testes do mapa usam ladrilhos **simulados** (imagem sintética) — **nenhuma validação com cartografia real foi feita**.
-- Leitura por câmera **não** implementada (sem biblioteca local aprovada). Leitores USB/Bluetooth em modo teclado são suportados na digitação (Enter/Tab), mas **não foram testados com hardware real**.
-- Confirmação real de entrada, saída e criação de operações está **bloqueada** (exige backend e decisões de negócio).
-- Seletor de perfil é só demonstração, **não oferece segurança**.
-- Formato oficial dos códigos de etiqueta é desconhecido: a regra (A–Z, 0–9, ponto, sublinhado, hífen, até 64) é **provisória**.
-- Testado apenas no Chromium.
+- **Nada persiste**: recarregar volta aos dados fictícios. O **QR só abre a operação no mesmo navegador/sessão** (a operação existe apenas na memória); em outro aparelho mostra "operação não encontrada" até existir backend.
+- **Mapa real NÃO foi validado aqui**: o ambiente de desenvolvimento não tem acesso ao servidor de ladrilhos (conexão recusada pelo proxy). Os testes de mapa usam ladrilhos **sintéticos interceptados** e provam o componente, não a cartografia. Valide no seu aparelho/hospedagem. O servidor público do OSM é para uso leve; para produção contrate/hospede um provedor (ver `map-config.js`).
+- Leitura por **câmera não** implementada (não aparece como disponível). Leitor USB/Bluetooth (modo teclado) suportado por digitação/Enter, **sem teste com hardware real**. Sem testes em Android real; só Chromium emulando celular com toque.
+- Autorização é só da interface (seletor de perfil demonstrativo); a real virá do backend. Sem Firebase, sem deploy.
+- Região desenhada = **retângulo** (não polígono livre). Tamanhos/motivos/estados e regras de reentrada/devolução são provisórios (ver `DECISOES-PENDENTES.md`).

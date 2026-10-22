@@ -202,7 +202,9 @@ test('conferência: esperado, repetido, inválido, outra operação, inexistente
   const exp = c.expected(); eq(c.progress(), { done: 0, total: exp.length });
   eq(c.scan(exp[0].code.toLowerCase() + ' ').status, 'ok'); eq(c.scan(exp[0].code).status, 'repetido'); eq(c.progress().done, 1);
   eq(c.scan('').status, 'invalido'); eq(c.scan('a b').status, 'invalido'); eq(c.scan('NAO-EXISTE').status, 'inexistente');
-  const other = D.packages.find(p => p.xptId === 'x1' && !op.packageIds.includes(p.id)); eq(c.scan(other.code).status, 'outra_operacao');
+  // requisito V2: distinguir "não vinculado a nenhuma operação" de "pertence a OUTRA ambulância"
+  const inOther = D.operations.find(o => o.xptId === 'x1' && o.id !== op.id).packageIds[0], pOther = D.packages.find(p => p.id === inOther); eq(c.scan(pOther.code).status, 'outra_operacao');
+  const free = D.packages.find(p => p.xptId === 'x1' && !D.operations.some(o => o.packageIds.includes(p.id))); eq(c.scan(free.code).status, 'nao_vinculado');
   const x2 = D.packages.find(p => p.xptId === 'x2'); const r = c.scan(x2.code); eq(r.status, 'inexistente'); ok(!/x2|Beta/.test(JSON.stringify(r)));
   eq(c.remove(exp[0].code), true); eq(c.progress().done, 0); eq(c.remove(exp[0].code), false);
   exp.forEach(p => c.scan(p.code)); eq(c.complete(), true);

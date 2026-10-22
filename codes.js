@@ -39,7 +39,7 @@
   }
 
   var DUP_MSG = {
-    nesta_xpt: 'Código já existe nesta base. Em produção isso registraria um novo evento, conforme regras ainda não aprovadas (D-03).',
+    nesta_xpt: 'Pacote já cadastrado nesta base: nenhuma duplicata será criada. Consulte o pacote abaixo e registre a reentrada como evento.',
     outra_xpt: 'Código já consta no índice global. Os dados não são exibidos — procure a coordenação.',
   };
 

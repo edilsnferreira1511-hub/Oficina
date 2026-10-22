@@ -28,3 +28,11 @@ Rascunhos, grupos e conferências ficam em mapas por `xptId`; listas filtram por
 
 ## Preparação para o backend
 Funções puras mapeiam 1:1 para regras de servidor (validação de código/coordenadas, transições, índice global, alertas). Autorização real, índice global, confirmações de entrada/saída, auditoria e provedor de mapas dependem do backend e de decisões pendentes.
+
+## Fluxo operacional (V1 atualizado)
+- **Mapa (`map.js` + `map-config.js`):** componente de ladrilhos Web Mercator sem dependências (alternativa ao Leaflet: nenhum download necessário, CSP estrita mantida). Provedor configurado separadamente; `availability()` informa `sem_provedor | config_invalida | offline | arquivo_local`; falha de ladrilhos vira "indisponível" com motivo. Toque (arrastar, tocar, pinça), botões de zoom ≥ 44 px, região retangular desenhada.
+- **registry.js:** `confirmDraft` cria pacotes (xptId permanente, estado em_estoque, localização salva, evento `entrada`); código existente nunca duplica: registra evento, preserva localização/histórico (retorno de rota inicia novo ciclo).
+- **ambulance.js:** `createAmbulance` (só pacotes em estoque da mesma base, nunca em duas operações ativas; pacotes → em_separacao), `scan` (ok | repetido | inválido | outra operação | não vinculado | inexistente; nada altera pacotes), `confirmExit` (só conferidos → em_rota; pendentes voltam ao estoque com evento e ficam registrados), `closeOperation` (bloqueia novas conferências; preserva histórico/pendências). Autorização é parâmetro (demonstração).
+- **qr.js:** QR Code local (ISO 18004, modo byte). Conteúdo = `<endereço da página>#/separation/<id da operação>`; sem dados de pacote/pessoa; **não autentica**.
+- **Rota `separation`:** página mobile da ambulância (contagens, lista recolhível, campo de bipagem com foco contínuo, mapa-resumo). Operação inexistente na sessão → "não encontrada" (sem backend).
+- **Permissões (propostas):** `operacao`, `conferir`, `confirmar_saida`, `encerrar` por perfil; só a interface avisa/bloqueia nesta versão.

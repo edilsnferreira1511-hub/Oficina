@@ -10,7 +10,7 @@
   var SIZES = [
     { id: 'P', label: 'Pequeno' },
     { id: 'M', label: 'Médio' },
-    { id: 'G', label: 'Grande' },
+    { id: 'G', label: 'Grande / volumoso' },
   ];
   var REASONS = [
     { id: 'r_ausente', label: 'Cliente ausente' },
@@ -136,7 +136,7 @@
           packageIds: ids,
           state: opStates[k % opStates.length],
           createdAt: nowMs - (k + 1) * DAY,
-          groupLabel: 'Grupo preliminar demo ' + (k + 1),
+          name: 'Ambulância Demo ' + (k + 1), groupLabel: 'Grupo preliminar demo ' + (k + 1), checked: {}, history: [],
           regionId: xid + '-r' + ((k % 5) + 1),
         });
       }
