@@ -41,7 +41,8 @@
     var zoneSvg = document.createElementNS(SVGNS, 'svg'); zoneSvg.setAttribute('class', 'gmap-zone'); zoneSvg.setAttribute('aria-hidden', 'true');
     var zonePoly = document.createElementNS(SVGNS, 'polygon'); zonePoly.setAttribute('class', 'zone-shape');
     var zoneLine = document.createElementNS(SVGNS, 'polyline'); zoneLine.setAttribute('class', 'zone-line');
-    zoneSvg.appendChild(zonePoly); zoneSvg.appendChild(zoneLine);
+    var zoneCirc = document.createElementNS(SVGNS, 'circle'); zoneCirc.setAttribute('class', 'zone-shape zone-circle'); zoneCirc.setAttribute('r', '0');
+    zoneSvg.appendChild(zonePoly); zoneSvg.appendChild(zoneLine); zoneSvg.appendChild(zoneCirc);
     var markL = el('div', { class: 'gmap-markers' });
     var zoneV = el('div', { class: 'gmap-zone-v' });
     var zin = el('button', { type: 'button', class: 'gmap-zoom', 'aria-label': 'Aproximar', onclick: function () { zoomBy(1); } }, '+');
@@ -82,6 +83,7 @@
           onpointerdown: function (e) { e.stopPropagation(); },
         }, el('span', { class: 'pin-dot' }));
         b.style.left = Math.round(p.x) + 'px'; b.style.top = Math.round(p.y) + 'px';
+        if (m.color && /^#[0-9a-f]{6}$/i.test(m.color)) { b.classList.add('pin--amb'); b.style.setProperty('--pin-amb', m.color); }
         markL.appendChild(b);
       });
     }
@@ -128,6 +130,56 @@
         });
         zoneV.appendChild(b);
       });
+      renderCircle();
+    }
+    // ---- círculo (centro + raio em metros): 1º toque = centro (raio provisório), 2º toque = raio; centro e alça do raio arrastáveis
+    var circ = null, circMode = false, circClosed = false, cDrag = null;
+    function mpp(lat) { return 156543.03392 * Math.cos(lat * Math.PI / 180) / Math.pow(2, view.zoom); }
+    function circChanged() { renderZone(); if (opts.onCircle) opts.onCircle(circ ? { center: { lat: circ.center.lat, lng: circ.center.lng }, radius: circ.radius } : null, circClosed); }
+    function drawClass() { root_.classList.toggle('gmap--draw', (zoneMode && !zoneClosed) || (circMode && !circClosed)); }
+    function renderCircle() {
+      if (!circ) { zoneCirc.setAttribute('r', '0'); return; }
+      var p = g.latLngToPoint(view, W, H, circ.center.lat, circ.center.lng), rpx = circ.radius / mpp(circ.center.lat);
+      zoneCirc.setAttribute('cx', String(Math.round(p.x * 10) / 10)); zoneCirc.setAttribute('cy', String(Math.round(p.y * 10) / 10)); zoneCirc.setAttribute('r', String(Math.round(rpx * 10) / 10));
+      zoneCirc.setAttribute('class', 'zone-shape zone-circle' + (circClosed ? ' zone-circle--closed' : ''));
+      zoneSvg.setAttribute('class', 'gmap-zone gmap-zone--closed');
+      // as alças só existem com o círculo fechado (ajuste fino); durante o desenho valem os toques no mapa
+      if (circClosed) {
+        var hc = el('button', { type: 'button', class: 'zone-v circle-c', 'aria-label': 'Centro do círculo. Setas movem.' });
+        var hr = el('button', { type: 'button', class: 'zone-v circle-r', 'aria-label': 'Raio do círculo (' + Math.round(circ.radius) + ' m). Setas esquerda/direita mudam o raio.' });
+        hc.style.left = Math.round(p.x) + 'px'; hc.style.top = Math.round(p.y) + 'px'; hr.style.left = Math.round(p.x + rpx) + 'px'; hr.style.top = Math.round(p.y) + 'px';
+        function wire(b, onMove) {
+          b.addEventListener('pointerdown', function (e) { e.stopPropagation(); if (e.button > 0) return; cDrag = { id: e.pointerId, moved: false }; try { b.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ } });
+          b.addEventListener('pointermove', function (e) {
+            if (!cDrag || cDrag.id !== e.pointerId) return;
+            var r = root_.getBoundingClientRect(), ll = g.pointToLatLng(view, W, H, Math.max(0, Math.min(r.width, e.clientX - r.left)), Math.max(0, Math.min(r.height, e.clientY - r.top)));
+            cDrag.moved = true; onMove(ll);
+            var q = g.latLngToPoint(view, W, H, circ.center.lat, circ.center.lng), rr = circ.radius / mpp(circ.center.lat);
+            zoneCirc.setAttribute('cx', String(q.x)); zoneCirc.setAttribute('cy', String(q.y)); zoneCirc.setAttribute('r', String(rr));
+            hc.style.left = Math.round(q.x) + 'px'; hc.style.top = Math.round(q.y) + 'px'; hr.style.left = Math.round(q.x + rr) + 'px'; hr.style.top = Math.round(q.y) + 'px';
+          });
+          b.addEventListener('pointerup', function (e) { if (!cDrag || cDrag.id !== e.pointerId) return; var mv = cDrag.moved; cDrag = null; if (mv) circChanged(); });
+        }
+        wire(hc, function (ll) { circ.center = { lat: ll.lat, lng: ll.lng }; });
+        wire(hr, function (ll) { circ.radius = Math.max(20, Math.min(100000, g.distanceM(circ.center.lat, circ.center.lng, ll.lat, ll.lng))); });
+        hr.addEventListener('keydown', function (e) {
+          var f = e.key === 'ArrowRight' || e.key === 'ArrowUp' ? 1.1 : e.key === 'ArrowLeft' || e.key === 'ArrowDown' ? 1 / 1.1 : 0; if (!f) return;
+          e.preventDefault(); e.stopPropagation(); circ.radius = Math.max(20, Math.min(100000, circ.radius * f)); circChanged(); var nb = zoneV.querySelector('.circle-r'); if (nb) nb.focus();
+        });
+        hc.addEventListener('keydown', function (e) {
+          var d = 6, dx = 0, dy = 0, k = e.key; if (k === 'ArrowLeft') dx = -d; else if (k === 'ArrowRight') dx = d; else if (k === 'ArrowUp') dy = -d; else if (k === 'ArrowDown') dy = d; else return;
+          e.preventDefault(); e.stopPropagation();
+          var q = g.latLngToPoint(view, W, H, circ.center.lat, circ.center.lng), ll = g.pointToLatLng(view, W, H, q.x + dx, q.y + dy); circ.center = { lat: ll.lat, lng: ll.lng }; circChanged();
+          var nb = zoneV.querySelector('.circle-c'); if (nb) nb.focus();
+        });
+        zoneV.appendChild(hc); zoneV.appendChild(hr);
+      } else {
+        var dot = el('span', { class: 'circle-dot', 'aria-hidden': 'true' }); dot.style.left = Math.round(p.x) + 'px'; dot.style.top = Math.round(p.y) + 'px'; zoneV.appendChild(dot);
+      }
+    }
+    function addCirclePoint(lat, lng) {
+      if (!circ || circClosed) { circ = { center: { lat: lat, lng: lng }, radius: 250 }; circClosed = false; circChanged(); return; } // 1º toque: centro (raio provisório)
+      circ.radius = Math.max(20, Math.min(100000, g.distanceM(circ.center.lat, circ.center.lng, lat, lng))); circClosed = true; circMode = false; drawClass(); circChanged(); // 2º toque: raio
     }
     function addZonePoint(lat, lng) { zone.push({ lat: lat, lng: lng }); zoneChanged(); }
 
@@ -175,7 +227,7 @@
       var d = drag; drag = null;
       if (!d.moved) {
         var r = root_.getBoundingClientRect(), ll = g.pointToLatLng(view, W, H, e.clientX - r.left, e.clientY - r.top);
-        if (zoneMode && !zoneClosed) addZonePoint(ll.lat, ll.lng); else if (opts.onMapClick) opts.onMapClick(ll.lat, ll.lng);
+        if (circMode && !circClosed) addCirclePoint(ll.lat, ll.lng); else if (zoneMode && !zoneClosed) addZonePoint(ll.lat, ll.lng); else if (opts.onMapClick) opts.onMapClick(ll.lat, ll.lng);
       }
     });
     root_.addEventListener('pointercancel', function (e) { delete touches[e.pointerId]; pinch = null; drag = null; });
@@ -198,10 +250,15 @@
       fit: function (points) { autoFit = points && points.length ? points.slice() : null; setView(g.fitView(points, W, H, view, cfg.minZoom, cfg.maxZoom)); },
       resize: function () { measure(); render(); },
       status: function () { return status; },
-      setZoneMode: function (on) { zoneMode = !!on; root_.classList.toggle('gmap--draw', zoneMode && !zoneClosed); },
+      setZoneMode: function (on) { zoneMode = !!on; drawClass(); },
+      setCircleMode: function (on) { circMode = !!on; if (circMode && circClosed) { circ = null; circClosed = false; circChanged(); } drawClass(); },
+      getCircle: function () { return circ ? { center: { lat: circ.center.lat, lng: circ.center.lng }, radius: circ.radius } : null; },
+      circleClosed: function () { return circClosed; },
+      clearCircle: function () { circ = null; circClosed = false; circChanged(); },
+      setCircle: function (c, closed) { circ = c ? { center: { lat: c.center.lat, lng: c.center.lng }, radius: c.radius } : null; circClosed = !!closed && !!circ; renderZone(); },
       getZone: function () { return zone.map(function (v) { return { lat: v.lat, lng: v.lng }; }); },
       zoneClosed: function () { return zoneClosed; },
-      closeZone: function () { if (zone.length < 3) return false; zoneClosed = true; root_.classList.remove('gmap--draw'); zoneChanged(); return true; },
+      closeZone: function () { if (zone.length < 3) return false; zoneClosed = true; drawClass(); zoneChanged(); return true; },
       undoZonePoint: function () { if (!zone.length) return; zone.pop(); if (zone.length < 3) zoneClosed = false; zoneChanged(); },
       clearZone: function () { zone = []; zoneClosed = false; zoneChanged(); },
       setZone: function (poly, closed) { zone = (poly || []).map(function (v) { return { lat: v.lat, lng: v.lng }; }); zoneClosed = !!closed && zone.length >= 3; renderZone(); },

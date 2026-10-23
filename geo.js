@@ -168,6 +168,24 @@
     });
     return res;
   }
+  /** Distância em metros entre dois pontos (haversine). */
+  function distanceM(lat1, lng1, lat2, lng2) {
+    var R = 6371008.8, rad = Math.PI / 180, dLat = (lat2 - lat1) * rad, dLng = (lng2 - lng1) * rad;
+    var a = Math.sin(dLat / 2) * Math.sin(dLat / 2) + Math.cos(lat1 * rad) * Math.cos(lat2 * rad) * Math.sin(dLng / 2) * Math.sin(dLng / 2);
+    return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+  }
+  /** Círculo válido: centro com coordenadas válidas e raio finito > 0 (m), no máximo 100 km. */
+  function circleValid(c) { return !!c && !!c.center && validCoord(c.center.lat, c.center.lng) && isNum(c.radius) && c.radius > 0 && c.radius <= 100000; }
+  function pointInCircle(lat, lng, c) { return validCoord(lat, lng) && circleValid(c) && distanceM(c.center.lat, c.center.lng, lat, lng) <= c.radius; }
+  /** Separa {inside, outside} entre os pontos com coordenadas (sem coordenadas ficam fora das duas listas). */
+  function pointsInCircle(points, c) {
+    var res = { inside: [], outside: [] };
+    (points || []).forEach(function (p) {
+      if (!validCoord(p.lat, p.lng)) return;
+      (pointInCircle(p.lat, p.lng, c) ? res.inside : res.outside).push(p);
+    });
+    return res;
+  }
   function groupByRegion(points) {
     var out = {};
     (points || []).forEach(function (p) { var k = p.regionId || 'sem_regiao'; (out[k] = out[k] || []).push(p); });
@@ -189,7 +207,7 @@
     hasPoint: hasPoint, hasCoords: hasCoords, validateLocation: validateLocation, normalizeLocation: normalizeLocation,
     makeLocation: makeLocation, project: project, unproject: unproject, wrapLng: wrapLng, clampLat: clampLat, clampZoom: clampZoom,
     tilesFor: tilesFor, latLngToPoint: latLngToPoint, pointToLatLng: pointToLatLng, panView: panView, fitView: fitView,
-    boundsOf: boundsOf, pointsInBounds: pointsInBounds, polygonValid: polygonValid, pointInPolygon: pointInPolygon, pointsInPolygon: pointsInPolygon, groupByRegion: groupByRegion, formatLatLng: formatLatLng,
+    boundsOf: boundsOf, pointsInBounds: pointsInBounds, polygonValid: polygonValid, pointInPolygon: pointInPolygon, pointsInPolygon: pointsInPolygon, distanceM: distanceM, circleValid: circleValid, pointInCircle: pointInCircle, pointsInCircle: pointsInCircle, groupByRegion: groupByRegion, formatLatLng: formatLatLng,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.geo;
 })(typeof window !== 'undefined' ? window : globalThis);

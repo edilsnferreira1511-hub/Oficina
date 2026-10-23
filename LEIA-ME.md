@@ -1,4 +1,4 @@
-# COOPMETRO XPT — versão TESTE-FIREBASE (zona poligonal, login real, Firestore)
+# COOPMETRO XPT — versão TESTE-FIREBASE (círculo/polígono, ambulância por motorista, Separar, login real, Firestore)
 
 > **Dois modos, decididos por `firebase-config.js`:**
 > - **`apiKey` vazia (como entregue): MODO DEMONSTRAÇÃO** — dados fictícios só em memória, sem login, sem rede (exceto ladrilhos do mapa).
@@ -15,6 +15,14 @@
 
 ## Fluxo implementado
 Entrada (bipar/digitar → código válido abre o mapa → tocar na casa do cliente → tocar em outro ponto reposiciona → **Confirmar localização** → rascunho → **confirmar entrada**; sem as antigas 4 opções de tipo: sem ponto confirmado o pacote segue **sem localização confirmada**, nunca com coordenada inventada) → pacote com latitude/longitude → **Mapa e Regiões** (pontos reutilizados, sem localização em lista separada, filtro por XPT, seleção manual **ou zona poligonal desenhada**: toque vários pontos, finalize, arraste os vértices para ajustar, apague/cancele; dentro/fora destacados, contador, retirar pacote individual antes de confirmar, pacotes em operação ativa excluídos) → **criar ambulância** (coordenador) → **QR Code** (visualizar/imprimir) → **página de separação** (bipagem, X de Y, lista recolhível, mapa-resumo) → **confirmar saída** (só conferidos) → **encerrar operação** (supervisor/administrador; bloqueia conferências) → histórico. No modo Firebase tudo isso é gravado em transações do Firestore e recuperado após recarregar / em outro aparelho.
+
+## Estrutura nova de separação / ambulância por motorista / circular pacotes (modelo "Rota Certa", design COOPMETRO)
+- **Circular pacotes no mapa**: ferramentas **Círculo** (1º toque = centro, 2º toque = raio; arraste o centro/alça do raio ou use setas) e **Polígono**. Uma área por vez. Os pacotes dentro e livres de operação ativa são selecionados automaticamente; durante o desenho, tocar sobre um pacote marca o ponto da área.
+- **Painel "Criar ambulância" logo abaixo do mapa**: nome sugerido, responsável e **motorista obrigatório** (só aparecem motoristas livres: **uma ambulância ativa por motorista**). A **cor** é automática (paleta de 8 cores, sem repetir entre ambulâncias ativas da base); o nome da cor sempre acompanha a cor. Pacotes já em ambulância aparecem no mapa na cor dela.
+- **Separar** (menu): leitor USB/Bluetooth sempre pronto (ou digitação); bipar qualquer pacote mostra resultado grande na cor da ambulância (nome, cor, código, motorista) ou vermelho (sem ambulância / não encontrado / inválido); some sozinho em ~2 s. **Só consulta, não grava.**
+- **Bipar pacote (motorista)**: o motorista vê só a própria ambulância e seus códigos; bipar → **verde** (da sua ambulância), **vermelho** (de outra / não pertence) ou **âmbar** (código inválido / sem ambulância). Também só consulta.
+- Conferência registrada, saída e encerramento continuam na página da ambulância (QR) e em Saída e Conferência.
+- Limite: leitura por **câmera** não existe nesta versão (leitor físico ou digitação). A regra "uma ambulância por motorista" no modo Firebase é verificada nos dados carregados no aparelho (não há trava no servidor: dois despachantes criando ao mesmo tempo para o mesmo motorista poderiam passar; veja D-27).
 
 ## Estrutura (pasta única, sem subpastas — pronta para enviar ao GitHub)
 ```
@@ -34,7 +42,7 @@ map-config.js    provedor de mapas (OpenStreetMap) + condições de uso;  map.js
 firebase-config.js  configuração do app web (apiKey VAZIA até você preencher)   firebase-adapter.js  SDK 10.14.1 do Firebase (só carrega com apiKey)
 services.js      TODA gravação (demo em memória ou Firestore em transações) · auth.js  login/logout/recuperar senha/sessão · views-setup.js  dados iniciais de teste (admin)
 firestore.rules  regras de segurança PROPOSTAS (para você revisar/publicar)   fake-firebase.js  backend SIMULADO só para testes
-ui.js  views.js  views-entry.js  views-ops.js  views-map.js  views-amb.js  views-admin.js  app.js    interface
+ui.js  views.js  views-entry.js  views-ops.js  views-map.js  views-amb.js  views-sort.js  views-admin.js  app.js    interface
 unit.test.js  unit-fluxo.test.js  unit-firebase.test.js  rules-lint.test.js  e2e.js  e2e-fluxo.js  e2e-firebase.js  run-all.js  helpers.js  qr-verificacao.py  tile-simulado.png  tile-simulado-LEIA-ME.txt   testes
 ARQUITETURA-FUNCIONAL.md  DECISOES-PENDENTES.md  TESTES.md  STATUS-DO-PROJETO.md  LEIA-ME.md  FIREBASE.md      documentação
 make-zip.sh      gera o ZIP de entrega

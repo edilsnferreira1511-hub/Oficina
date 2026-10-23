@@ -40,3 +40,9 @@ Funções puras mapeiam 1:1 para regras de servidor (validação de código/coor
 ## Zona poligonal e Firebase (versão TESTE-FIREBASE)
 - **geo.js** `polygonValid` (≥3 vértices válidos, área ≠ 0, sem arestas cruzadas), `pointInPolygon` (raios), `pointsInPolygon`; **operations.js** `zoneSummary` (dentro/fora/elegíveis/bloqueados/rascunhos). **map.js**: camada SVG da zona + botões de vértice (arrastar/setas/Delete); `setZoneMode/closeZone/undoZonePoint/clearZone/getZone`.
 - **services.js** é a fronteira de gravação (Promise): demo (memória) ou remoto (transações Firestore executando as mesmas funções puras sobre um "mini D" lido na hora). **auth.js** controla o acesso; **firebase-adapter.js** liga ao SDK. Detalhes e coleções em `FIREBASE.md`.
+
+## Separação por ambulância / motorista (estrutura inspirada no modelo Rota Certa)
+- `geo.js`: `distanceM`, `circleValid`, `pointInCircle`, `pointsInCircle`. `operations.js`: `circleSummary` (mesma forma de `zoneSummary`). `map.js`: círculo (`setCircleMode`, `getCircle`, `clearCircle`, `onCircle`), marcador com `color`.
+- `ambulance.js`: `COLORS`, `colorOf` (valida; cor inválida vira neutra), `createAmbulance` exige `driverId` ativo da base **sem outra ambulância ativa** (`ctx.knownOps` = operações conhecidas do aparelho) e atribui `op.color`.
+- `views-sort.js`: `V.sort` (Separar) e `V.check` (motorista) — só consultam, nunca gravam; `H.ambChip` (bolinha na cor + nome + nome da cor).
+- Modelo de dados: `operations/{id}.color` (hex da paleta) e `driverId` obrigatório na criação; `firestore.rules` inalteradas.

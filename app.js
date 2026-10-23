@@ -9,6 +9,8 @@
     { id: 'ops', label: 'Operações', icon: 'truck', title: 'Operações de ambulância' },
     { id: 'packages', label: 'Pacotes', icon: 'box', title: 'Pacotes' },
     { id: 'entry', label: 'Entrada de Pacotes', icon: 'entry', title: 'Entrada de Pacotes' },
+    { id: 'sort', label: 'Separar', icon: 'box', title: 'Separar pacotes por ambulância' },
+    { id: 'check', label: 'Bipar pacote (motorista)', icon: 'truck', title: 'Bipar pacote — minha ambulância' },
     { id: 'exit', label: 'Saída e Conferência', icon: 'exit', title: 'Saída de Pacotes e Conferência' },
     { id: 'alerts', label: 'Alertas e Devoluções', icon: 'alert', title: 'Alertas e devoluções' },
     { id: 'reports', label: 'Relatórios', icon: 'chart', title: 'Relatórios' },

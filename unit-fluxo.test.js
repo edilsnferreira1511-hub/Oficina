@@ -7,10 +7,15 @@ const loc = (lat, lng) => ({ kind: 'marcada', lat, lng, regionId: null });
 function enter(D, xpt, code, l) {
   return R.registerEntries(D, xpt, [{ code, size: 'M', reasonId: 'r_ausente', note: '', location: l || loc(-16.33, -48.95) }], ctx());
 }
+function freeDriver(D, xpt) {
+  const busy = new Set(D.operations.filter((o) => A.isActive(o) && o.driverId).map((o) => o.driverId));
+  const d = D.drivers.find((x) => x.xptId === xpt && x.state === 'ativo' && !busy.has(x.id)); return d ? d.id : null;
+}
 function mk(D, codes, xpt) {
   xpt = xpt || 'x1';
   const ids = codes.map((c) => enter(D, xpt, c).created[0].id);
-  return A.createAmbulance(D, xpt, { name: 'Amb 1', responsible: 'Resp', packageIds: ids }, ctx());
+  const drv = freeDriver(D, xpt); // uma ambulância por motorista: cada chamada usa um motorista livre
+  return A.createAmbulance(D, xpt, { driverId: drv, name: 'Amb 1', responsible: 'Resp', packageIds: ids }, ctx());
 }
 
 // ---------- Entrada e reentrada
@@ -57,23 +62,23 @@ test('criar ambulância: id único, vínculos, estado e pacotes em separação c
 });
 test('mesmo pacote não entra em duas operações ativas', () => {
   const D = fresh(), r = mk(D, ['b-1']);
-  const again = A.createAmbulance(D, 'x1', { name: 'Amb 2', responsible: 'R', packageIds: r.op.packageIds }, ctx());
+  const again = A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'Amb 2', responsible: 'R', packageIds: r.op.packageIds }, ctx());
   eq(again.ok, false); ok(/não elegíveis/.test(again.errors.packageIds));
 });
 test('regra independente: pacote vinculado a operação ativa é recusado mesmo se o estado estiver "em_estoque"', () => {
   const D = fresh(), r = mk(D, ['b-2']);
   const p = D.packages.find((x) => x.code === 'B-2'); p.state = 'em_estoque'; // dado inconsistente de propósito
-  const again = A.createAmbulance(D, 'x1', { name: 'Amb 2', responsible: 'R', packageIds: [p.id] }, ctx());
+  const again = A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'Amb 2', responsible: 'R', packageIds: [p.id] }, ctx());
   eq(again.ok, false); ok(new RegExp(r.op.id).test(again.errors.packageIds));
 });
 test('criar exige permissão, nome, responsável e pacote de estoque da própria base', () => {
   const D = fresh(), id = enter(D, 'x1', 'c-1').created[0].id;
-  eq(A.createAmbulance(D, 'x1', { name: 'A', responsible: 'R', packageIds: [id] }, ctx({ authorized: false })).reason, 'sem_permissao');
-  ok(A.createAmbulance(D, 'x1', { name: '', responsible: 'R', packageIds: [id] }, ctx()).errors.name);
-  ok(A.createAmbulance(D, 'x1', { name: 'A', responsible: '', packageIds: [id] }, ctx()).errors.responsible);
-  ok(A.createAmbulance(D, 'x1', { name: 'A', responsible: 'R', packageIds: [] }, ctx()).errors.packageIds);
+  eq(A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'A', responsible: 'R', packageIds: [id] }, ctx({ authorized: false })).reason, 'sem_permissao');
+  ok(A.createAmbulance(D, 'x1', { driverId: 'm6', name: '', responsible: 'R', packageIds: [id] }, ctx()).errors.name);
+  ok(A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'A', responsible: '', packageIds: [id] }, ctx()).errors.responsible);
+  ok(A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'A', responsible: 'R', packageIds: [] }, ctx()).errors.packageIds);
   const other = D.packages.find((p) => p.xptId === 'x2' && p.state === 'em_estoque');
-  eq(A.createAmbulance(D, 'x1', { name: 'A', responsible: 'R', packageIds: [other.id] }, ctx()).ok, false);
+  eq(A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'A', responsible: 'R', packageIds: [other.id] }, ctx()).ok, false);
   eq(other.state, 'em_estoque');
 });
 
@@ -123,7 +128,7 @@ test('encerrar exige permissão, bloqueia novas conferências e preserva pendên
   const p = D.packages.find((x) => x.code === 'J-2'); eq(p.state, 'em_estoque'); ok(/pendência preservada/.test(p.history.at(-1).note));
   ok(D.packages.find((x) => x.code === 'J-2')); // nunca removido do estoque
   // pendente liberado pode entrar numa nova operação
-  ok(A.createAmbulance(D, 'x1', { name: 'Amb 2', responsible: 'R', packageIds: [p.id] }, ctx()).ok);
+  ok(A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'Amb 2', responsible: 'R', packageIds: [p.id] }, ctx()).ok);
 });
 
 // ---------- QR Code
@@ -186,8 +191,44 @@ test('zona + ambulância: pacotes de uma operação ativa deixam de ser elegíve
   const st = NS.store.createStore(D, { nowMs: NOW });
   const inZone = () => NS.operations.zoneSummary(st.mapPoints('x1'), SQ);
   eq(inZone().eligible.length, 3);
-  const r = A.createAmbulance(D, 'x1', { name: 'Z', responsible: 'R', packageIds: ids.slice(0, 2) }, ctx()); ok(r.ok, JSON.stringify(r));
+  const r = A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'Z', responsible: 'R', packageIds: ids.slice(0, 2) }, ctx()); ok(r.ok, JSON.stringify(r));
   const s = inZone(); eq(s.eligible.length, 1); eq(s.blocked.length, 2);
-  eq(A.createAmbulance(D, 'x1', { name: 'Z2', responsible: 'R', packageIds: ids.slice(0, 1) }, ctx()).ok, false, 'mesmo pacote em duas operações ativas é recusado');
+  eq(A.createAmbulance(D, 'x1', { driverId: 'm6', name: 'Z2', responsible: 'R', packageIds: ids.slice(0, 1) }, ctx()).ok, false, 'mesmo pacote em duas operações ativas é recusado');
 });
+
+// ---------- Círculo, ambulância por motorista e cores
+test('geo: distância e círculo (dentro/fora; sem coordenadas ficam fora das duas listas; raio inválido recusado)', () => {
+  const G = NS.geo, c = { center: { lat: -16.68, lng: -49.25 }, radius: 600 };
+  ok(Math.abs(G.distanceM(-16.68, -49.25, -16.68, -49.24) - 1065) < 15, 'haversine ~1065 m por 0,01° de longitude');
+  ok(G.pointInCircle(-16.68, -49.245, c)); ok(!G.pointInCircle(-16.68, -49.24, c));
+  const r = G.pointsInCircle([{ id: 'a', lat: -16.68, lng: -49.245 }, { id: 'b', lat: -16.68, lng: -49.24 }, { id: 'c', lat: null, lng: null }], c);
+  eq(r.inside.map((p) => p.id), ['a']); eq(r.outside.map((p) => p.id), ['b']);
+  ok(!G.circleValid({ center: c.center, radius: 0 })); ok(!G.circleValid({ center: c.center, radius: 200000 })); ok(!G.circleValid({ center: { lat: 99, lng: 0 }, radius: 10 })); ok(!G.pointInCircle(-16.68, -49.25, { center: c.center, radius: -1 }));
+});
+test('círculo: circleSummary separa disponíveis, bloqueados (já em operação) e fora', () => {
+  const D = fresh(); const a = enter(D, 'x1', 'cc-1', loc(-16.68, -49.25)).created[0], b = enter(D, 'x1', 'cc-2', loc(-16.68, -49.2501)).created[0], f = enter(D, 'x1', 'cc-3', loc(-16.7, -49.3)).created[0];
+  A.createAmbulance(D, 'x1', { driverId: freeDriver(D, 'x1'), name: 'Z', responsible: 'R', packageIds: [b.id] }, ctx());
+  const pts = D.packages.filter((p) => ['CC-1', 'CC-2', 'CC-3'].includes(p.code)).map((p) => Object.assign({ id: p.id, lat: p.location.lat, lng: p.location.lng, source: 'pacote' }, { eligible: !A.ineligible(D, 'x1', p) }));
+  const sm = NS.operations.circleSummary(pts, { center: { lat: -16.68, lng: -49.25 }, radius: 300 });
+  eq(sm.inside.length, 2); eq(sm.eligible.map((p) => p.id), [a.id]); eq(sm.blocked.length, 1); eq(sm.outside.map((p) => p.id), [f.id]);
+  eq(NS.operations.circleSummary(pts, { center: { lat: -16.68, lng: -49.25 }, radius: 0 }).valid, false);
+});
+test('ambulância por motorista: motorista obrigatório, ativo, da base e sem outra ambulância ativa', () => {
+  const D = fresh(), id = enter(D, 'x1', 'dr-1').created[0].id, id2 = enter(D, 'x1', 'dr-2').created[0].id;
+  const f = (drv, ids) => A.createAmbulance(D, 'x1', { driverId: drv, name: 'A', responsible: 'R', packageIds: ids }, ctx());
+  ok(f('', [id]).errors.driverId); ok(f(null, [id]).errors.driverId);
+  ok(/inválido/.test(f('m4', [id]).errors.driverId), 'motorista de outra base'); ok(/inativo/.test(f('m3', [id]).errors.driverId), 'motorista inativo'); ok(/já tem a ambulância ativa/.test(f('m1', [id]).errors.driverId), 'm1 tem ambulância ativa nos dados de demonstração');
+  eq(D.packages.find((p) => p.id === id).state, 'em_estoque', 'recusa não altera pacote');
+  const r = f('m6', [id]); ok(r.ok); eq(r.op.driverId, 'm6');
+  ok(/já tem a ambulância ativa/.test(f('m6', [id2]).errors.driverId));
+  A.closeOperation(D, r.op, ctx()); ok(f('m6', [id2]).ok, 'depois de encerrar, o motorista fica livre');
+});
+test('cores: automática, sem repetir entre ambulâncias ativas da base; valor inválido vira neutro', () => {
+  const D = fresh(); const used = new Set(D.operations.filter((o) => o.xptId === 'x1' && A.isActive(o)).map((o) => o.color));
+  const r = A.createAmbulance(D, 'x1', { driverId: 'm6', color: '#ff0000', name: 'A', responsible: 'R', packageIds: [enter(D, 'x1', 'cor-1').created[0].id] }, ctx());
+  ok(r.ok); ok(!used.has(r.op.color), 'cor livre'); ok(A.COLORS.some((c) => c.hex === r.op.color), 'da paleta (cor enviada pelo formulário é ignorada)');
+  eq(A.colorOf({ color: 'javascript:alert(1)' }).name, 'Sem cor'); eq(A.colorOf({ color: '#1E5AC8' }).name, 'Azul'); eq(A.colorOf(null).name, 'Sem cor');
+  const names = A.COLORS.map((c) => c.name); eq(new Set(names).size, names.length); eq(new Set(A.COLORS.map((c) => c.hex)).size, A.COLORS.length);
+});
+
 done('unit-fluxo.test.js');

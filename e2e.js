@@ -186,7 +186,7 @@ async function suite(browser, label, base) {
   check('desfazer reduz para 1', (await page.getAttribute('#sel-count', 'data-count')) === '1');
   await page.click('#select-all'); check('selecionar todos com coordenadas = 2 (nunca inclui sem coordenadas)', (await page.getAttribute('#sel-count', 'data-count')) === '2');
   await page.click('#clear-sel'); check('limpar seleção = 0', (await page.getAttribute('#sel-count', 'data-count')) === '0');
-  check('criar ambulância bloqueada com motivo para perfil sem permissão (Despacho)', /Indispon[^\n]*não pode criar operações/i.test(await txt('#group-panel .blocked')));
+  check('criar ambulância bloqueada com motivo para perfil sem permissão (Despacho)', /Indispon[^\n]*não pode criar operações/i.test(await txt('#amb-box .blocked')));
   // marcador no mapa seleciona
   // o mapa se ajusta aos pontos (sem sobreposição); rola o mapa para baixo do cabeçalho fixo
   await page.locator('.gmap').evaluate((e) => e.scrollIntoView());

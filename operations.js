@@ -94,6 +94,19 @@
     };
   }
 
-  NS.operations = { zoneSummary: zoneSummary, OP_STATE: OP_STATE, opsOf: opsOf, opPackages: opPackages, createConference: createConference, createGroupDraft: createGroupDraft };
+  /** Resumo de um círculo (centro + raio em metros): mesma forma de zoneSummary. */
+  function circleSummary(points, circle) {
+    var G = NS.geo;
+    if (!G.circleValid(circle)) return { valid: false, inside: [], outside: [], eligible: [], blocked: [], drafts: [] };
+    var r = G.pointsInCircle(points, circle);
+    return {
+      valid: true, inside: r.inside, outside: r.outside,
+      eligible: r.inside.filter(function (p) { return p.eligible && p.source === 'pacote'; }),
+      blocked: r.inside.filter(function (p) { return !p.eligible; }),
+      drafts: r.inside.filter(function (p) { return p.eligible && p.source !== 'pacote'; }),
+    };
+  }
+
+  NS.operations = { zoneSummary: zoneSummary, circleSummary: circleSummary, OP_STATE: OP_STATE, opsOf: opsOf, opPackages: opPackages, createConference: createConference, createGroupDraft: createGroupDraft };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.operations;
 })(typeof window !== 'undefined' ? window : globalThis);

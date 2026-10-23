@@ -29,3 +29,6 @@
 - **D-24 (novo, proposta)** Zona de ambulância = polígono livre desenhado sobre o mapa; só pacotes com coordenadas confirmadas e elegíveis entram. Aprovar/ajustar.
 - **D-25 (novo, proposta)** Firebase: dados de teste em `env/teste` do projeto `coopmetro-xpt` (sem projeto separado); histórico embutido no pacote + trilha `events` imutável; id do pacote = `pk-CÓDIGO`; sem Cloud Functions. Aprovar ou criar projeto de teste separado.
 - **D-26 (novo)** Regras do Firestore propostas (`firestore.rules`) espelham a matriz D-06; precisam de revisão e teste no Simulador/Emulator antes de publicar.
+- **D-27 (novo)** "Uma ambulância por motorista": hoje verificada nos dados carregados no aparelho (demo e Firebase). Para garantir no servidor contra criações simultâneas seria preciso um documento-trava por motorista com regras próprias (não feito; exige revisão das regras).
+- **D-28 (novo)** Leitura por câmera nas telas Separar e Bipar pacote (o modelo Rota Certa usa biblioteca externa); depende de aprovar a biblioteca e a política de segurança (CSP).
+- **D-29 (novo)** Paleta de 8 cores de ambulância e o limite de 8 ambulâncias ativas distintas por base antes de repetir cor (a repetição é permitida; nome da ambulância sempre aparece).

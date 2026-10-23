@@ -7,13 +7,15 @@ Node v22.22.0 · Playwright 1.56.1 · Chromium (/opt/pw-browsers, headless) · O
 | Tipo | Arquivo | Resultado |
 |---|---|---|
 | Unitário | `unit.test.js` | **52 aprovados** |
-| Unitário (entrada, ambulância, QR, **zona**) | `unit-fluxo.test.js` | **26 aprovados** |
+| Unitário (entrada, ambulância, QR, **zona**) | `unit-fluxo.test.js` | **30 aprovados** |
 | **Integração com backend SIMULADO** (serviços + transações + modelo das regras) | `unit-firebase.test.js` | **19 aprovados** |
 | **Análise estática** das regras (texto) | `rules-lint.test.js` | **10 aprovados** |
 | Navegador (`file://` e `http://`) | `e2e.js` | **598 aprovados** |
-| Navegador, celular com toque (entrada nova, **zona**, ambulância, QR, saída) | `e2e-fluxo.js` | **126 aprovados** |
-| Navegador, **modo Firebase com backend SIMULADO** | `e2e-firebase.js` | **43 aprovados** |
+| Navegador, celular com toque (entrada nova, **zona**, ambulância, QR, saída) | `e2e-fluxo.js` | **153 aprovados** |
+| Navegador, **modo Firebase com backend SIMULADO** | `e2e-firebase.js` | **52 aprovados** |
 `node run-all.js` executa tudo. Nenhum teste foi feito por pessoa; nada em Android real.
+
+Novos nesta versão: círculo (geo/summary/pixel), motorista obrigatório e livre, cores, Separar (cores, falhas, não grava), motorista (verde/vermelho/âmbar, servidor sem ler pacotes).
 
 ## Os 20 itens do pedido × onde são cobertos (e o que é simulado)
 | # | Item | Teste | Natureza |

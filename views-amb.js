@@ -184,7 +184,7 @@
       node: H.page([
         NS.mode === 'remoto' ? ui.callout('info', 'Conferência gravada no servidor (ambiente de teste).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos.') : ui.callout('warn', 'Conferência em memória (demonstração).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos. Nada vai para servidor.'),
         ui.card('Operação (' + c.xpt.name + ')', el('div', { class: 'form-grid' }, ui.field('Operação', opSel),
-          dl([['Ambulância', opLabel(cur)], ['Estado', stateBadge(cur)], ['Responsável', cur.responsible], ['Motorista', driverName(D, cur.driverId)]]))),
+          dl([['Ambulância', H.ambChip(cur)], ['Estado', stateBadge(cur)], ['Responsável', cur.responsible], ['Motorista', driverName(D, cur.driverId)]]))),
         ui.card('Leitura de códigos', panel.node),
         actionButtons(c, cur, function () { c.rerender(); }), H.demoNote(),
       ]), destroy: function () { panel.destroy(); },
@@ -199,7 +199,7 @@
       c.profile === 'motorista' ? ui.callout('info', 'Visão do motorista (simulação): somente operações atribuídas a "Motorista Demo 1".', 'Na versão real isso será imposto pelo backend.') : null,
       ui.card('Operações de ambulância — ' + c.xpt.name, ops.length ? ui.table([
         { label: 'Operação', render: function (o) { return el('a', { href: '#/operation/' + encodeURIComponent(o.id), class: 'code-link', text: o.id }); } },
-        { label: 'Ambulância', render: function (o) { return opLabel(o); } },
+        { label: 'Ambulância', render: function (o) { return H.ambChip(o); } },
         { label: 'Responsável', key: 'responsible' }, { label: 'Motorista', render: function (o) { return driverName(D, o.driverId); } },
         { label: 'Previstos', render: function (o) { return String(o.packageIds.length); } },
         { label: 'Conferidos', render: function (o) { return String(c.store.conference(o).progress().done); } },
@@ -223,7 +223,7 @@
     return H.page([
       el('a', { class: 'btn btn--ghost', href: '#/ops' }, '← Voltar às operações'),
       ui.card('Operação ' + op.id + ' — ' + opLabel(op), dl([
-        ['Ambulância', opLabel(op)], ['XPT', H.xptName(D, op.xptId)], ['Responsável', op.responsible], ['Motorista', driverName(D, op.driverId)],
+        ['Ambulância', H.ambChip(op)], ['XPT', H.xptName(D, op.xptId)], ['Responsável', op.responsible], ['Motorista', driverName(D, op.driverId)],
         ['Estado', stateBadge(op)], ['Criada em', ui.fmtDateTime ? ui.fmtDateTime(op.createdAt) : ui.fmtDate(op.createdAt)],
         ['Pendências preservadas no encerramento', op.pendingAtClose ? (op.pendingAtClose.length ? op.pendingAtClose.join(', ') : 'nenhuma') : '—'],
       ])),

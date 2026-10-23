@@ -43,7 +43,11 @@
     { id: 'm3', name: 'Agregado Demo 3', ident: 'AGR-DEMO-03', xptId: 'x1', state: 'inativo' },
     { id: 'm4', name: 'Motorista Demo 4', ident: 'MOT-DEMO-04', xptId: 'x2', state: 'ativo' },
     { id: 'm5', name: 'Agregado Demo 5', ident: 'AGR-DEMO-05', xptId: 'x2', state: 'ativo' },
+    { id: 'm6', name: 'Motorista Demo 6', ident: 'MOT-DEMO-06', xptId: 'x1', state: 'ativo' },
+    { id: 'm7', name: 'Motorista Demo 7', ident: 'MOT-DEMO-07', xptId: 'x1', state: 'ativo' },
+    { id: 'm8', name: 'Motorista Demo 8', ident: 'MOT-DEMO-08', xptId: 'x2', state: 'ativo' },
   ];
+  var OP_COLORS = ['#1e5ac8', '#e8590c', '#7048e8', '#0b7285']; // mesmas cores de ambulance.js (colorOf valida)
 
   function mulberry32(a) {
     return function () {
@@ -127,16 +131,16 @@
           var cand = pool.shift();
           if (!used[cand.id]) { used[cand.id] = 1; ids.push(cand.id); }
         }
-        var drv = DRIVERS.filter(function (d) { return d.xptId === xid && d.state === 'ativo'; });
+        var drv = DRIVERS.filter(function (d) { return d.xptId === xid && d.state === 'ativo' && !/^m[678]$/.test(d.id); }); // m6–m8 ficam livres para criar ambulâncias (uma por motorista)
         operations.push({
           id: 'OP-DEMO-' + pad(opSeq++, 3),
           xptId: xid,
           responsible: 'Responsável Demo ' + (k + 1),
-          driverId: k === 2 ? null : drv[k % drv.length].id,
+          driverId: k >= 2 || !drv[k] ? null : drv[k].id,
           packageIds: ids,
           state: opStates[k % opStates.length],
           createdAt: nowMs - (k + 1) * DAY,
-          name: 'Ambulância Demo ' + (k + 1), groupLabel: 'Grupo preliminar demo ' + (k + 1), checked: {}, history: [],
+          color: OP_COLORS[k % OP_COLORS.length], name: 'Ambulância Demo ' + (k + 1), groupLabel: 'Grupo preliminar demo ' + (k + 1), checked: {}, history: [],
           regionId: xid + '-r' + ((k % 5) + 1),
         });
       }

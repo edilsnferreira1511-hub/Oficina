@@ -178,3 +178,19 @@ input[readonly] { background: var(--surface2); }
 .auth-form { display: flex; flex-direction: column; gap: 12px; }
 .user-badge { font-size: 13px; font-weight: 600; }
 .shell[hidden] { display: none; }
+
+/* ----- Círculo, cores de ambulância, Separar e Bipar (motorista) ----- */
+.zone-circle { fill: rgba(30, 90, 200, .14); stroke-dasharray: 6 4; } .zone-circle--closed { stroke-dasharray: none; }
+.circle-dot { position: absolute; width: 12px; height: 12px; margin: -6px 0 0 -6px; border-radius: 50%; background: #1e5ac8; border: 2px solid #fff; box-shadow: 0 0 0 1px #000; pointer-events: none; z-index: 4; }
+.circle-c { border-radius: 50%; } .circle-r { border-radius: 6px; border-color: #e8590c; }
+.tool-btn.is-on { background: var(--y500); border-color: #000; color: #000; font-weight: 700; }
+.pin--amb .pin-dot { background: var(--pin-amb); border: 3px solid #fff; border-radius: 50%; box-shadow: 0 0 0 1px #000; }
+.legend-pin--amb { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: linear-gradient(90deg, #1e5ac8 50%, #e8590c 50%); border: 2px solid #fff; box-shadow: 0 0 0 1px #000; margin-right: 6px; vertical-align: middle; }
+.amb-chip { display: inline-flex; align-items: center; gap: 6px; font-weight: 600; } .amb-dot { width: 14px; height: 14px; border-radius: 50%; border: 2px solid #fff; box-shadow: 0 0 0 1px #000; flex: none; }
+.amb-legend { list-style: none; margin: 0; padding: 0; display: grid; gap: 10px; } .chips { display: flex; flex-wrap: wrap; gap: 6px; } .chip { padding: 4px 8px; border: 1px solid var(--border); border-radius: 999px; }
+.big-result { min-height: 0; margin-top: 12px; border-radius: 14px; text-align: center; color: #fff; --gcolor: #6c757d; }
+.big-result:empty { display: none; } .big-result:not(:empty) { padding: 24px 16px; min-height: 180px; display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 6px; }
+.big-result--ok { background: var(--gcolor); } .big-result--fail, .big-result--wrong { background: #b3261e; } .big-result--warn { background: #f2b705; color: #1b1b1b; }
+.big-result--wrong { border: 8px solid var(--gcolor); }
+.big-icon { font-size: 56px; line-height: 1; font-weight: 800; } .big-line1 { font-size: 24px; font-weight: 800; } .big-line2 { font-size: 22px; } .big-line3 { font-size: 15px; opacity: .95; }
+.gmap--draw .pin { pointer-events: none; } /* durante o desenho, tocar sobre um pacote marca o ponto da área (não alterna a seleção) */

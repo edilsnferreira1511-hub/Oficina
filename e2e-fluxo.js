@@ -200,7 +200,7 @@ async function main(browser, base) {
   check('7. visualização dentro/fora: marcadores dentro destacados', Object.values(cl).filter((v) => v === 'in').length === 4);
   check('7. seleção automática = pacotes dentro da zona com coordenadas reais', (await page.getAttribute('#sel-count', 'data-count')) === '4' && (await page.locator('.sel-box:checked').evaluateAll((l) => l.map((x) => x.dataset.code).sort().join(','))) === 'FLX-001,FLX-002,FLX-003,FLX-004');
   check('7. sem localização ficam de fora e aparecem à parte', (await page.locator('.sel-box[data-code=FLX-005]').count()) === 0 && /sem localização confirmada/.test(await txt('#zone-noloc')) && (await page.locator('#nocoord-saved [data-code=FLX-005]').count()) === 1);
-  check('7. contador de pacotes encontrados exibido', /4 ponto\(s\) dentro da zona/.test(await txt('#zone-count')));
+  check('7. contador de pacotes encontrados exibido', /4 ponto\(s\) dentro da área/.test(await txt('#zone-count')));
   // retirar um pacote individualmente antes de confirmar
   await page.click('#amb-review [data-act=retirar][data-code=FLX-004]');
   check('7. retirar individualmente: seleção cai para 3 e FLX-004 sai da revisão', (await page.getAttribute('#sel-count', 'data-count')) === '3' && (await page.locator('#amb-review tr[data-code=FLX-004]').count()) === 0);
@@ -234,7 +234,7 @@ async function main(browser, base) {
   await page.click('#zone-draw'); box = await mapBox('#regions-map .gmap'); await page.mouse.click(box.x + 30, box.y + 130); await page.mouse.click(box.x + 120, box.y + 130);
   check('7. desenho em andamento mostra a quantidade de pontos', /2 até agora/.test(await txt('#zone-status')));
   await page.click('#zone-clear');
-  check('7. cancelar descarta o desenho em andamento', (await page.locator('.zone-v').count()) === 0 && /Nenhuma zona/.test(await txt('#zone-status')));
+  check('7. cancelar descarta o desenho em andamento', (await page.locator('.zone-v').count()) === 0 && /Nenhuma área/.test(await txt('#zone-status')));
   // zona com linhas cruzadas é recusada
   await page.click('#zone-draw'); box = await mapBox('#regions-map .gmap');
   for (const [x, y] of [[40, 140], [200, 240], [200, 140], [40, 240]]) await page.mouse.click(box.x + x, box.y + y);
@@ -249,6 +249,37 @@ async function main(browser, base) {
   await page.click('#zone-clear');
   await page.click('#fit-map');
 
+  // ===== 7b. Círculo (centro + raio) — estrutura do modelo Rota Certa
+  await page.locator('#regions-map .gmap').evaluate((e) => e.scrollIntoView({ block: 'center' }));
+  const pinPx = async () => D(() => Array.from(document.querySelectorAll('#regions-map .pin')).map((p) => ({ code: p.getAttribute('aria-label').match(/FLX-\d+/)[0], x: parseFloat(p.style.left), y: parseFloat(p.style.top) })));
+  const circ = async () => D(() => { const c = document.querySelector('#regions-map .zone-circle'); return { cx: parseFloat(c.getAttribute('cx')), cy: parseFloat(c.getAttribute('cy')), r: parseFloat(c.getAttribute('r')) }; });
+  let pp = await pinPx(); box = await mapBox('#regions-map .gmap');
+  const mx = pp.reduce((a, b) => a + b.x, 0) / pp.length, my = pp.reduce((a, b) => a + b.y, 0) / pp.length, far = Math.max(...pp.map((q) => Math.hypot(q.x - mx, q.y - my))) + 25;
+  check('7b. botões Círculo e Polígono presentes; círculo só desenha depois de escolhido', (await page.locator('#circle-draw').isEnabled()) && /Escolha Círculo ou Polígono/.test(await txt('#zone-status')) && (await page.locator('#regions-map .circle-r').count()) === 0);
+  await page.click('#circle-draw'); box = await mapBox('#regions-map .gmap');
+  check('7b. círculo ativo: pede o centro', /definir o centro/.test(await txt('#zone-status')) && (await page.getAttribute('#circle-draw', 'aria-pressed')) === 'true');
+  await page.mouse.click(box.x + mx, box.y + my);
+  check('7b. 1º toque: centro com raio provisório (ainda sem seleção)', /definir o raio/.test(await txt('#zone-status')) && (await circ()).r > 0 && (await page.getAttribute('#sel-count', 'data-count')) === '0' && (await page.locator('#zone-count').count()) === 0);
+  await page.mouse.click(box.x + mx, box.y + (my + far < box.height - 6 ? my + far : my - far)); // raio na vertical (cabe dentro do mapa)
+  let cc = await circ(), expectIn = (await pinPx()).filter((q) => Math.hypot(q.x - cc.cx, q.y - cc.cy) <= cc.r).map((q) => q.code).sort();
+  check('7b. 2º toque define o raio: dentro = geometria independente em pixels (4 pacotes)', expectIn.length === 4 && (await page.getAttribute('#zone-count', 'data-inside')) === '4' && (await page.getAttribute('#sel-count', 'data-count')) === '4', JSON.stringify(expectIn));
+  check('7b. marcadores dentro destacados e alças de centro/raio aparecem', (await page.locator('#regions-map .pin--in').count()) === 4 && (await page.locator('#regions-map .circle-c').count()) === 1 && (await page.locator('#regions-map .circle-r').count()) === 1 && /Círculo de \d+ m/.test(await txt('#zone-status')), JSON.stringify([await page.locator('#regions-map .pin--in').count(), await page.locator('#regions-map .circle-c').count(), await page.locator('#regions-map .circle-r').count(), await txt('#zone-status')]));
+  const r0 = (await circ()).r;
+  await page.locator('#regions-map .circle-r').focus(); for (let i = 0; i < 12; i++) await page.keyboard.press('ArrowLeft');
+  cc = await circ(); expectIn = (await pinPx()).filter((q) => Math.hypot(q.x - cc.cx, q.y - cc.cy) <= cc.r).map((q) => q.code).sort();
+  check('7b. raio ajustável por teclado: recalcula e a seleção acompanha (mudou em relação a 4)', cc.r < r0 && expectIn.length < 4 && (await page.getAttribute('#zone-count', 'data-inside')) === String(expectIn.length) && (await page.getAttribute('#sel-count', 'data-count')) === String(expectIn.length), JSON.stringify([r0, cc.r, expectIn]));
+  await page.click('#zone-clear');
+  check('7b. apagar: sem círculo, sem contagem, sem seleção, marcadores normais', (await circ()).r === 0 && (await page.locator('#zone-count').count()) === 0 && (await page.getAttribute('#sel-count', 'data-count')) === '0' && (await page.locator('#regions-map .pin--in, #regions-map .pin--out').count()) === 0);
+  await page.click('#circle-draw'); box = await mapBox('#regions-map .gmap'); await page.mouse.click(box.x + mx, box.y + my); await page.click('#zone-draw');
+  check('7b. trocar para Polígono descarta o círculo (uma área por vez)', (await circ()).r === 0 && (await page.locator('#regions-map .circle-dot, #regions-map .circle-r').count()) === 0 && /Desenhando/.test(await txt('#zone-status')));
+  await page.click('#zone-clear');
+  const dpx = (await pinPx())[0];
+  await page.click('#circle-draw'); box = await mapBox('#regions-map .gmap'); await page.mouse.click(box.x + dpx.x, box.y + dpx.y); await page.mouse.click(box.x + dpx.x + 6, box.y + dpx.y);
+  cc = await circ(); expectIn = (await pinPx()).filter((q) => Math.hypot(q.x - cc.cx, q.y - cc.cy) <= cc.r).map((q) => q.code);
+  check('7b. círculo pequeno em volta de um pacote seleciona só os que a geometria diz', expectIn.length >= 1 && expectIn.length < 4 && (await page.getAttribute('#sel-count', 'data-count')) === String(expectIn.length), JSON.stringify([expectIn, cc, dpx, await page.getAttribute('#sel-count', 'data-count'), await txt('#zone-status')]));
+  await page.click('#zone-clear');
+  check('7b. sem "null" solto após usar o círculo', await noNull());
+
   // seleção individual na lista e no marcador
   await page.check('.sel-box[data-code=FLX-001]'); await page.check('.sel-box[data-code=FLX-002]'); await page.check('.sel-box[data-code=FLX-003]');
   check('7. seleção individual por lista = 3', (await page.getAttribute('#sel-count', 'data-count')) === '3');
@@ -262,12 +293,18 @@ async function main(browser, base) {
   check('8. botão de criar habilitado para coordenador de base', await page.locator('#amb-create').isEnabled());
   await page.click('#amb-create');
   check('8. nome e responsável são obrigatórios', /Informe o nome/.test(await txt('#amb-msg')) && (await D(() => window.CXPT_APP.D.operations.length)) === opsCountBefore);
+  check('8. nome padrão sugerido e motorista obrigatório sem escolha', /^Ambulância \d+$/.test(await page.inputValue('#amb-name')) && (await page.inputValue('#amb-driver')) === '');
+  check('8. só motoristas livres no seletor (m1/m2 já têm ambulância ativa nos dados demo) e aviso dos ocupados', (await page.locator('#amb-driver option[value=m1], #amb-driver option[value=m2]').count()) === 0 && (await page.locator('#amb-driver option[value=m6]').count()) === 1 && /Motorista Demo 1/.test(await txt('#amb-busy')));
   await page.fill('#amb-name', 'Ambulância Teste 1'); await page.fill('#amb-resp', 'Responsável Demo');
+  await page.click('#amb-create');
+  check('8. sem motorista não cria (mensagem clara)', /Escolha o motorista/.test(await txt('#amb-msg')) && (await D(() => window.CXPT_APP.D.operations.length)) === opsCountBefore);
+  await page.selectOption('#amb-driver', 'm6');
   await page.click('#amb-create');
   check('8. confirmação explícita antes de criar (revisão)', /4 pacote\(s\) serão vinculados/.test(await txt('#amb-confirm-text')));
   await page.click('#amb-create-ok');
   await page.waitForSelector('#qr-modal');
   const op = await D(() => JSON.parse(JSON.stringify(window.CXPT_APP.D.operations.filter((o) => o.name === 'Ambulância Teste 1')[0])));
+  check('8. ambulância do motorista escolhido e com cor automática da paleta', op && op.driverId === 'm6' && /^#[0-9a-f]{6}$/.test(op.color));
   check('8. operação criada com id único, nome, responsável, base, pacotes, data e estado', op && /^OP-\d{4}$/.test(op.id) && op.xptId === 'x1' && op.responsible === 'Responsável Demo' && op.packageIds.length === 4 && op.createdAt > 0 && op.state === 'em_separacao');
   check('8. histórico de alterações da operação registrado', op.history.length >= 1 && op.history[0].type === 'operacao_criada');
   const ids = await D(() => new Set(window.CXPT_APP.D.operations.map((o) => o.id)).size === window.CXPT_APP.D.operations.length);
@@ -299,6 +336,33 @@ async function main(browser, base) {
   check('10. leitura por câmera não é anunciada como disponível', /câmera: não disponível/i.test(await txt('main')) && (await page.locator('main button:has-text("câmera")').count()) === 0);
   check('10. página cabe em 390 px', await D(() => document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1));
   check('10. sem "null" solto', await noNull());
+
+  // ===== 10b. Separar (qual ambulância?) e tela do motorista (modelo Rota Certa)
+  const colorName = await D((c) => window.CXPT.ambulance.colorOf({ color: c }).name, op.color);
+  await go('sort');
+  check('10b. Separar: leitor com foco, legenda com a ambulância (cor + motorista) e aviso de que só consulta', await D(() => document.activeElement && document.activeElement.id === 'sort-in') && /Ambulância Teste 1/.test(await txt('#sort-legend')) && /Motorista Demo 6/.test(await txt('#sort-legend')) && /só consulta/.test(await txt('main')));
+  const before10 = await snapshot();
+  const sortScan = async (code) => { await page.fill('#sort-in', code); await page.press('#sort-in', 'Enter'); await page.waitForSelector('#sort-in-result.big-result--ok, #sort-in-result.big-result--fail'); return page.locator('#sort-in-result').getAttribute('class'); };
+  const clsOk = await sortScan('flx-002');
+  check('10b. pacote da ambulância: resultado grande verde na cor dela, com nome, cor, código e motorista', /big-result--ok/.test(clsOk) && (await page.locator('#sort-in-result').evaluate((e) => e.style.getPropertyValue('--gcolor'))) === op.color && /Ambulância Teste 1/.test(await txt('#sort-in-result')) && new RegExp(colorName).test(await txt('#sort-in-result')) && /FLX-002/.test(await txt('#sort-in-result')) && /Motorista Demo 6/.test(await txt('#sort-in-result')));
+  await page.waitForFunction(() => document.getElementById('sort-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. resultado some sozinho e o foco volta ao campo', await D(() => document.activeElement && document.activeElement.id === 'sort-in'));
+  check('10b. pacote em estoque sem ambulância: vermelho "sem ambulância"', /big-result--fail/.test(await sortScan('FLX-006')) && /sem ambulância/i.test(await txt('#sort-in-result')));
+  check('10b. código inexistente: vermelho "não encontrado"', /big-result--fail/.test(await sortScan('ZZZ-999')) && /não encontrado/i.test(await txt('#sort-in-result')));
+  check('10b. código inválido: vermelho "inválido"', /big-result--fail/.test(await sortScan('AB CD')) && /inválido/i.test(await txt('#sort-in-result')));
+  check('10b. consultar na tela Separar não grava nada (dados idênticos)', (await snapshot()) === before10);
+  check('10b. Separar cabe em 390 px e sem "null"', (await D(() => document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1)) && await noNull());
+  await setProfile('motorista'); await go('check');
+  check('10b. motorista: vê só a própria ambulância (Demo 1) e seus pacotes, sem a ambulância criada agora', /Ambulância Demo 1/.test(await txt('main')) && !/Ambulância Teste 1/.test(await txt('main')) && (await page.locator('#my-codes .chip').count()) >= 1);
+  const myCode = await page.locator('#my-codes .chip').first().innerText();
+  const chk = async (code) => { await page.fill('#check-in', code); await page.press('#check-in', 'Enter'); await page.waitForSelector('#check-in-result.big-result--ok, #check-in-result.big-result--wrong, #check-in-result.big-result--warn'); return page.locator('#check-in-result').getAttribute('class'); };
+  check('10b. motorista bipa pacote da sua ambulância: verde', /big-result--ok/.test(await chk(myCode)) && /Pacote da sua ambulância/.test(await txt('#check-in-result')));
+  await page.waitForFunction(() => document.getElementById('check-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. motorista bipa pacote de outra ambulância: vermelho', /big-result--wrong/.test(await chk('FLX-002')) && /outra ambulância/i.test(await txt('#check-in-result')));
+  await page.waitForFunction(() => document.getElementById('check-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. código inválido: âmbar de atenção', /big-result--warn/.test(await chk('AB CD')));
+  check('10b. tela do motorista não grava nada', (await snapshot()) === before10);
+  await setProfile('coord_base'); await go('separation/' + op.id);
 
   // ===== 11-14. Bipagem
   const scan = async (v) => { await page.fill('#scan-in', v); await page.press('#scan-in', 'Enter'); return page.locator('#scan-result').getAttribute('data-status'); };

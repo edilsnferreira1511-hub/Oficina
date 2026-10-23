@@ -125,7 +125,7 @@ atest('reentrada: grava evento, não duplica e preserva a localização anterior
 async function setupOp(w, codes) {
   const d = await device(w, 'desp@t.com'); await d.svc.registerEntries('x1', codes.map((c) => item(c)), d.who);
   const c = await device(w, 'coord@t.com');
-  const r = await c.svc.createAmbulance('x1', { name: 'Amb 1', responsible: 'Resp', packageIds: codes.map((x) => 'pk-' + x) }, c.who);
+  const r = await c.svc.createAmbulance('x1', { driverId: 'm6', name: 'Amb 1', responsible: 'Resp', packageIds: codes.map((x) => 'pk-' + x) }, c.who);
   return { d, c, r };
 }
 atest('ambulância: id único sequencial, pacotes vinculados e em separação, QR abre a operação gravada em outro aparelho', async () => {
@@ -138,13 +138,13 @@ atest('ambulância: id único sequencial, pacotes vinculados e em separação, Q
   ok(op && op.name === 'Amb 1' && op.responsible === 'Resp' && op.createdBy === c.user.name, 'operação recuperada por outro usuário (QR)');
   const d = await device(w, 'desp@t.com');
   await d.svc.registerEntries('x1', [item('A-3')], d.who);
-  const r3 = await c.svc.createAmbulance('x1', { name: 'Amb 2', responsible: 'R', packageIds: ['pk-A-3'] }, c.who); ok(r3.ok); eq(r3.op.id, 'OP-0002', 'sequencial');
+  const r3 = await c.svc.createAmbulance('x1', { driverId: 'm7', name: 'Amb 2', responsible: 'R', packageIds: ['pk-A-3'] }, c.who); ok(r3.ok); eq(r3.op.id, 'OP-0002', 'sequencial');
 });
 atest('o mesmo pacote nunca fica em duas operações ativas (validado no servidor/transação, mesmo com cache velho)', async () => {
   const w = world(), { c, r } = await setupOp(w, ['L-1', 'L-2']); ok(r.ok);
   const c2 = await device(w, 'sup@t.com');
   c2.D.packages.forEach((p) => { p.state = 'em_estoque'; p.activeOpId = null; }); // cache adulterado/velho
-  const r2 = await c2.svc.createAmbulance('x1', { name: 'Outra', responsible: 'R', packageIds: ['pk-L-1'] }, c2.who);
+  const r2 = await c2.svc.createAmbulance('x1', { driverId: 'm1', name: 'Outra', responsible: 'R', packageIds: ['pk-L-1'] }, c2.who);
   eq(r2.ok, false); ok(/operação ativa|estoque/.test(r2.message || ''), r2.message);
   eq(w._admin.getDoc(U + 'counters/operations').n, 1, 'contador não avançou'); eq(w._admin.listDocs(U + 'operations').length, 1);
   await denied(c2.fb.db.runTransaction((tx) => tx.get(U + 'packages/pk-L-1').then((s) => { tx.set(U + 'packages/pk-L-1', Object.assign({}, s.data, { activeOpId: 'OP-9999' })); })), 'trocar vínculo diretamente');
@@ -153,7 +153,7 @@ atest('atomicidade: se uma parte da criação é recusada nada é gravado', asyn
   const w = world(), d = await device(w, 'desp@t.com'); await d.svc.registerEntries('x1', [item('AT-1'), item('AT-2')], d.who);
   const c = await device(w, 'coord@t.com');
   const before = JSON.stringify(w._admin.state().docs);
-  const r = await c.svc.createAmbulance('x1', { name: 'X', responsible: 'R', packageIds: ['pk-AT-1', 'pk-INEXISTENTE'] }, c.who);
+  const r = await c.svc.createAmbulance('x1', { driverId: 'm1', name: 'X', responsible: 'R', packageIds: ['pk-AT-1', 'pk-INEXISTENTE'] }, c.who);
   eq(r.ok, false); eq(JSON.stringify(w._admin.state().docs), before, 'nenhum documento mudou');
 });
 atest('gravação que falha na rede não aparece como salva (cache e banco intactos)', async () => {
@@ -173,7 +173,7 @@ atest('bipagem remota: ok → repetido → desconhecido → pacote de outra oper
   eq(Object.keys(w._admin.getDoc(U + 'operations/OP-0001').checked).length, 1, 'repetido não incrementa');
   eq((await c.svc.scan(op, 'XYZ-9', c.who)).status, 'inexistente');
   await d.svc.registerEntries('x1', [item('S-9')], d.who);
-  const r2 = await c.svc.createAmbulance('x1', { name: 'Amb B', responsible: 'R', packageIds: ['pk-S-9'] }, c.who); ok(r2.ok);
+  const r2 = await c.svc.createAmbulance('x1', { driverId: 'm2', name: 'Amb B', responsible: 'R', packageIds: ['pk-S-9'] }, c.who); ok(r2.ok);
   const out = await c.svc.scan(op, 'S-9', c.who); eq(out.status, 'outra_operacao'); ok(!w._admin.getDoc(U + 'operations/OP-0001').checked['S-9']);
   eq((await d.svc.scan(op, 'S-2', d.who)).status, 'ok', 'despacho também confere');
   eq((await c.svc.unscan(op, 'S-2', c.who)), true); ok(!w._admin.getDoc(U + 'operations/OP-0001').checked['S-2']);
@@ -209,7 +209,7 @@ atest('encerrar: só perfil autorizado; bloqueia novas leituras; libera vínculo
   eq(w._admin.getDoc(U + 'packages/pk-C-1').activeOpId, null);
   eq((await c.svc.scan(op, 'C-2', c.who)).status, 'bloqueado');
   await denied(c.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then((x) => { tx.set(U + 'operations/OP-0001', Object.assign({}, x.data, { checked: Object.assign({}, x.data.checked, { 'C-2': { at: 1, operator: 'x' } }) })); })), 'gravar direto em operação encerrada');
-  const d = await device(w, 'desp@t.com'); const r2 = await c.svc.createAmbulance('x1', { name: 'Nova', responsible: 'R', packageIds: ['pk-C-2'] }, c.who); ok(r2.ok, 'pendente liberado entra em nova operação');
+  const d = await device(w, 'desp@t.com'); const r2 = await c.svc.createAmbulance('x1', { driverId: 'm7', name: 'Nova', responsible: 'R', packageIds: ['pk-C-2'] }, c.who); ok(r2.ok, 'pendente liberado entra em nova operação');
 });
 atest('permissões no servidor (modelo das regras): perfis sem direito são recusados mesmo burlando a interface', async () => {
   const w = world(), { d, c, r } = await setupOp(w, ['R-1']); ok(r.ok);

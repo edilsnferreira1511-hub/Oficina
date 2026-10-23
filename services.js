@@ -163,7 +163,7 @@
             });
             if (n > 0) m.operations.push({ id: 'OP-' + pad(n, 4), xptId: xptId, state: 'encerrada', packageIds: [], checked: {}, history: [] }); // só para a próxima numeração
             var before = {}; m.packages.forEach(function (p) { before[p.id] = p; });
-            var r = A.createAmbulance(m, xptId, form, { authorized: true, nowMs: nowMs(), operator: user.name });
+            var r = A.createAmbulance(m, xptId, form, { authorized: true, nowMs: nowMs(), operator: user.name, knownOps: D.operations });
             if (!r.ok) throw Object.assign(abort(r.reason || 'invalido', r.message || Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; }).join(' ')), { detail: r });
             var op = r.op;
             op.packageCodes = op.packageIds.map(function (id) { return m.packages.filter(function (p) { return p.id === id; })[0].code; });

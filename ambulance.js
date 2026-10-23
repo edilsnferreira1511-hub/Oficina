@@ -6,6 +6,24 @@
   var NS = (root.CXPT = root.CXPT || {});
   var STATE = { EM_SEPARACAO: 'em_separacao', SAIDA: 'saida_confirmada', ENCERRADA: 'encerrada' };
 
+  // Cores de ambulância (identificam visualmente a ambulância no mapa, na separação e na tela do motorista; o nome da cor acompanha
+  // sempre o texto, nunca só a cor, por acessibilidade).
+  var COLORS = [
+    { hex: '#1e5ac8', name: 'Azul' }, { hex: '#e8590c', name: 'Laranja' }, { hex: '#7048e8', name: 'Roxo' }, { hex: '#0b7285', name: 'Turquesa' },
+    { hex: '#2b8a3e', name: 'Verde' }, { hex: '#5c940d', name: 'Oliva' }, { hex: '#8a5a00', name: 'Marrom' }, { hex: '#495057', name: 'Grafite' },
+  ];
+  var NEUTRAL = { hex: '#6c757d', name: 'Sem cor' };
+  /** Cor válida de uma operação (dados vindos do servidor nunca são confiados): devolve {hex, name}. */
+  function colorOf(op) {
+    var c = op && COLORS.filter(function (x) { return x.hex === String(op.color || '').toLowerCase(); })[0];
+    return c || NEUTRAL;
+  }
+  function pickColor(ops, xptId) {
+    var used = {}; ops.forEach(function (o) { if (o.xptId === xptId && isActive(o) && o.color) used[String(o.color).toLowerCase()] = true; });
+    var free = COLORS.filter(function (c) { return !used[c.hex]; })[0];
+    if (free) return free;
+    return COLORS[ops.filter(function (o) { return o.xptId === xptId; }).length % COLORS.length];
+  }
   function pad(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
   function isActive(op) { return !!op && op.state !== STATE.ENCERRADA; }
   function opPkgs(D, op) { return op.packageIds.map(function (id) { return D.packages.filter(function (p) { return p.id === id; })[0]; }).filter(Boolean); }
@@ -44,7 +62,18 @@
     if (name.length > 60) errors.name = 'Nome com mais de 60 caracteres.';
     if (!resp) errors.responsible = 'Informe o responsável pela operação.';
     if (resp.length > 80) errors.responsible = 'Responsável com mais de 80 caracteres.';
-    if (f.driverId && !D.drivers.some(function (d) { return d.id === f.driverId && d.xptId === xptId; })) errors.driverId = 'Motorista inválido para esta base.';
+    // uma ambulância por motorista: motorista obrigatório, ativo, desta base e sem outra ambulância ativa
+    var known = ctx.knownOps || D.operations;
+    if (!f.driverId) errors.driverId = 'Escolha o motorista desta ambulância.';
+    else {
+      var drv = D.drivers.filter(function (d) { return d.id === f.driverId && d.xptId === xptId; })[0];
+      if (!drv) errors.driverId = 'Motorista inválido para esta base.';
+      else if (drv.state && drv.state !== 'ativo') errors.driverId = 'Motorista inativo.';
+      else {
+        var busy = known.filter(function (o) { return isActive(o) && o.driverId === f.driverId; })[0];
+        if (busy) errors.driverId = 'Este motorista já tem a ambulância ativa ' + busy.id + (busy.name ? ' (' + busy.name + ')' : '') + '. Encerre-a antes de criar outra.';
+      }
+    }
     var ids = (f.packageIds || []).filter(function (id, i, a) { return a.indexOf(id) === i; });
     if (!ids.length) errors.packageIds = 'Selecione ao menos um pacote.';
     var blocked = [];
@@ -54,8 +83,9 @@
     });
     if (blocked.length) errors.packageIds = 'Pacotes não elegíveis: ' + blocked.map(function (b) { return b.code + ' (' + b.reason + ')'; }).join('; ');
     if (Object.keys(errors).length) return { ok: false, reason: 'invalido', errors: errors, blocked: blocked };
+    var col = pickColor(known, xptId);
     var op = {
-      id: nextId(D), xptId: xptId, name: name, responsible: resp, driverId: f.driverId || null, packageIds: ids, state: STATE.EM_SEPARACAO,
+      id: nextId(D), xptId: xptId, color: col.hex, name: name, responsible: resp, driverId: f.driverId || null, packageIds: ids, state: STATE.EM_SEPARACAO,
       createdAt: ctx.nowMs, createdBy: ctx.operator || 'Operador Demo', groupLabel: name, regionId: null, checked: {}, history: [],
     };
     logOp(op, ctx, 'operacao_criada', ids.length + ' pacote(s) vinculado(s); responsável: ' + resp);
@@ -160,7 +190,7 @@
   function qrUrl(baseHref, opId) { return String(baseHref).split('#')[0] + '#/separation/' + encodeURIComponent(opId); }
 
   NS.ambulance = {
-    STATE: STATE, isActive: isActive, activeOpOf: activeOpOf, ineligible: ineligible, createAmbulance: createAmbulance,
+    STATE: STATE, COLORS: COLORS, colorOf: colorOf, isActive: isActive, activeOpOf: activeOpOf, ineligible: ineligible, createAmbulance: createAmbulance,
     scan: scan, unscan: unscan, summary: summary, confirmExit: confirmExit, closeOperation: closeOperation, qrUrl: qrUrl, opPackages: opPkgs,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.ambulance;

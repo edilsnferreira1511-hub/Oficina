@@ -26,13 +26,14 @@ const SEED = `
   var fake = window.CXPT_FAKE_FIREBASE.create({ storage: window.localStorage });
   var a = fake._admin;
   if (!a.getDoc('${U}xpts/x1')) {
-    [['desp@t.com','despacho',['x1']],['coord@t.com','coord_base',['x1']],['sup@t.com','supervisor',['x1']],['semcad@t.com',null,[]],['sys@t.com','admin_sistema',[]]].forEach(function (u) {
+    [['desp@t.com','despacho',['x1']],['coord@t.com','coord_base',['x1']],['sup@t.com','supervisor',['x1']],['semcad@t.com',null,[]],['sys@t.com','admin_sistema',[]],['mot@t.com','motorista',['x1']]].forEach(function (u) {
       a.addAccount(u[0], 'senha-' + u[0], 'uid-' + u[0]);
-      if (u[1]) a.setDoc('${U}users/uid-' + u[0], { name: 'Nome ' + u[0].split('@')[0], email: u[0], role: u[1], xptIds: u[2], active: true, driverId: null });
+      if (u[1]) a.setDoc('${U}users/uid-' + u[0], { name: 'Nome ' + u[0].split('@')[0], email: u[0], role: u[1], xptIds: u[2], active: true, driverId: u[1] === 'motorista' ? 'm1' : null });
     });
     a.setDoc('${U}xpts/x1', { name: 'XPT Teste Alfa', active: true });
     a.setDoc('${U}xpts/x2', { name: 'XPT Teste Beta', active: true });
     a.setDoc('${U}drivers/m1', { name: 'Motorista Teste 1', ident: 'MOT-1', xptId: 'x1', state: 'ativo' });
+    a.setDoc('${U}drivers/m2', { name: 'Motorista Teste 2', ident: 'MOT-2', xptId: 'x1', state: 'ativo' });
     a.setDoc('${U}settings/main', { stayLimitDays: 4 });
   }
   window.CXPT_FB = fake; window.CXPT_FB_STATE = 'ready';
@@ -133,9 +134,13 @@ async function main(browser, base) {
   check('6. zona: dois pacotes com coordenadas reais dentro e selecionados', (await page.getAttribute('#zone-count', 'data-eligible')) === '2' && (await page.getAttribute('#sel-count', 'data-count')) === '2');
   await page.fill('#amb-name', 'Ambulância FB'); await page.fill('#amb-resp', 'Resp FB');
   await page.click('#amb-create');
+  check('3. sem motorista não cria: mensagem pede o motorista e nada é gravado', /Escolha o motorista/.test(await txt('#amb-msg')) && !(await doc(U + 'operations/OP-0001')));
+  await page.selectOption('#amb-driver', 'm1');
+  await page.click('#amb-create');
   check('3. resumo antes de confirmar: pacotes, data/hora, estado e operador', /2 pacote\(s\) serão vinculados/.test(await txt('#amb-confirm-text')) && /Data\/hora/.test(await txt('#amb-confirm-meta')) && /Em separação/.test(await txt('#amb-confirm-meta')) && /Nome coord/.test(await txt('#amb-confirm-meta')));
   await page.click('#amb-create-ok'); await page.waitForSelector('#qr-modal');
   const op = await doc(U + 'operations/OP-0001');
+  check('9. ambulância gravada com motorista e cor da paleta', op && op.driverId === 'm1' && /^#[0-9a-f]{6}$/.test(op.color));
   check('9. operação gravada: id único, base, responsável, pacotes, estado, criador autenticado', op && op.xptId === 'x1' && op.packageIds.length === 2 && op.state === 'em_separacao' && op.responsible === 'Resp FB' && /Nome coord/.test(op.createdBy));
   check('9. pacotes vinculados à operação (trava de operação ativa) e em separação', (await doc(U + 'packages/pk-FB-001')).activeOpId === 'OP-0001' && (await doc(U + 'packages/pk-FB-003')).state === 'em_separacao');
   const qrUrl = await txt('#qr-url'); check('9. QR contém só o endereço da operação', new RegExp('#/separation/OP-0001$').test(qrUrl));
@@ -157,6 +162,22 @@ async function main(browser, base) {
   // a página principal vê a conferência feita em outro aparelho depois de atualizar
   await page.click('#refresh-btn'); await go('exit');
   check('20. outro aparelho: após "Atualizar dados" aparece a leitura gravada', (await page.locator('#cnt-done').innerText()) === '1');
+  // ===== Separar (consulta) e tela do motorista, com dados do servidor
+  await go('sort');
+  await page.fill('#sort-in', 'fb-001'); await page.press('#sort-in', 'Enter'); await page.waitForSelector('#sort-in-result.big-result--ok');
+  check('Separar (servidor): pacote mostra a ambulância (nome, cor, motorista)', /Ambulância FB/.test(await txt('#sort-in-result')) && /Motorista Teste 1/.test(await txt('#sort-in-result')) && (await page.locator('#sort-in-result').evaluate((e) => e.style.getPropertyValue('--gcolor'))) === (await doc(U + 'operations/OP-0001')).color);
+  await page.fill('#sort-in', 'FB-404'); await page.press('#sort-in', 'Enter'); await page.waitForSelector('#sort-in-result.big-result--fail');
+  check('Separar (servidor): código inexistente = vermelho', /não encontrado/i.test(await txt('#sort-in-result')));
+  check('Separar não grava nada: a ambulância continua com 1 conferido', Object.keys((await doc(U + 'operations/OP-0001')).checked).length === 1);
+  await logout(); await login('mot@t.com'); await go('check');
+  check('motorista (servidor): vê só a própria ambulância e os códigos dela', /Ambulância FB/.test(await txt('main')) && (await page.locator('#my-codes .chip').count()) === 2);
+  await page.fill('#check-in', 'FB-003'); await page.press('#check-in', 'Enter'); await page.waitForSelector('#check-in-result.big-result--ok');
+  check('motorista (servidor): pacote da ambulância = verde', /Pacote da sua ambulância/.test(await txt('#check-in-result')));
+  await page.waitForFunction(() => document.getElementById('check-in-result').textContent === '', null, { timeout: 5000 });
+  await page.fill('#check-in', 'FB-777'); await page.press('#check-in', 'Enter'); await page.waitForSelector('#check-in-result.big-result--wrong');
+  check('motorista (servidor): outro código = vermelho, sem revelar nada de outras ambulâncias', /Não pertence à sua ambulância/.test(await txt('#check-in-result')) && !/Ambulância FB/.test(await txt('#check-in-result')));
+  check('motorista não consegue ler pacotes pelo servidor (regras)', await page.evaluate(() => window.CXPT_FB.db.get('env/teste/packages/pk-FB-001').then(() => false, () => true)));
+  await logout(); await login('coord@t.com'); await go('exit');
   await scan(page, 'fb-003'); await page.waitForSelector('.conf-item[data-code=FB-003][data-state=conferido]');
   await page.click('#confirm-exit');
   check('15. confirmação de saída mostra previstos, conferidos e pendentes', /Esperados: 2 · Conferidos: 2 · Pendentes: 0/.test(await txt('#exit-summary')));
