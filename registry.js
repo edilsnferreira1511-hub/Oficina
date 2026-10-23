@@ -34,8 +34,8 @@
         skipped.push({ code: v.code, reason: 'dados_invalidos' }); return;
       }
       var p = {
-        id: nextPackageId(D), code: v.code, xptId: xptId, size: it.size, reasonId: it.reasonId,
-        entryAt: at, firstEntryAt: at, state: 'em_estoque', cycle: 1, returns: 0, location: nl.loc, note: it.note || '', history: [],
+        id: ctx.idFor ? ctx.idFor(v.code) : nextPackageId(D), code: v.code, xptId: xptId, size: it.size, reasonId: it.reasonId,
+        entryAt: at, firstEntryAt: at, state: 'em_estoque', activeOpId: null, cycle: 1, returns: 0, location: nl.loc, note: it.note || '', history: [],
       };
       p.history.push({
         id: 'ev-' + p.id + '-01', code: p.code, xptId: p.xptId, type: 'entrada', at: at, from: null, to: 'em_estoque', operator: op,

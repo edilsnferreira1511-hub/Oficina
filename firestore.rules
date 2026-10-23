@@ -1,0 +1,157 @@
+rules_version = '2';
+
+// COOPMETRO XPT — regras do Firestore (PROPOSTA para REVISÃO; NÃO foram publicadas por este projeto).
+//
+// ANTES DE PUBLICAR:
+//  1. Estas regras cobrem SOMENTE o caminho env/teste/... (dados de TESTE). Qualquer outro caminho continua NEGADO.
+//     Se o seu projeto já usa outras coleções com regras próprias, MESCLE em vez de substituir (senão elas passam a ser negadas).
+//  2. Valide no Console (Firestore → Regras → "Simulador de regras") ou no Emulator Suite. Estas regras NÃO foram executadas
+//     contra o Emulator no ambiente de desenvolvimento (sem acesso); só passaram por análise estática (rules-lint.test.js).
+//  3. A matriz de perfis espelha permissions.js (proposta D-06, ainda NÃO aprovada). Se a matriz mudar, mude aqui também
+//     (rules-lint.test.js compara os dois e falha se divergirem).
+//
+// O que as regras garantem: login obrigatório; usuário ativo cadastrado em env/teste/users/{uid}; acesso só às bases do usuário
+// (perfis globais veem todas); ninguém altera o próprio perfil; código e XPT de origem imutáveis; histórico só cresce; eventos só
+// podem ser criados (nunca editados/apagados); operação encerrada não aceita mais alterações; nada é apagado.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- funções auxiliares
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return get(/databases/$(database)/documents/env/teste/users/$(request.auth.uid)); }
+    function hasUser() { return signedIn() && exists(/databases/$(database)/documents/env/teste/users/$(request.auth.uid)); }
+    function active() { return hasUser() && userDoc().data.active == true; }
+    function role() { return userDoc().data.role; }
+    function isGlobal() { return active() && role() in ['administrador', 'coord_geral']; }
+    function hasBase(x) { return active() && (role() in ['administrador', 'coord_geral'] || x in userDoc().data.xptIds); }
+
+    // ---------- ações (espelham permissions.js)
+    function canVerBase()  { return active() && role() in ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho']; }
+    function canEntrada()  { return active() && role() in ['despacho']; }
+    function canConferir() { return active() && role() in ['supervisor', 'coord_base', 'despacho']; }
+    function canOperacao() { return active() && role() in ['administrador', 'supervisor', 'coord_base']; }
+    function canCorrecao() { return active() && role() in ['administrador', 'supervisor', 'coord_base']; }
+    function canSaida()    { return active() && role() in ['supervisor', 'coord_base']; }
+    function canEncerrar() { return active() && role() in ['administrador', 'supervisor']; }
+    function canDevolucao() { return active() && role() in ['supervisor', 'coord_base']; }
+    function canUsuarios() { return active() && role() in ['admin_sistema']; }
+    function canConfig()   { return active() && role() in ['admin_sistema', 'administrador']; }
+    function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
+
+    // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/teste)
+
+    // Usuários: cada pessoa lê só o próprio cadastro; só o administrador do sistema cria/altera. Ninguém apaga.
+    match /env/teste/users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || canUsuarios());
+      allow list: if canUsuarios();
+      allow create, update: if canUsuarios() && request.auth.uid != uid;   // nunca o próprio perfil
+      allow delete: if false;
+    }
+
+    // XPTs, regiões, motoristas e configurações: leitura só da própria base; escrita só administração.
+    match /env/teste/xpts/{xptId} {
+      allow get: if hasBase(xptId) || canUsuarios();
+      allow list: if isGlobal() || canUsuarios();
+      allow create, update: if canConfig() || canUsuarios();
+      allow delete: if false;
+    }
+    match /env/teste/regions/{id} {
+      allow get, list: if canUsuarios() || hasBase(resource.data.xptId);
+      allow create, update: if canConfig();
+      allow delete: if false;
+    }
+    match /env/teste/drivers/{id} {
+      allow get, list: if canUsuarios() || hasBase(resource.data.xptId);
+      allow create, update: if canConfig();
+      allow delete: if false;
+    }
+    match /env/teste/settings/{id} {
+      allow get: if active();
+      allow create, update: if canConfig();
+      allow delete: if false;
+    }
+
+    // Índice de códigos: garante que um código nunca vira dois pacotes (nem em bases diferentes). Só existência; sem dados da base.
+    match /env/teste/codes/{code} {
+      allow get: if canEntrada();
+      allow create: if canEntrada() && request.resource.data.keys().hasOnly(['createdAt']);
+      allow update, delete: if false;
+    }
+
+    // Contador de operações (número único e sequencial): só cresce de 1 em 1.
+    match /env/teste/counters/{id} {
+      allow get: if canOperacao();
+      allow create: if canOperacao() && id == 'operations' && request.resource.data.n == 1;
+      allow update: if canOperacao() && id == 'operations' && request.resource.data.n == resource.data.n + 1;
+      allow delete: if false;
+    }
+
+    // Pacotes
+    match /env/teste/packages/{pkgId} {
+      allow get, list: if canVerBase() && hasBase(resource.data.xptId);
+
+      allow create: if canEntrada() && hasBase(request.resource.data.xptId)
+        && pkgId == 'pk-' + request.resource.data.code
+        && existsAfter(/databases/$(database)/documents/env/teste/codes/$(request.resource.data.code))
+        && request.resource.data.state == 'em_estoque'
+        && request.resource.data.activeOpId == null
+        && request.resource.data.history.size() == 1;
+
+      allow update: if canAnyWrite() && hasBase(resource.data.xptId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'activeOpId', 'history', 'location', 'cycle', 'returns', 'entryAt', 'size', 'reasonId', 'note'])
+        && request.resource.data.history.size() >= resource.data.history.size()
+        && request.resource.data.history[0:resource.data.history.size()] == resource.data.history
+        && transitionOk()
+        && lockOk();
+
+      allow delete: if false;
+
+      function transitionOk() {
+        return resource.data.state == request.resource.data.state
+          || (resource.data.state == 'em_estoque' && request.resource.data.state == 'em_separacao' && canOperacao())
+          || (resource.data.state == 'em_separacao' && request.resource.data.state == 'em_rota' && canSaida())
+          || (resource.data.state == 'em_separacao' && request.resource.data.state == 'em_estoque' && (canEncerrar() || canCorrecao()))
+          || (resource.data.state == 'em_rota' && request.resource.data.state == 'em_estoque' && (canEntrada() || canCorrecao()))
+          || (resource.data.state == 'em_rota' && request.resource.data.state == 'entregue' && (canCorrecao() || canSaida()))
+          || (request.resource.data.state in ['aguardando_devolucao', 'devolvido'] && canDevolucao())
+          || (request.resource.data.state in ['divergente', 'em_estoque'] && canCorrecao());
+      }
+      // vínculo com operação ativa: só quem cria operação vincula (e só pacote em estoque e livre); só quem encerra libera
+      function lockOk() {
+        return resource.data.activeOpId == request.resource.data.activeOpId
+          || (resource.data.activeOpId == null && request.resource.data.activeOpId is string && canOperacao() && resource.data.state == 'em_estoque')
+          || (resource.data.activeOpId is string && request.resource.data.activeOpId == null && canEncerrar());
+      }
+    }
+
+    // Operações (ambulâncias)
+    match /env/teste/operations/{opId} {
+      allow get, list: if (canVerBase() && hasBase(resource.data.xptId))
+        || (active() && role() == 'motorista' && resource.data.driverId == userDoc().data.driverId);
+
+      allow create: if canOperacao() && hasBase(request.resource.data.xptId)
+        && request.resource.data.state == 'em_separacao'
+        && existsAfter(/databases/$(database)/documents/env/teste/counters/operations);
+
+      // operação encerrada não aceita mais NADA (bloqueia conferências pelo QR); histórico só cresce; base e id não mudam
+      allow update: if resource.data.state != 'encerrada' && hasBase(resource.data.xptId)
+        && request.resource.data.xptId == resource.data.xptId
+        && request.resource.data.history.size() >= resource.data.history.size()
+        && request.resource.data.history[0:resource.data.history.size()] == resource.data.history
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history', 'state', 'departed', 'closedAt', 'closedBy', 'pendingAtClose'])
+        && ((request.resource.data.state == resource.data.state && canConferir() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history']))
+          || (resource.data.state == 'em_separacao' && request.resource.data.state == 'saida_confirmada' && canSaida())
+          || (request.resource.data.state == 'encerrada' && canEncerrar()));
+
+      allow delete: if false;
+    }
+
+    // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.
+    match /env/teste/events/{eventId} {
+      allow create: if (canAnyWrite() || canConferir()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId);
+      allow get, list: if canVerBase() && resource.data.keys().hasAll(['uid']) && (isGlobal() || resource.data.xptId in userDoc().data.xptIds);
+      allow update, delete: if false;
+    }
+  }
+}

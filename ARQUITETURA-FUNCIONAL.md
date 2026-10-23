@@ -36,3 +36,7 @@ Funções puras mapeiam 1:1 para regras de servidor (validação de código/coor
 - **qr.js:** QR Code local (ISO 18004, modo byte). Conteúdo = `<endereço da página>#/separation/<id da operação>`; sem dados de pacote/pessoa; **não autentica**.
 - **Rota `separation`:** página mobile da ambulância (contagens, lista recolhível, campo de bipagem com foco contínuo, mapa-resumo). Operação inexistente na sessão → "não encontrada" (sem backend).
 - **Permissões (propostas):** `operacao`, `conferir`, `confirmar_saida`, `encerrar` por perfil; só a interface avisa/bloqueia nesta versão.
+
+## Zona poligonal e Firebase (versão TESTE-FIREBASE)
+- **geo.js** `polygonValid` (≥3 vértices válidos, área ≠ 0, sem arestas cruzadas), `pointInPolygon` (raios), `pointsInPolygon`; **operations.js** `zoneSummary` (dentro/fora/elegíveis/bloqueados/rascunhos). **map.js**: camada SVG da zona + botões de vértice (arrastar/setas/Delete); `setZoneMode/closeZone/undoZonePoint/clearZone/getZone`.
+- **services.js** é a fronteira de gravação (Promise): demo (memória) ou remoto (transações Firestore executando as mesmas funções puras sobre um "mini D" lido na hora). **auth.js** controla o acesso; **firebase-adapter.js** liga ao SDK. Detalhes e coleções em `FIREBASE.md`.

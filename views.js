@@ -15,7 +15,7 @@
   H.locBadge = function (loc) { return ui.badge(NS.geo.LOC_LABEL[loc.kind] || loc.kind, TONE_LOC[loc.kind] || 'neutral'); };
   H.pkgsOf = function (c) { return c.D.packages.filter(function (p) { return p.xptId === c.xptId; }); };
   H.link = function (p) { return el('a', { href: '#/package/' + encodeURIComponent(p.id), class: 'code-link', text: p.code }); };
-  H.demoNote = function (t) { return el('p', { class: 'demo-note', text: t || 'Dados fictícios de demonstração, mantidos só em memória.' }); };
+  H.demoNote = function (t) { return NS.mode === 'remoto' ? el('p', { class: 'demo-note', text: 'Ambiente de TESTE: dados reais do Firestore em env/teste.' }) : el('p', { class: 'demo-note', text: t || 'Dados fictícios de demonstração, mantidos só em memória.' }); };
   H.page = function (kids) { return el('div', { class: 'page' }, kids); };
   H.can = function (c, a) { return NS.permissions.can(c.profile, a); };
   /** Perfil sem permissão → aviso (apenas interface; a segurança real será no backend). */
@@ -143,11 +143,11 @@
       var msg = el('p', { class: 'form-msg', id: 'tr-msg', role: 'status' });
       panel = el('form', { class: 'inline-form', onsubmit: function (e) {
         e.preventDefault();
-        var r = P.transition(p, sel.value, { nowMs: c.nowMs, note: note.value.trim(), operator: 'Operador Demo' });
-        if (!r.ok) { msg.textContent = r.reason; return; }
-        var i = D.packages.indexOf(p); D.packages[i] = r.pkg;
-        c.store.audit.log('transicao_demo', p.xptId, p.code + ': ' + r.event.from + ' → ' + r.event.to);
-        c.store.changed();
+        c.svc.transition(p, sel.value, { note: note.value.trim() }, c.who).then(function (r) {
+          if (!r.ok) { msg.textContent = r.reason || r.message; return; }
+          c.store.audit.log('transicao_demo', p.xptId, p.code + ': ' + r.event.from + ' → ' + r.event.to);
+          c.store.changed();
+        });
       } }, ui.field('Novo estado (proposta, D-04)', sel), ui.field('Observação', note),
         el('button', { type: 'submit', class: 'btn btn--primary', id: 'tr-btn' }, 'Simular transição (demonstração)'), msg);
     }

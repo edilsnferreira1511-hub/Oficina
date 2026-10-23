@@ -102,7 +102,7 @@ async function main(browser, base) {
   await page.click('#add-btn');
   check('3. item entra no rascunho', /1 item/.test(await txt('#draft-count')));
 
-  // mais pacotes: 2 marcados, 1 aproximado, 1 desconhecido, 1 pendente (cada um com a própria localização)
+  // mais pacotes: 3 confirmados e 2 sem localização confirmada
   const spots = { 'FLX-002': [-70, 50], 'FLX-003': [60, 70], 'FLX-004': [-40, -60] };
   await fillEntry('flx-002', 'P', 'r_recusou');
   check('3. novo item não herda o ponto anterior', /Nenhum ponto/.test(await txt('#coords-out')) && (await page.locator('#entry-map .gmap .pin').count()) === 0);
@@ -112,13 +112,24 @@ async function main(browser, base) {
     await page.touchscreen.tap(box.x + box.width / 2 + spots[code][0], box.y + box.height / 2 + spots[code][1]);
     await page.click('#confirm-loc'); await page.click('#add-btn');
   }
-  await fillEntry('flx-004', 'M', 'r_end_nao_localizado'); await page.check('#kind-aproximada');
+  await fillEntry('flx-004', 'M', 'r_end_nao_localizado');
   box = await mapBox('#entry-map .gmap');
   await page.touchscreen.tap(box.x + box.width / 2 + spots['FLX-004'][0], box.y + box.height / 2 + spots['FLX-004'][1]);
-  check('3. localização aproximada identificada como aproximada (marcador distinto)', (await page.locator('#entry-map .gmap .pin--aproximada').count()) === 1);
+  const nDraftBefore = Number((await txt('#draft-count')).match(/(\d+) item/)[1]);
   await page.click('#add-btn');
-  await fillEntry('flx-005', 'P', 'r_outros'); await page.check('#kind-desconhecida'); await page.click('#add-btn');
-  await fillEntry('flx-006', 'P', 'r_outros'); await page.check('#kind-pendente'); await page.click('#add-btn');
+  check('3. ponto marcado mas NÃO confirmado: adicionar é barrado com aviso', /Confirme a localização/.test(await txt('#entry-msg')));
+  check('3. rascunho não mudou enquanto o ponto não foi confirmado', Number((await txt('#draft-count')).match(/(\d+) item/)[1]) === nDraftBefore);
+  await page.click('#confirm-loc'); await page.click('#add-btn');
+  // 005 e 006: sem marcar ponto = pacote segue SEM localização confirmada (nunca coordenada padrão)
+  await fillEntry('flx-005', 'P', 'r_outros');
+  check('3. sem ponto: dica diz que o pacote seguirá sem localização confirmada e não há botão de confirmar', /sem localização confirmada/.test(await txt('#loc-hint')) && (await page.locator('#confirm-loc').count()) === 0);
+  await page.click('#add-btn');
+  await fillEntry('flx-006', 'P', 'r_outros');
+  // marca, depois remove o ponto: volta a "sem localização confirmada"
+  box = await mapBox('#entry-map .gmap'); await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
+  await page.click('#remove-pin');
+  check('3. remover o ponto volta a "nenhum ponto"', /Nenhum ponto/.test(await txt('#coords-out')));
+  await page.click('#add-btn');
   check('5. seis itens no rascunho', /6 item/.test(await txt('#draft-count')));
   check('5. rascunho ainda não é pacote (nada em D.packages)', (await pkg('FLX-001')) === null);
 
@@ -134,8 +145,8 @@ async function main(browser, base) {
   check('5. localização salva: tipo marcada, latitude/longitude válidas, confirmada', f1 && f1.location.kind === 'marcada' && Math.abs(f1.location.lat) <= 90 && Math.abs(f1.location.lng) <= 180 && f1.location.markedAt > 0);
   check('5. histórico: evento de entrada com operador e data', f1.history.length === 1 && f1.history[0].type === 'entrada' && /Operador/.test(f1.history[0].operator) && f1.history[0].at > 0);
   const f4 = await pkg('FLX-004'), f5 = await pkg('FLX-005'), f6 = await pkg('FLX-006');
-  check('5. aproximada / desconhecida / pendente salvas com o tipo correto', f4.location.kind === 'aproximada' && f5.location.kind === 'desconhecida' && f6.location.kind === 'pendente');
-  check('5. desconhecida e pendente não têm coordenadas', f5.location.lat === null && f6.location.lat === null);
+  check('5. FLX-004 confirmada = marcada; FLX-005/006 salvas sem localização confirmada (pendente)', f4.location.kind === 'marcada' && f5.location.kind === 'pendente' && f6.location.kind === 'pendente');
+  check('5. pacotes sem localização confirmada não têm coordenadas inventadas', f5.location.lat === null && f6.location.lng === null && f6.location.lat === null && f5.location.lng === null);
   check('5. rascunho esvaziado após confirmar', /0 item/.test(await txt('#draft-count')));
 
   // consulta de pacote existente: sem duplicar, sem apagar histórico, sem trocar a localização anterior
@@ -152,32 +163,91 @@ async function main(browser, base) {
   await setProfile('coord_base');
   await go('map');
   check('6. mapa de planejamento exibido (provedor disponível)', (await page.locator('#regions-map .gmap').count()) === 1);
-  check('6. pontos com localização salva reaproveitados (4: 3 marcados + 1 aproximado), sem marcar de novo', /4 ponto/.test(await txt('#points-count')) && (await page.locator('tr[data-source=pacote]').count()) === 4);
-  check('6. marcadores: marcados e aproximado diferenciados', (await page.locator('#regions-map .pin--marcada').count()) === 3 && (await page.locator('#regions-map .pin--aproximada').count()) === 1);
+  check('6. pontos com localização salva reaproveitados (4 confirmados), sem marcar de novo', /4 ponto/.test(await txt('#points-count')) && (await page.locator('tr[data-source=pacote]').count()) === 4);
+  check('6. marcadores: 4 localizações confirmadas', (await page.locator('#regions-map .pin--marcada').count()) === 4);
   check('6. sem coordenadas em lista separada (FLX-005 e FLX-006), fora do mapa e não selecionáveis', (await page.locator('#nocoord-saved [data-code=FLX-005]').count()) === 1 && (await page.locator('#nocoord-saved [data-code=FLX-006]').count()) === 1 && (await page.locator('.sel-box[data-code=FLX-005]').count()) === 0);
   check('6. filtro de XPT presente e restrito à base', (await page.locator('#map-xpt').count()) === 1);
   check('6. sem "null" solto na tela do mapa', await noNull());
 
-  // seleção por região desenhada no mapa
-  await page.click('#draw-area');
-  check('7. modo de desenhar região ativo', (await page.getAttribute('#draw-area', 'aria-pressed')) === 'true');
-  box = await mapBox('#regions-map .gmap'); // medido DEPOIS do clique (o clique pode rolar a página)
-  // desenha cobrindo o mapa inteiro, começando no canto superior esquerdo (sem tocar nos controles de zoom)
-  await page.mouse.move(box.x + 4, box.y + 4); await page.mouse.down(); await page.mouse.move(box.x + box.width - 4, box.y + box.height - 4, { steps: 8 }); await page.mouse.up();
-  check('7. região desenhada seleciona os 4 pacotes com coordenadas salvas', (await page.getAttribute('#sel-count', 'data-count')) === '4');
-  check('7. contador de selecionados e revisão exibida', /4 pacote/.test(await txt('#sel-count')) && (await page.getAttribute('#amb-review', 'data-count')) === '4');
-  check('7. pacotes sem coordenadas nunca entram na seleção', (await page.locator('.sel-box:checked').evaluateAll((l) => l.map((x) => x.dataset.code).sort().join(','))) === 'FLX-001,FLX-002,FLX-003,FLX-004');
-  // área vazia (pequena, fora dos pontos): não seleciona nada novo
-  await page.click('#clear-sel');
-  check('7. limpar seleção = 0', (await page.getAttribute('#sel-count', 'data-count')) === '0');
-  // área parcial: desenha só o quadrante em que está FLX-002 (tela pequena): confere que seleciona um subconjunto coerente com as coordenadas
-  await page.click('#draw-area'); // ativa
+  // ===== 7. Zona poligonal desenhada no mapa real
+  await page.locator('#regions-map .gmap-zoom[aria-label=Afastar]').click(); // pontos ficam longe das bordas
   box = await mapBox('#regions-map .gmap');
-  await page.mouse.move(box.x + 6, box.y + box.height / 2 + 5); await page.mouse.down(); await page.mouse.move(box.x + box.width / 2 - 10, box.y + box.height - 40, { steps: 5 }); await page.mouse.up();
-  const partial = await page.locator('.sel-box:checked').evaluateAll((l) => l.map((x) => x.dataset.code));
-  const inside = await D(() => { const v = window.CXPT_APP.store.mapPoints('x1'); return v.map((p) => p.code); });
-  check('7. seleção parcial usa só pontos reais (subconjunto dos pontos salvos)', partial.every((c) => inside.includes(c)) && partial.length < 4, partial.join(','));
-  await page.click('#clear-sel');
+  check('7. botões da zona presentes; finalizar desabilitado sem pontos', (await page.locator('#zone-draw').isEnabled()) && (await page.locator('#zone-finish').isDisabled()) && (await page.locator('#zone-clear').isDisabled()));
+  await page.click('#zone-draw');
+  box = await mapBox('#regions-map .gmap');
+  const W = box.width, Hh = box.height;
+  const corners = [[24, 24], [W - 70, 24], [W - 70, Hh - 50], [24, Hh - 50]];
+  for (let i = 0; i < 4; i++) {
+    await page.mouse.click(box.x + corners[i][0], box.y + corners[i][1]);
+    if (i === 1) check('7. 2 pontos: ainda não dá para finalizar (mínimo 3)', await page.locator('#zone-finish').isDisabled() && (await page.locator('.zone-v').count()) === 2);
+  }
+  check('7. 4 vértices desenhados (editáveis)', (await page.locator('.zone-v').count()) === 4 && (await page.locator('#regions-map .zone-line').getAttribute('points')).split(' ').length === 4);
+  check('7. durante o desenho ainda não há seleção nem contagem final', (await page.getAttribute('#sel-count', 'data-count')) === '0' && (await page.locator('#zone-count').count()) === 0);
+  await page.click('#zone-finish');
+  const inPoly = async () => D(() => {
+    const vs = Array.from(document.querySelectorAll('#regions-map .zone-v')).map((b) => [parseFloat(b.style.left), parseFloat(b.style.top)]);
+    const res = {};
+    document.querySelectorAll('#regions-map .pin').forEach((p) => {
+      const x = parseFloat(p.style.left), y = parseFloat(p.style.top); let ins = false;
+      for (let i = 0, j = vs.length - 1; i < vs.length; j = i++) { if ((vs[i][1] > y) !== (vs[j][1] > y) && x < ((vs[j][0] - vs[i][0]) * (y - vs[i][1])) / (vs[j][1] - vs[i][1]) + vs[i][0]) ins = !ins; }
+      res[p.getAttribute('aria-label').match(/FLX-\d+/)[0]] = ins;
+    });
+    return res;
+  });
+  const classes = async () => D(() => { const r = {}; document.querySelectorAll('#regions-map .pin').forEach((p) => { r[p.getAttribute('aria-label').match(/FLX-\d+/)[0]] = p.classList.contains('pin--in') ? 'in' : p.classList.contains('pin--out') ? 'out' : 'none'; }); return r; });
+  let px = await inPoly(), cl = await classes();
+  check('7. zona fechada cobrindo os pontos: 4 dentro, 0 fora (conferido por geometria independente na tela)', Object.values(px).filter(Boolean).length === 4 && (await page.getAttribute('#zone-count', 'data-inside')) === '4' && (await page.getAttribute('#zone-count', 'data-outside')) === '0', JSON.stringify(px));
+  check('7. visualização dentro/fora: marcadores dentro destacados', Object.values(cl).filter((v) => v === 'in').length === 4);
+  check('7. seleção automática = pacotes dentro da zona com coordenadas reais', (await page.getAttribute('#sel-count', 'data-count')) === '4' && (await page.locator('.sel-box:checked').evaluateAll((l) => l.map((x) => x.dataset.code).sort().join(','))) === 'FLX-001,FLX-002,FLX-003,FLX-004');
+  check('7. sem localização ficam de fora e aparecem à parte', (await page.locator('.sel-box[data-code=FLX-005]').count()) === 0 && /sem localização confirmada/.test(await txt('#zone-noloc')) && (await page.locator('#nocoord-saved [data-code=FLX-005]').count()) === 1);
+  check('7. contador de pacotes encontrados exibido', /4 ponto\(s\) dentro da zona/.test(await txt('#zone-count')));
+  // retirar um pacote individualmente antes de confirmar
+  await page.click('#amb-review [data-act=retirar][data-code=FLX-004]');
+  check('7. retirar individualmente: seleção cai para 3 e FLX-004 sai da revisão', (await page.getAttribute('#sel-count', 'data-count')) === '3' && (await page.locator('#amb-review tr[data-code=FLX-004]').count()) === 0);
+  // ajustar o desenho: arrastar os dois vértices da direita para o centro → recalcula
+  const drag = async (idx, dx, dy, absX) => {
+    await page.locator('#regions-map .gmap').evaluate((e) => e.scrollIntoView({ block: 'center' }));
+    const vb = await page.locator('.zone-v').nth(idx).boundingBox(); const sx = vb.x + vb.width / 2, sy = vb.y + vb.height / 2;
+    if (absX !== undefined) { const mb = await page.locator('#regions-map .gmap').boundingBox(); dx = mb.x + (absX - box.x) - sx; }
+    await page.mouse.move(sx, sy); await page.mouse.down(); await page.mouse.move(sx + dx / 2, sy + dy / 2, { steps: 4 }); await page.mouse.move(sx + dx, sy + dy, { steps: 4 }); await page.mouse.up();
+  };
+  const pinXs = (await D(() => Array.from(document.querySelectorAll('#regions-map .pin')).map((p) => parseFloat(p.style.left)))).sort((a, b) => a - b);
+  const targetX = box.x + (pinXs[1] + pinXs[2]) / 2; // entre o 2º e o 3º ponto: deixa pontos de fora
+  await drag(1, null, 0, targetX); await drag(2, null, 0, targetX);
+  px = await inPoly(); cl = await classes();
+  const nIn = Object.values(px).filter(Boolean).length;
+  check('7. ajustar vértices recalcula (dentro = geometria independente; mudou em relação a 4)', nIn < 4 && (await page.getAttribute('#zone-count', 'data-inside')) === String(nIn) && (await page.getAttribute('#zone-count', 'data-outside')) === String(4 - nIn), JSON.stringify(px));
+  check('7. marcadores dentro/fora coerentes com a geometria', Object.keys(px).every((k) => (px[k] ? 'in' : 'out') === cl[k]), JSON.stringify(cl));
+  check('7. seleção acompanha a zona ajustada (só pacotes dentro)', (await page.getAttribute('#sel-count', 'data-count')) === String(nIn) && (await page.locator('.sel-box:checked').evaluateAll((l) => l.map((x) => x.dataset.code).sort().join(','))) === Object.keys(px).filter((k) => px[k]).sort().join(','));
+  // teclado: mover um vértice com seta e remover com Delete
+  const vStyle = await page.locator('.zone-v').nth(0).getAttribute('style');
+  await page.locator('.zone-v').nth(0).focus(); await page.keyboard.press('ArrowRight');
+  check('7. vértice ajustável por teclado', vStyle !== (await page.locator('.zone-v').nth(0).getAttribute('style')));
+  await page.locator('.zone-v').nth(0).focus(); await page.keyboard.press('Delete');
+  check('7. Delete remove o vértice (3 restantes; zona ainda válida)', (await page.locator('.zone-v').count()) === 3);
+  await page.click('#zone-undo');
+  check('7. desfazer último ponto: 2 vértices = zona deixa de existir (sem seleção)', (await page.locator('.zone-v').count()) === 2 && (await page.getAttribute('#sel-count', 'data-count')) === '0' && (await page.locator('#zone-count').count()) === 0);
+  // apagar tudo
+  await page.click('#zone-clear');
+  check('7. apagar zona: sem vértices, sem contagem e marcadores voltam ao normal', (await page.locator('.zone-v').count()) === 0 && (await page.locator('#zone-count').count()) === 0 && (await page.locator('#regions-map .pin--in, #regions-map .pin--out').count()) === 0 && (await page.getAttribute('#sel-count', 'data-count')) === '0');
+  // cancelar durante o desenho
+  await page.click('#zone-draw'); box = await mapBox('#regions-map .gmap'); await page.mouse.click(box.x + 30, box.y + 130); await page.mouse.click(box.x + 120, box.y + 130);
+  check('7. desenho em andamento mostra a quantidade de pontos', /2 até agora/.test(await txt('#zone-status')));
+  await page.click('#zone-clear');
+  check('7. cancelar descarta o desenho em andamento', (await page.locator('.zone-v').count()) === 0 && /Nenhuma zona/.test(await txt('#zone-status')));
+  // zona com linhas cruzadas é recusada
+  await page.click('#zone-draw'); box = await mapBox('#regions-map .gmap');
+  for (const [x, y] of [[40, 140], [200, 240], [200, 140], [40, 240]]) await page.mouse.click(box.x + x, box.y + y);
+  await page.click('#zone-finish');
+  check('7. zona com linhas cruzadas não seleciona nada e explica', (await page.getAttribute('#sel-count', 'data-count')) === '0' && /cruzam|inválida/i.test((await txt('#group-msg')) + (await txt('#zone-status'))));
+  await page.click('#zone-clear');
+  // zona nova bem pequena sem pontos
+  await page.click('#zone-draw'); box = await mapBox('#regions-map .gmap');
+  for (const [x, y] of [[30, 30], [90, 30], [60, 80]]) await page.mouse.click(box.x + x, box.y + y);
+  await page.click('#zone-finish');
+  check('7. zona sem nenhum pacote: contagem 0 e nenhuma seleção', (await page.getAttribute('#zone-count', 'data-inside')) === '0' && (await page.getAttribute('#sel-count', 'data-count')) === '0');
+  await page.click('#zone-clear');
+  await page.click('#fit-map');
 
   // seleção individual na lista e no marcador
   await page.check('.sel-box[data-code=FLX-001]'); await page.check('.sel-box[data-code=FLX-002]'); await page.check('.sel-box[data-code=FLX-003]');
@@ -329,6 +399,15 @@ async function main(browser, base) {
   check('QR em carga nova: operação não encontrada (sem backend), sem dados', /Operação não encontrada/.test(t2) && !/Ambulância Teste 1|FLX-/.test(t2));
   await p2.close();
 
+  // zona sobre pacotes que já estão em operação ativa: aparecem dentro, mas indisponíveis (nunca em duas operações)
+  await go('map');
+  await page.locator('#regions-map .gmap-zoom[aria-label=Afastar]').click();
+  await page.click('#zone-draw'); box = await mapBox('#regions-map .gmap');
+  for (const [x, y] of [[24, 24], [box.width - 70, 24], [box.width - 70, box.height - 50], [24, box.height - 50]]) await page.mouse.click(box.x + x, box.y + y);
+  await page.click('#zone-finish');
+  check('7. zona após a saída: 3 conferidos seguem em operação (bloqueados) e só o pendente liberado (FLX-004) fica disponível', (await page.getAttribute('#zone-count', 'data-eligible')) === '1' && (await page.getAttribute('#zone-count', 'data-blocked')) === '3' && (await page.locator('.sel-box:checked').evaluateAll((l) => l.map((x) => x.dataset.code).join(','))) === 'FLX-004');
+  check('7. pacotes em operação ativa não são selecionáveis na lista', (await page.locator('.sel-box[data-code=FLX-001]').isDisabled()) && (await page.locator('.sel-box[data-code=FLX-002]').isDisabled()));
+  await page.click('#zone-clear');
   check('nenhuma requisição externa além dos ladrilhos do provedor (interceptados)', external.length === 0, external.join(','));
   check('nenhum erro JS/console', errors.filter((e) => !/Failed to load resource/.test(e)).length === 0, errors.slice(0, 3).join(' | '));
   await ctx.close();
@@ -340,7 +419,7 @@ async function main(browser, base) {
   await pf.fill('#code-in', 'flx-900'); await pf.press('#code-in', 'Enter');
   check('4. aberto como arquivo (file://): mapa indisponível com motivo exato (Referer)', /Referer/.test(await pf.locator('#map-unavailable').innerText()));
   check('4. nenhuma imagem/grade/canvas no lugar do mapa', (await pf.locator('.gmap, canvas').count()) === 0);
-  check('4. alternativa: registrar como pendente de localização', (await pf.locator('#kind-pendente').isEnabled()) && (await pf.locator('#kind-marcada').isDisabled()));
+  check('4. alternativa: adicionar o pacote sem localização confirmada (sem as 4 opções antigas)', /sem localização confirmada/.test(await pf.locator('#loc-hint').innerText()) && (await pf.locator('[id^=kind-]').count()) === 0);
   await pf.evaluate(() => { window.CXPT_MAP.tiles = 'https://tile.openstreetmap.org/{z}/{x}/{y}.png'; window.CXPT_MAP.requiresReferer = false; });
   await ctx2.close();
 

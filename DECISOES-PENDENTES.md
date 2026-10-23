@@ -25,3 +25,7 @@
 | D-21 | Pacote sem coordenadas em ambulância | Só por inclusão manual explícita; nunca automático |
 | D-22 | QR Code entre aparelhos | Só funciona no mesmo navegador (memória); exige backend |
 | D-23 | Reentrada de código existente (evento/ciclo por estado) | Evento registrado sem duplicar; retorno de rota inicia novo ciclo (proposta) |
+
+- **D-24 (novo, proposta)** Zona de ambulância = polígono livre desenhado sobre o mapa; só pacotes com coordenadas confirmadas e elegíveis entram. Aprovar/ajustar.
+- **D-25 (novo, proposta)** Firebase: dados de teste em `env/teste` do projeto `coopmetro-xpt` (sem projeto separado); histórico embutido no pacote + trilha `events` imutável; id do pacote = `pk-CÓDIGO`; sem Cloud Functions. Aprovar ou criar projeto de teste separado.
+- **D-26 (novo)** Regras do Firestore propostas (`firestore.rules`) espelham a matriz D-06; precisam de revisão e teste no Simulador/Emulator antes de publicar.

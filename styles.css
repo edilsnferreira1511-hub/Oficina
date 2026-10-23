@@ -155,3 +155,26 @@ input[readonly] { background: var(--surface2); }
 .pin--focus { z-index: 2; }
 .pin--sel { z-index: 3; }
 .loc-info { display: flex; flex-direction: column; gap: 10px; margin-top: 12px; } .loc-info[hidden] { display: none; }
+
+/* zona poligonal */
+.gmap-zone { position: absolute; inset: 0; width: 100%; height: 100%; pointer-events: none; }
+.zone-shape { fill: rgba(30, 90, 200, .18); stroke: #1e5ac8; stroke-width: 2.5; stroke-linejoin: round; }
+.zone-line { fill: none; stroke: #1e5ac8; stroke-width: 2.5; stroke-dasharray: 6 4; }
+.gmap-zone-v { position: absolute; inset: 0; pointer-events: none; }
+.zone-v { position: absolute; transform: translate(-50%, -50%); width: 28px; height: 28px; padding: 0; border-radius: 50%; border: 3px solid #1e5ac8; background: #fff; cursor: grab; pointer-events: auto; touch-action: none; z-index: 4; }
+.zone-v:focus-visible { outline: 3px solid var(--y500); outline-offset: 2px; }
+.gmap--draw { cursor: crosshair; }
+.pin--in .pin-dot { box-shadow: 0 0 0 3px #1e5ac8, 0 0 0 4px #000; }
+.pin--out { opacity: .45; }
+.legend-pin--in { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--pin-ok); box-shadow: 0 0 0 3px #1e5ac8; margin-right: 6px; vertical-align: middle; }
+.legend-pin--out { display: inline-block; width: 14px; height: 14px; border-radius: 50%; background: var(--pin-ok); opacity: .45; margin-right: 6px; vertical-align: middle; }
+.zone-panel { display: flex; flex-direction: column; gap: 8px; margin: 12px 0; }
+
+/* login */
+.auth-root { min-height: 100vh; display: flex; align-items: center; justify-content: center; padding: 16px; background: var(--bg, #f4f5f7); }
+.auth-root[hidden] { display: none; }
+.auth-card { width: 100%; max-width: 420px; background: var(--surface); color: var(--text); border: 1px solid var(--border); border-radius: 12px; padding: 24px; display: flex; flex-direction: column; gap: 12px; }
+.auth-card h1 { font-size: 20px; margin: 0; } .auth-logo { align-self: center; }
+.auth-form { display: flex; flex-direction: column; gap: 12px; }
+.user-badge { font-size: 13px; font-weight: 600; }
+.shell[hidden] { display: none; }

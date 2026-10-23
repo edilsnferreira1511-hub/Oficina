@@ -81,6 +81,19 @@
     };
   }
 
-  NS.operations = { OP_STATE: OP_STATE, opsOf: opsOf, opPackages: opPackages, createConference: createConference, createGroupDraft: createGroupDraft };
+  /** Resumo da zona desenhada: usa só coordenadas reais guardadas. inside/outside = pontos com coordenadas; eligible = pacotes salvos livres de operação ativa. */
+  function zoneSummary(points, poly) {
+    var G = NS.geo;
+    if (!G.polygonValid(poly)) return { valid: false, inside: [], outside: [], eligible: [], blocked: [], drafts: [] };
+    var r = G.pointsInPolygon(points, poly);
+    return {
+      valid: true, inside: r.inside, outside: r.outside,
+      eligible: r.inside.filter(function (p) { return p.eligible && p.source === 'pacote'; }),
+      blocked: r.inside.filter(function (p) { return !p.eligible; }),
+      drafts: r.inside.filter(function (p) { return p.eligible && p.source !== 'pacote'; }),
+    };
+  }
+
+  NS.operations = { zoneSummary: zoneSummary, OP_STATE: OP_STATE, opsOf: opsOf, opPackages: opPackages, createConference: createConference, createGroupDraft: createGroupDraft };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.operations;
 })(typeof window !== 'undefined' ? window : globalThis);

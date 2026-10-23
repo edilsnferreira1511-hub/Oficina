@@ -4,18 +4,11 @@
   var NS = root.CXPT, ui = NS.ui, el = ui.el, H = NS.vh, G = NS.geo;
   var V = NS.views;
 
-  var KIND_HELP = {
-    marcada: 'Você marcou o ponto de destino no mapa.',
-    aproximada: 'Destino aproximado (marque no mapa se possível; região opcional).',
-    desconhecida: 'O destino não é conhecido. Não haverá coordenadas.',
-    pendente: 'A localização será definida depois. Não haverá coordenadas.',
-  };
-
   V.entry = function (c) {
     var g = H.guard(c, 'entrada'); if (g) return g;
     var D = c.D, draft = c.store.draft(c.xptId);
     var av = NS.map.availability(root.CXPT_MAP);
-    var S = { kind: 'pendente', lat: null, lng: null, regionId: '', editId: null, confirmed: false };
+    var S = { lat: null, lng: null, editId: null, confirmed: false }; // sem escolha de "tipo": ponto confirmado = localização salva; sem ponto confirmado = sem localização
     var mapCtl = null, destroyed = false;
 
     // ---- campos
@@ -34,7 +27,9 @@
     var cancelBtn = el('button', { type: 'button', class: 'btn btn--ghost', id: 'cancel-edit', hidden: true, onclick: resetForm }, 'Cancelar edição');
     var listBox = el('div', { id: 'draft-list' });
 
+    var lastErrKey = '{}';
     function fieldErrors(errs) {
+      lastErrKey = JSON.stringify(errs);
       fieldWrap.replaceChildren(
         ui.field('Código do pacote (leitor ou digitação)', codeIn, errs.code, 'Leitores USB/Bluetooth digitam o código e enviam Enter. Regra provisória: A–Z, 0–9, . _ - (máx. 64).'),
         ui.field('Tamanho', sizeSel, errs.size), ui.field('Motivo da devolução', reasonSel, errs.reasonId), ui.field('Observação (opcional)', noteIn, errs.note));
@@ -43,56 +38,39 @@
 
     // O mapa abre assim que há um código válido (tamanho e motivo continuam obrigatórios para ADICIONAR o item).
     function gateOpen() { return !!(S.editId || NS.codes.validate(codeIn.value).ok); }
+    // Só um ponto CONFIRMADO explicitamente vira localização; caso contrário o pacote segue sem localização confirmada (sem coordenadas padrão).
     function currentLocation() {
-      var hasPin = S.lat !== null && S.lng !== null;
-      var loc = { kind: S.kind, lat: null, lng: null, regionId: null };
-      if (S.kind === 'marcada' || S.kind === 'aproximada') { if (hasPin) { loc.lat = S.lat; loc.lng = S.lng; } loc.regionId = S.regionId || null; }
-      return loc;
+      if (S.lat !== null && S.lng !== null && S.confirmed) return { kind: 'marcada', lat: S.lat, lng: S.lng, regionId: null };
+      return { kind: 'pendente', lat: null, lng: null, regionId: null };
     }
     function drawMarker() {
       if (!mapCtl) return;
-      mapCtl.setMarkers(S.lat !== null ? [{ id: 'pin', lat: S.lat, lng: S.lng, kind: S.kind === 'aproximada' ? 'aproximada' : 'marcada', label: 'Ponto atual do pacote' }] : []);
+      mapCtl.setMarkers(S.lat !== null ? [{ id: 'pin', lat: S.lat, lng: S.lng, kind: 'marcada', selected: !S.confirmed, label: (S.confirmed ? 'Localização confirmada' : 'Marcador (ainda não confirmado)') }] : []);
     }
+    var mapFailed = false; // depois de uma falha dos ladrilhos o aviso permanece (não recria o mapa a cada foco/blur)
     function ensureMap() {
-      if (!av.ok || mapCtl || destroyed) return;
+      if (!av.ok || mapCtl || destroyed || mapFailed) return;
       mapCtl = NS.map.create(mapHost, {
         config: root.CXPT_MAP, label: 'Mapa para marcar o destino de entrega', mode: 'pick',
         onMapClick: function (lat, lng) {
           if (!gateOpen()) return;
-          if (S.kind !== 'marcada' && S.kind !== 'aproximada') S.kind = 'marcada';
           S.lat = G.round6(lat); S.lng = G.round6(lng); S.confirmed = false; drawLoc(); drawMarker();
         },
-        onStatus: function (s) { if (s === 'falhou') { mapHost.replaceChildren(ui.callout('warn', NS.map.MESSAGES.falhou)); mapCtl = null; } },
+        onStatus: function (s) { if (s === 'falhou') { mapFailed = true; mapHost.replaceChildren(ui.callout('warn', NS.map.MESSAGES.falhou)); mapCtl = null; } },
       });
-    }
-    function kindRadio(k) {
-      var disabled = k === 'marcada' && !av.ok;
-      var r = el('input', { type: 'radio', name: 'kind', value: k, id: 'kind-' + k, checked: S.kind === k, disabled: disabled,
-        onchange: function () {
-          S.kind = k;
-          if (k === 'desconhecida' || k === 'pendente') { S.lat = null; S.lng = null; S.regionId = ''; S.confirmed = false; }
-          drawLoc(); drawMarker();
-        } });
-      return el('label', { class: 'radio' + (disabled ? ' radio--off' : ''), for: 'kind-' + k }, r, el('span', { text: G.LOC_LABEL[k] + (disabled ? ' (requer mapa)' : '') }));
     }
     function drawLoc() {
       var hasPin = S.lat !== null;
-      var regs = D.regions.filter(function (r) { return r.xptId === c.xptId; });
-      var regionSel = ui.select('regionId', regs, S.regionId, 'Sem região');
-      regionSel.addEventListener('change', function () { S.regionId = regionSel.value; });
-      // Layout ESTÁVEL no celular: só o seletor de tipo fica acima do mapa; tudo que muda de tamanho após marcar o ponto
-      // (dica, região, coordenadas, botões) fica ABAIXO do mapa, para o mapa não "pular" sob o dedo entre um toque e outro.
-      locBox.replaceChildren(el('fieldset', { class: 'kinds' }, el('legend', { text: 'Localização do destino de entrega (não é o lugar no galpão)' }), G.LOC_KINDS.map(kindRadio)));
+      locBox.replaceChildren(el('p', { class: 'loc-title', id: 'loc-title', text: 'Localização do destino de entrega (a casa do cliente — não é o lugar no galpão)' }));
+      // Layout ESTÁVEL no celular: tudo que muda de tamanho após marcar o ponto fica ABAIXO do mapa, para o mapa não "pular" sob o dedo.
       locInfo.replaceChildren(
-        el('p', { class: 'hint', text: KIND_HELP[S.kind] }),
-        (S.kind === 'marcada' || S.kind === 'aproximada') ? ui.field('Região (opcional — escolhida por você, nunca deduzida das coordenadas)', regionSel) : null,
-        el('p', { class: 'coords', id: 'coords-out', text: hasPin ? (S.kind === 'marcada' && S.confirmed ? 'Localização confirmada: ' : 'Ponto: ') + G.formatLatLng(S.lat, S.lng) : 'Nenhum ponto marcado.' }),
-        (S.kind === 'marcada' && hasPin) ? (S.confirmed
-          ? el('p', { class: 'loc-ok', id: 'loc-confirmed', role: 'status', text: 'Localização confirmada. Toque em "Ajustar posição" para mover o marcador.' })
-          : el('button', { type: 'button', class: 'btn btn--primary', id: 'confirm-loc', onclick: function () { S.confirmed = true; drawLoc(); drawMarker(); ui.announce('Localização confirmada.'); } }, 'Confirmar localização')) : null,
-        (S.kind === 'marcada' && hasPin && S.confirmed) ? el('button', { type: 'button', class: 'btn btn--ghost', id: 'adjust-loc', onclick: function () { S.confirmed = false; drawLoc(); drawMarker(); } }, 'Ajustar posição') : null,
-        (S.kind === 'marcada' && hasPin && !S.confirmed) ? el('p', { class: 'hint', id: 'adjust-hint', text: 'Toque em outro ponto do mapa para ajustar o marcador e depois confirme.' }) : null,
-        hasPin ? el('button', { type: 'button', class: 'btn btn--ghost', id: 'remove-pin', onclick: function () { S.lat = null; S.lng = null; S.confirmed = false; if (S.kind === 'marcada') S.kind = 'pendente'; drawLoc(); drawMarker(); } }, 'Remover ponto') : null);
+        el('p', { class: 'hint', id: 'loc-hint', text: !hasPin ? (av.ok ? 'Toque no mapa para marcar a casa do cliente. Se não conseguir localizar, adicione o pacote assim mesmo: ele seguirá sem localização confirmada.' : 'Sem mapa: o pacote será adicionado sem localização confirmada.')
+          : S.confirmed ? 'Localização confirmada. Ela será salva com o pacote.' : 'Toque em outro ponto do mapa para reposicionar o marcador e depois confirme.' }),
+        el('p', { class: 'coords', id: 'coords-out', text: hasPin ? (S.confirmed ? 'Localização confirmada: ' : 'Ponto: ') + G.formatLatLng(S.lat, S.lng) : 'Nenhum ponto marcado.' }),
+        hasPin && !S.confirmed ? el('button', { type: 'button', class: 'btn btn--primary', id: 'confirm-loc', onclick: function () { S.confirmed = true; drawLoc(); drawMarker(); ui.announce('Localização confirmada.'); } }, 'Confirmar localização') : null,
+        hasPin && S.confirmed ? el('p', { class: 'loc-ok', id: 'loc-confirmed', role: 'status', text: 'Localização confirmada. Toque em "Ajustar posição" para mover o marcador.' }) : null,
+        hasPin && S.confirmed ? el('button', { type: 'button', class: 'btn btn--ghost', id: 'adjust-loc', onclick: function () { S.confirmed = false; drawLoc(); drawMarker(); } }, 'Ajustar posição') : null,
+        hasPin ? el('button', { type: 'button', class: 'btn btn--ghost', id: 'remove-pin', onclick: function () { S.lat = null; S.lng = null; S.confirmed = false; drawLoc(); drawMarker(); } }, 'Remover ponto') : null);
     }
     function refreshGate() {
       var open = gateOpen();
@@ -101,11 +79,11 @@
       locBox.hidden = !open; locInfo.hidden = !open; mapHost.hidden = !open || !av.ok; mapBoxMsg.hidden = !open || av.ok;
       if (open) { ensureMap(); if (mapCtl) { mapCtl.resize(); } }
     }
-    var mapBoxMsg = ui.callout('warn', av.ok ? '' : av.message, av.ok ? '' : 'Você ainda pode registrar localização aproximada (sem ponto), desconhecida ou pendente.');
+    var mapBoxMsg = ui.callout('warn', av.ok ? '' : av.message, av.ok ? '' : 'Você ainda pode adicionar o pacote sem localização confirmada.');
     mapBoxMsg.id = 'map-unavailable';
 
     function resetForm() {
-      S = { kind: 'pendente', lat: null, lng: null, regionId: '', editId: null, confirmed: false };
+      S = { lat: null, lng: null, editId: null, confirmed: false };
       codeIn.value = ''; codeIn.readOnly = false; sizeSel.value = ''; reasonSel.value = ''; noteIn.value = '';
       addBtn.textContent = 'Adicionar ao rascunho (demonstração)'; cancelBtn.hidden = true;
       fieldErrors({}); drawLoc(); drawMarker(); refreshGate(); codeIn.focus();
@@ -116,6 +94,7 @@
       if (!codeIn.value.trim()) { fieldErrors({}); return; }
       var r = draft.check({ code: codeIn.value, size: 'P', reasonId: D.reasons[0].id, location: { kind: 'pendente' } });
       var errs = {}; if (r.errors.code) errs.code = r.errors.code; else if (!v.ok) errs.code = v.message;
+      if (JSON.stringify(errs) === lastErrKey) return errs.code; // nada mudou: não reconstruir os campos (evita perder foco/valor em corridas)
       var keep = { s: sizeSel.value, r: reasonSel.value, n: noteIn.value, v: codeIn.value };
       fieldErrors(errs); codeIn.value = keep.v; sizeSel.value = keep.s; reasonSel.value = keep.r; noteIn.value = keep.n;
       return errs.code;
@@ -133,7 +112,7 @@
     function submit(e) {
       e.preventDefault();
       var f = { code: codeIn.value, size: sizeSel.value, reasonId: reasonSel.value, note: noteIn.value, location: currentLocation() };
-      if (S.kind === 'marcada' && S.lat !== null && !S.confirmed) { msg.textContent = 'Confirme a localização (botão "Confirmar localização") antes de adicionar, ou escolha outra classificação.'; var cb = document.getElementById('confirm-loc'); if (cb) cb.focus(); return; }
+      if (S.lat !== null && !S.confirmed) { msg.textContent = 'Confirme a localização (botão "Confirmar localização") ou remova o ponto para adicionar o pacote sem localização confirmada.'; var cb = document.getElementById('confirm-loc'); if (cb) cb.focus(); return; }
       var r = S.editId ? draft.update(S.editId, { size: f.size, reasonId: f.reasonId, note: f.note, location: f.location }) : draft.add(f);
       if (!r.ok) {
         var keep = { v: codeIn.value, s: sizeSel.value, r: reasonSel.value, n: noteIn.value };
@@ -167,30 +146,33 @@
         el('p', { class: 'result-count', id: 'draft-count', role: 'status', text: items.length + ' item(ns) no rascunho local · ' + c.xpt.name }),
         items.length ? ui.table(cols, items, { label: 'Rascunho de entrada' }) : ui.empty('Rascunho vazio.', 'Leia ou digite um código para começar. Os itens são descartados ao recarregar a página.'),
         el('div', { class: 'row-actions' }, items.length ? el('button', { type: 'button', class: 'btn btn--ghost', id: 'clear-draft', onclick: function () { ui.confirmModal('Limpar rascunho?', 'Remove os ' + items.length + ' itens do rascunho local desta XPT. Nada real é afetado.', 'Limpar', function () { draft.clear(); c.store.audit.log('rascunho_limpo', c.xptId, String(items.length)); resetForm(); drawList(); c.store.changed('entry'); }); } }, 'Limpar rascunho') : null,
-          items.length ? el('button', { type: 'button', class: 'btn btn--primary', id: 'confirm-entry', onclick: confirmEntry }, 'Confirmar entrada (' + items.length + ') — memória da demonstração') : null));
+          items.length ? el('button', { type: 'button', class: 'btn btn--primary', id: 'confirm-entry', onclick: confirmEntry }, 'Confirmar entrada (' + items.length + ') — ' + (c.svc.mode === 'demo' ? 'memória da demonstração' : 'gravar no servidor')) : null));
     }
     function confirmEntry() {
       var items = draft.list(); if (!items.length) return;
-      var body = el('div', null, el('p', { text: 'Vai registrar ' + items.length + ' pacote(s) de ' + c.xpt.name + ' na MEMÓRIA desta demonstração. Nada é gravado em servidor e tudo se perde ao recarregar a página.' }),
+      var body = el('div', null, el('p', { text: 'Vai registrar ' + items.length + ' pacote(s) de ' + c.xpt.name + ' ' + (c.svc.mode === 'demo' ? 'na MEMÓRIA desta demonstração. Nada é gravado em servidor e tudo se perde ao recarregar a página.' : 'no servidor (Firestore, ambiente de teste). O pacote só aparece como registrado depois que o servidor confirmar a gravação.') }),
         el('ul', { class: 'plain' }, items.map(function (i) { return el('li', { text: i.code + ' · ' + H.sizeLabel(D, i.size) + ' · ' + G.LOC_LABEL[i.location.kind] }); })));
       ui.modal('Confirmar entrada dos pacotes?', body, [
         { label: 'Cancelar', onClick: function (close) { close(); } },
         { label: 'Confirmar entrada', cls: 'btn--primary', id: 'confirm-entry-ok', onClick: function (close) {
           close();
-          var r = NS.registry.registerEntries(D, c.xptId, items, { nowMs: c.store.nowMs(), operator: 'Operador Demo' });
+          msg.textContent = 'Gravando…';
+          c.svc.registerEntries(c.xptId, items, c.who).then(function (r) {
           r.created.forEach(function (p) {
             var it = items.filter(function (x) { return x.code === p.code; })[0];
             if (it) draft.remove(it.id);
             c.store.index.register(p.code, p.xptId); // o código continua reservado no índice global, agora como pacote
             c.store.audit.log('entrada_confirmada_demo', c.xptId, p.code);
           });
-          msg.textContent = r.created.length + ' pacote(s) registrado(s) na memória desta demonstração' + (r.skipped.length ? '; ' + r.skipped.length + ' não registrado(s): ' + r.skipped.map(function (s) { return s.code + ' (' + s.reason + ')'; }).join(', ') : '') + '.';
+          msg.textContent = r.created.length + ' pacote(s) registrado(s) ' + (c.svc.mode === 'demo' ? 'na memória desta demonstração' : 'e gravado(s) no servidor') + '' + (r.skipped.length ? '; ' + r.skipped.length + ' não registrado(s): ' + r.skipped.map(function (s) { return s.code + ' (' + s.reason + ')'; }).join(', ') : '') + '.';
+          if (r.error) msg.textContent += ' ' + r.error;
           ui.announce(msg.textContent); drawList(); c.store.changed('entry');
+          });
         } },
       ]);
     }
     function edit(i) {
-      S = { kind: i.location.kind, lat: i.location.lat, lng: i.location.lng, regionId: i.location.regionId || '', editId: i.id, confirmed: i.location.kind === 'marcada' };
+      S = { lat: i.location.lat, lng: i.location.lng, editId: i.id, confirmed: i.location.lat !== null };
       codeIn.value = i.code; codeIn.readOnly = true; sizeSel.value = i.size; reasonSel.value = i.reasonId; noteIn.value = i.note;
       addBtn.textContent = 'Salvar alterações do item'; cancelBtn.hidden = false;
       fieldErrors({}); codeIn.value = i.code; sizeSel.value = i.size; reasonSel.value = i.reasonId; noteIn.value = i.note;
@@ -212,18 +194,19 @@
         el('div', { class: 'row-actions' },
           el('a', { class: 'btn btn--ghost', href: '#/package/' + encodeURIComponent(pk.id), id: 'existing-link' }, 'Ver histórico do pacote'),
           el('button', { type: 'button', class: 'btn btn--primary', id: 'reentry-btn', onclick: function () {
-            var loc = (S.lat !== null && (S.kind === 'marcada' || S.kind === 'aproximada') && (S.kind !== 'marcada' || S.confirmed)) ? currentLocation() : null;
-            var r = NS.registry.registerReentry(D, c.xptId, pk.code, { nowMs: c.store.nowMs(), operator: 'Operador Demo', note: noteIn.value, location: loc });
-            msg.textContent = r.ok ? 'Reentrada registrada como evento em ' + r.pkg.code + ' (demonstração em memória) · ' + r.locationNote + '.' : r.reason;
-            if (r.ok) { c.store.audit.log('reentrada_registrada', c.xptId, pk.code); c.store.changed('entry'); showExisting(); }
-            ui.announce(msg.textContent);
+            var loc = (S.lat !== null && S.confirmed) ? currentLocation() : null;
+            c.svc.registerReentry(c.xptId, pk.code, { note: noteIn.value, location: loc }, c.who).then(function (r) {
+              msg.textContent = r.ok ? 'Reentrada registrada como evento em ' + r.pkg.code + (c.svc.mode === 'demo' ? ' (demonstração em memória)' : ' (gravada no servidor)') + ' · ' + r.locationNote + '.' : r.reason;
+              if (r.ok) { c.store.audit.log('reentrada_registrada', c.xptId, pk.code); c.store.changed('entry'); showExisting(); }
+              ui.announce(msg.textContent);
+            });
           } }, 'Registrar reentrada (novo evento)')));
     }
     var form = el('form', { class: 'entry-form', id: 'entry-form', novalidate: true, onsubmit: submit },
       fieldWrap, gateHint, existBox, locBox, mapHost, mapBoxMsg, locInfo, el('div', { class: 'row-actions' }, addBtn, cancelBtn), msg, errBox);
     drawLoc(); drawList(); refreshGate();
     var node = H.page([
-      ui.callout('warn', 'Registro demonstrativo, só em memória.', 'Não há backend: pacotes confirmados aqui existem apenas nesta página e somem ao recarregar. O rascunho vale só para ' + c.xpt.name + '.'),
+      (c.svc.mode === 'demo' ? ui.callout('warn', 'Registro demonstrativo, só em memória.', 'Não há backend: pacotes confirmados aqui existem apenas nesta página e somem ao recarregar. O rascunho vale só para ' + c.xpt.name + '.') : ui.callout('info', 'Os pacotes confirmados são gravados no servidor (ambiente de teste).', 'O rascunho abaixo é só local e vale para ' + c.xpt.name + ' até você confirmar a entrada.')),
       ui.card('Novo pacote', form), ui.card('Rascunho local desta XPT', listBox), H.demoNote(),
     ]);
     setTimeout(function () { if (!destroyed && !(document.activeElement && document.activeElement.tagName === 'SELECT')) codeIn.focus({ preventScroll: true }); }, 0);

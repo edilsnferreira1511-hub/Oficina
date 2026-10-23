@@ -3,8 +3,8 @@
  * Uso: node run-all.js            (SKIP_E2E=1 para pular o navegador) */
 const { spawnSync } = require('child_process');
 const path = require('path');
-const suites = [['unit', 'unit.test.js'], ['unit fluxo (ambulância/QR/entrada)', 'unit-fluxo.test.js']];
-if (!process.env.SKIP_E2E) suites.push(['e2e (Chromium)', 'e2e.js'], ['e2e fluxo completo (Chromium, celular com toque)', 'e2e-fluxo.js']);
+const suites = [['unit', 'unit.test.js'], ['unit fluxo (ambulância/QR/entrada/zona)', 'unit-fluxo.test.js'], ['unit Firebase (serviços + backend SIMULADO)', 'unit-firebase.test.js'], ['análise estática das regras do Firestore', 'rules-lint.test.js']];
+if (!process.env.SKIP_E2E) suites.push(['e2e (Chromium)', 'e2e.js'], ['e2e fluxo completo (Chromium, celular com toque)', 'e2e-fluxo.js'], ['e2e modo Firebase (Chromium, backend SIMULADO)', 'e2e-firebase.js']);
 let bad = 0;
 for (const [label, file] of suites) {
   console.log('\n### ' + label);

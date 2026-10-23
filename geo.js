@@ -131,6 +131,43 @@
       return validCoord(p.lat, p.lng) && p.lat >= b.minLat && p.lat <= b.maxLat && p.lng >= b.minLng && p.lng <= b.maxLng;
     });
   }
+  /** Polígono = lista de vértices {lat,lng}. Válido: >=3 vértices com coordenadas válidas, área não nula e sem arestas que se cruzam. */
+  function segCross(a, b, c, d) {
+    function o(p, q, r) { return (q.lng - p.lng) * (r.lat - p.lat) - (q.lat - p.lat) * (r.lng - p.lng); }
+    var o1 = o(a, b, c), o2 = o(a, b, d), o3 = o(c, d, a), o4 = o(c, d, b);
+    return ((o1 > 0 && o2 < 0) || (o1 < 0 && o2 > 0)) && ((o3 > 0 && o4 < 0) || (o3 < 0 && o4 > 0));
+  }
+  function polygonValid(poly) {
+    if (!Array.isArray(poly) || poly.length < 3) return false;
+    if (!poly.every(function (v) { return v && validCoord(v.lat, v.lng); })) return false;
+    var area = 0, n = poly.length, i, j;
+    for (i = 0; i < n; i++) { j = (i + 1) % n; area += poly[i].lng * poly[j].lat - poly[j].lng * poly[i].lat; }
+    if (Math.abs(area) < 1e-12) return false;
+    for (i = 0; i < n; i++) for (j = i + 1; j < n; j++) {
+      if (j === i + 1 || (i === 0 && j === n - 1)) continue;
+      if (segCross(poly[i], poly[(i + 1) % n], poly[j], poly[(j + 1) % n])) return false;
+    }
+    return true;
+  }
+  /** Ponto dentro do polígono (ray casting). Pontos sem coordenadas válidas ou polígono inválido => false. */
+  function pointInPolygon(lat, lng, poly) {
+    if (!validCoord(lat, lng) || !polygonValid(poly)) return false;
+    var inside = false;
+    for (var i = 0, j = poly.length - 1; i < poly.length; j = i++) {
+      var yi = poly[i].lat, xi = poly[i].lng, yj = poly[j].lat, xj = poly[j].lng;
+      if ((yi > lat) !== (yj > lat) && lng < ((xj - xi) * (lat - yi)) / (yj - yi) + xi) inside = !inside;
+    }
+    return inside;
+  }
+  /** Separa {inside, outside} entre os pontos com coordenadas; sem coordenadas ficam fora das duas listas. */
+  function pointsInPolygon(points, poly) {
+    var res = { inside: [], outside: [] };
+    (points || []).forEach(function (p) {
+      if (!validCoord(p.lat, p.lng)) return;
+      (pointInPolygon(p.lat, p.lng, poly) ? res.inside : res.outside).push(p);
+    });
+    return res;
+  }
   function groupByRegion(points) {
     var out = {};
     (points || []).forEach(function (p) { var k = p.regionId || 'sem_regiao'; (out[k] = out[k] || []).push(p); });
@@ -152,7 +189,7 @@
     hasPoint: hasPoint, hasCoords: hasCoords, validateLocation: validateLocation, normalizeLocation: normalizeLocation,
     makeLocation: makeLocation, project: project, unproject: unproject, wrapLng: wrapLng, clampLat: clampLat, clampZoom: clampZoom,
     tilesFor: tilesFor, latLngToPoint: latLngToPoint, pointToLatLng: pointToLatLng, panView: panView, fitView: fitView,
-    boundsOf: boundsOf, pointsInBounds: pointsInBounds, groupByRegion: groupByRegion, formatLatLng: formatLatLng,
+    boundsOf: boundsOf, pointsInBounds: pointsInBounds, polygonValid: polygonValid, pointInPolygon: pointInPolygon, pointsInPolygon: pointsInPolygon, groupByRegion: groupByRegion, formatLatLng: formatLatLng,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.geo;
 })(typeof window !== 'undefined' ? window : globalThis);

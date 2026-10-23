@@ -12,7 +12,7 @@
     var points = store.mapPoints(c.xptId); // somente desta XPT (rascunho + pacotes confirmados); seleção já reconciliada
     var selectable = store.selectable(points);
     var af = ambForm[c.xptId] || (ambForm[c.xptId] = { name: '', responsible: '', driverId: '' });
-    var drawing = false;
+    var zst = { poly: [], closed: false, drawing: false, fromZone: false };
     var av = NS.map.availability(root.CXPT_MAP), ctl = null, destroyed = false, focusId = null, notice = '';
     var mapHost = el('div', { class: 'map-host map-host--tall', id: 'regions-map' });
     var unavailable = el('div', { id: 'map-unavailable-box' });
@@ -29,9 +29,10 @@
       if (r.ok) focusId = id;
       redraw(); if (r.ok) ui.announce(group.count() + ' pacote(s) selecionado(s)');
     }
+    var zoneInIds = {};
     function markers() {
       return points.map(function (p) {
-        return { id: p.id, lat: p.lat, lng: p.lng, kind: p.kind, selected: group.has(p.id), focus: p.id === focusId, label: 'Pacote ' + p.code + ' — ' + G.LOC_LABEL[p.kind] + (group.has(p.id) ? ' (selecionado)' : '') + (p.source === 'pacote' ? '' : ' (rascunho)') + (p.eligible ? '' : ' (indisponível: ' + p.why + ')') };
+        return { id: p.id, lat: p.lat, lng: p.lng, kind: p.kind, selected: group.has(p.id), zone: zst.closed ? (zoneInIds[p.id] ? 'in' : 'out') : null, focus: p.id === focusId, label: 'Pacote ' + p.code + ' — ' + G.LOC_LABEL[p.kind] + (group.has(p.id) ? ' (selecionado)' : '') + (p.source === 'pacote' ? '' : ' (rascunho)') + (p.eligible ? '' : ' (indisponível: ' + p.why + ')') };
       });
     }
     function drawDetail() {
@@ -67,17 +68,54 @@
           el('button', { type: 'button', class: 'btn btn--ghost', id: 'clear-sel', disabled: !group.count(), onclick: function () { group.clear(); live.textContent = ''; redraw(); } }, 'Limpar seleção'),
           el('button', { type: 'button', class: 'btn btn--ghost', id: 'select-all', disabled: !selectable.length, onclick: function () { group.selectMany(selectable.map(function (p) { return p.id; }), selectable); redraw(); } }, 'Selecionar todos com coordenadas')),
         regRows.length ? ui.table([{ label: 'Região (informada na entrada)', render: function (r) { return r[0]; } }, { label: 'Pacotes', render: function (r) { return r[1]; } }], regRows, { label: 'Seleção por região' }) : null,
+        zonePanel(),
         areaForm(),
         live,
         ambPanel(sel));
     }
 
+    // ---- zona poligonal desenhada no mapa real
+    function applyZone() {
+      zoneInIds = {};
+      var sm = NS.operations.zoneSummary(points, zst.poly);
+      if (zst.closed && sm.valid) {
+        sm.inside.forEach(function (p) { zoneInIds[p.id] = true; });
+        group.clear(); group.selectMany(sm.eligible.map(function (p) { return p.id; }), selectable); zst.fromZone = true;
+        live.textContent = sm.eligible.length + ' pacote(s) dentro da zona selecionado(s)' + (sm.blocked.length ? ' (' + sm.blocked.length + ' ignorado(s): já em operação ativa)' : '') + '.';
+      } else if (zst.fromZone) { group.clear(); zst.fromZone = false; }
+      redraw(); if (zst.closed) ui.announce(live.textContent);
+    }
+    function onZone(poly, closed) {
+      zst.poly = poly; zst.closed = closed && poly.length >= 3;
+      if (zst.closed && !G.polygonValid(poly)) { live.textContent = 'A zona não pode ter linhas que se cruzam. Ajuste os pontos.'; zoneInIds = {}; if (zst.fromZone) { group.clear(); zst.fromZone = false; } redraw(); return; }
+      applyZone();
+    }
+    function zonePanel() {
+      var sm = NS.operations.zoneSummary(points, zst.poly);
+      var noLoc = H.pkgsOf(c).filter(function (p) { return !G.hasCoords(p.location) && NS.packages.inWarehouse(p); }).length;
+      var n = zst.poly.length;
+      var status = !av.ok ? 'Mapa indisponível: a zona só pode ser desenhada no mapa real. Use a seleção manual.' : zst.closed
+        ? (sm.valid ? 'Zona fechada com ' + n + ' pontos. Arraste os pontos para ajustar; a contagem é recalculada.' : 'Zona inválida (linhas cruzadas ou sem área). Ajuste os pontos.')
+        : zst.drawing ? 'Desenhando: toque no mapa para adicionar pontos (' + n + ' até agora; mínimo 3). Arraste o mapa para navegar.' : 'Nenhuma zona desenhada.';
+      return el('div', { class: 'zone-panel', id: 'zone-panel' },
+        el('h3', { text: 'Zona no mapa' }),
+        el('div', { class: 'row-actions' },
+          el('button', { type: 'button', class: 'btn btn--ghost', id: 'zone-draw', disabled: !ctl || zst.drawing || zst.closed, 'aria-pressed': String(zst.drawing), onclick: function () { zst.drawing = true; ctl.setZoneMode(true); redraw(); } }, 'Desenhar zona'),
+          el('button', { type: 'button', class: 'btn btn--ghost', id: 'zone-undo', disabled: !ctl || !n, onclick: function () { ctl.undoZonePoint(); } }, 'Desfazer último ponto'),
+          el('button', { type: 'button', class: 'btn btn--primary', id: 'zone-finish', disabled: !ctl || !zst.drawing || n < 3, onclick: function () { if (ctl.closeZone()) { zst.drawing = false; ctl.setZoneMode(false); } } }, 'Finalizar desenho'),
+          el('button', { type: 'button', class: 'btn btn--ghost', id: 'zone-clear', disabled: !ctl || (!n && !zst.drawing), onclick: function () { ctl.clearZone(); zst.drawing = false; ctl.setZoneMode(false); redraw(); } }, 'Cancelar / apagar zona')),
+        el('p', { class: 'hint', id: 'zone-status', role: 'status', text: status }),
+        zst.closed && sm.valid ? el('p', { class: 'group-count', id: 'zone-count', role: 'status', 'data-inside': String(sm.inside.length), 'data-eligible': String(sm.eligible.length), 'data-outside': String(sm.outside.length), 'data-blocked': String(sm.blocked.length),
+          text: sm.inside.length + ' ponto(s) dentro da zona (' + sm.eligible.length + ' disponíveis para a ambulância) · ' + sm.outside.length + ' fora · ' + sm.blocked.length + ' já em operação ativa' + (sm.drafts.length ? ' · ' + sm.drafts.length + ' rascunho(s) a confirmar' : '') }) : null,
+        zst.closed && sm.valid ? el('p', { class: 'hint', id: 'zone-noloc', text: noLoc + ' pacote(s) sem localização confirmada ficam fora da zona (lista "Pacotes sem coordenadas"): seleção manual possível só se tiverem coordenadas.' }) : null);
+    }
     function selectArea(b) {
       var inside = G.pointsInBounds(points, b), ok = inside.filter(function (p) { return p.eligible; }), r = group.selectMany(ok.map(function (p) { return p.id; }), selectable);
       var blocked = inside.length - ok.length;
       live.textContent = r.added.length + ' pacote(s) adicionados pela região' + (blocked ? ' (' + blocked + ' ignorado(s): já em operação ativa)' : '') + '. Pacotes sem coordenadas nunca entram.';
       ui.announce(live.textContent); redraw();
     }
+    function operatorLabel() { return (c.user && (c.user.name || c.user.email)) || ('Operador Demo (' + profileLabel() + ')'); }
     function profileLabel() { var p = NS.permissions.PROFILES.filter(function (x) { return x.id === c.profile; })[0]; return p ? p.label : c.profile; }
     function ambPanel(sel) {
       if (!H.can(c, 'operacao')) return ui.blocked('Criar ambulância', 'o perfil "' + profileLabel() + '" não pode criar operações (simulação; o servidor validará no futuro).');
@@ -92,24 +130,26 @@
       var review = el('div', { id: 'amb-review', 'data-count': String(sel.length) }, el('h3', { text: 'Revisão da seleção (' + sel.length + ')' }),
         sel.length ? ui.table([{ label: 'Código', render: function (p) { return el('span', { class: 'mono', text: p.code }); } }, { label: 'Tamanho', render: function (p) { return H.sizeLabel(D, p.size); } },
           { label: 'Motivo', render: function (p) { return H.reasonLabel(D, p.reasonId); } }, { label: 'Localização', render: function (p) { return G.LOC_LABEL[p.kind]; } },
-          { label: 'Situação', render: function (p) { return p.source === 'pacote' ? ui.badge('Pronto', 'ok') : ui.badge('Rascunho: confirme a entrada antes', 'warn'); } }], sel, { label: 'Revisão da seleção' })
-          : el('p', { class: 'hint', text: 'Selecione pacotes no mapa, na lista ou desenhando uma região.' }));
+          { label: 'Situação', render: function (p) { return p.source === 'pacote' ? ui.badge('Pronto', 'ok') : ui.badge('Rascunho: confirme a entrada antes', 'warn'); } },
+          { label: 'Retirar', cls: 'actions', render: function (p) { return el('button', { type: 'button', class: 'btn btn--ghost btn--sm', 'data-act': 'retirar', 'data-code': p.code, 'aria-label': 'Retirar ' + p.code + ' da seleção', onclick: function () { group.toggle(p.id, selectable); live.textContent = p.code + ' retirado da seleção.'; redraw(); } }, 'Retirar'); } }], sel, { label: 'Revisão da seleção', rowAttrs: function (p) { return { 'data-code': p.code }; } })
+          : el('p', { class: 'hint', text: 'Selecione pacotes no mapa, na lista ou desenhando uma zona no mapa.' }));
       function submit() {
         if (!af.name.trim() || !af.responsible.trim()) { msg.textContent = 'Informe o nome da ambulância e o responsável.'; return; }
         var ids = sel.map(function (p) { return p.id; });
         var body = el('div', null, el('p', { id: 'amb-confirm-text', text: ids.length + ' pacote(s) serão vinculados à ambulância "' + af.name.trim() + '" (responsável: ' + af.responsible.trim() + ', ' + c.xpt.name + ') e passarão de "Em estoque" para "Em separação".' }),
-          el('p', { class: 'hint', text: 'Cada pacote só pode estar em uma operação ativa. Demonstração em memória: nada é gravado fora desta página.' }));
+          el('p', { id: 'amb-confirm-meta', text: 'Data/hora: ' + ui.fmtDateTime(store.nowMs()) + ' · Estado inicial: Em separação · Operador: ' + operatorLabel() }),
+          el('p', { class: 'hint', text: 'Cada pacote só pode estar em uma operação ativa. ' + (c.svc.mode === 'demo' ? 'Demonstração em memória: nada é gravado fora desta página.' : 'A operação só é criada se o servidor confirmar a gravação.') + '' }));
         ui.modal('Criar a ambulância?', body, [
           { label: 'Voltar e revisar', onClick: function (close) { close(); } },
           { label: 'Criar ambulância', cls: 'btn--primary', id: 'amb-create-ok', onClick: function (close) {
-            var r = A.createAmbulance(D, c.xptId, { name: af.name, responsible: af.responsible, driverId: af.driverId, packageIds: ids },
-              { authorized: H.can(c, 'operacao'), nowMs: store.nowMs(), operator: 'Operador Demo (' + profileLabel() + ')' });
-            close();
+            close(); live.textContent = 'Gravando…';
+            c.svc.createAmbulance(c.xptId, { name: af.name, responsible: af.responsible, driverId: af.driverId, packageIds: ids }, c.who).then(function (r) {
             if (!r.ok) { live.textContent = r.message || Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; }).join(' '); ui.announce(live.textContent); redraw(); return; }
             store.audit.log('ambulancia_criada_demo', c.xptId, r.op.id + ':' + ids.length);
             group.clear(); af.name = ''; af.responsible = ''; af.driverId = '';
             store.changed('ops'); // redesenha: os pacotes passam a "em separação" e saem dos pontos selecionáveis
             H.showQr(c, r.op);
+            });
           } },
         ], { id: 'amb-modal' });
       }
@@ -166,28 +206,24 @@
     xsel.id = 'map-xpt'; xsel.addEventListener('change', function () { c.setXpt(xsel.value); });
 
     var mapCard;
-    var drawBtn = el('button', { type: 'button', class: 'btn btn--ghost', id: 'draw-area', 'aria-pressed': 'false', onclick: function () {
-      drawing = !drawing; if (ctl) ctl.setDrawMode(drawing); drawBtn.setAttribute('aria-pressed', String(drawing));
-      drawBtn.textContent = drawing ? 'Arraste no mapa para desenhar (toque aqui para cancelar)' : 'Desenhar região no mapa';
-    } }, 'Desenhar região no mapa');
     if (av.ok) {
       ctl = NS.map.create(mapHost, {
         config: root.CXPT_MAP, label: 'Mapa dos pacotes com localização', mode: 'markers', onMarker: toggle,
-        onArea: function (b) { selectArea(b); drawing = false; ctl && ctl.setDrawMode(false); drawBtn.setAttribute('aria-pressed', 'false'); drawBtn.textContent = 'Desenhar região no mapa'; },
+        onZone: onZone,
         onStatus: function (s) { if (s === 'falhou') { mapHost.replaceChildren(); unavailable.replaceChildren(ui.callout('warn', NS.map.MESSAGES.falhou)); ctl = null; } },
       });
       if (ctl) { if (points.length) ctl.fit(points); }
       mapCard = ui.card('Mapa — ' + (root.CXPT_MAP.cityLabel || 'centro configurado'), el('div', null, mapHost, unavailable,
         el('ul', { class: 'legend', 'aria-label': 'Legenda' },
           el('li', null, el('span', { class: 'legend-pin legend-pin--marcada' }), 'Ponto marcado'), el('li', null, el('span', { class: 'legend-pin legend-pin--aproximada' }), 'Localização aproximada'),
-          el('li', null, el('span', { class: 'legend-pin legend-pin--sel' }), 'Selecionado'), el('li', null, 'Pacotes sem coordenadas: lista abaixo (não aparecem no mapa)')),
-        el('div', { class: 'row-actions' }, drawBtn, el('button', { type: 'button', class: 'btn btn--ghost', id: 'fit-map', onclick: function () { if (ctl) ctl.fit(points); } }, 'Ajustar aos pontos'))));
+          el('li', null, el('span', { class: 'legend-pin legend-pin--sel' }), 'Selecionado'), el('li', null, el('span', { class: 'legend-pin legend-pin--in' }), 'Dentro da zona'), el('li', null, el('span', { class: 'legend-pin legend-pin--out' }), 'Fora da zona'), el('li', null, 'Pacotes sem coordenadas: lista abaixo (não aparecem no mapa)')),
+        el('div', { class: 'row-actions' }, el('button', { type: 'button', class: 'btn btn--ghost', id: 'fit-map', onclick: function () { if (ctl) ctl.fit(points); } }, 'Ajustar aos pontos'))));
     } else {
       mapCard = ui.card('Mapa', el('div', { id: 'map-unavailable', class: 'unavailable' },
         ui.callout('warn', 'Mapa real não configurado.', av.message), el('p', { class: 'hint', text: 'Nenhuma imagem ou grade substitui o mapa. Seleção, detalhes e grupo preliminar funcionam pela lista abaixo.' })));
     }
     var node = H.page([
-      ui.callout('info', 'Pontos desta XPT: rascunho de Entrada e pacotes já confirmados com a localização salva.', 'Cada ponto continua ligado ao seu código e à sua XPT. Tudo vive só na memória desta demonstração.'),
+      ui.callout('info', 'Pontos desta XPT: rascunho de Entrada e pacotes já confirmados com a localização salva.', 'Cada ponto continua ligado ao seu código e à sua XPT.' + (NS.mode === 'remoto' ? ' Os pacotes confirmados vêm do servidor; o rascunho de seleção é só local.' : ' Tudo vive só na memória desta demonstração.')),
       ui.card('Filtro', ui.field('XPT', xsel, null, 'Somente dados e rascunhos da XPT escolhida.')),
       mapCard,
       el('div', { class: 'grid2' }, ui.card('Detalhes do ponto', detail), ui.card('Seleção e criação de ambulância', panel)),

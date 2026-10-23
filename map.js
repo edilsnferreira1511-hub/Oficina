@@ -37,13 +37,19 @@
     var markers = [], W = 300, H = 300, loaded = 0, failed = 0, status = 'carregando', destroyed = false;
 
     var tilesL = el('div', { class: 'gmap-tiles', 'aria-hidden': 'true' });
+    var SVGNS = 'http://www.w3.org/2000/svg';
+    var zoneSvg = document.createElementNS(SVGNS, 'svg'); zoneSvg.setAttribute('class', 'gmap-zone'); zoneSvg.setAttribute('aria-hidden', 'true');
+    var zonePoly = document.createElementNS(SVGNS, 'polygon'); zonePoly.setAttribute('class', 'zone-shape');
+    var zoneLine = document.createElementNS(SVGNS, 'polyline'); zoneLine.setAttribute('class', 'zone-line');
+    zoneSvg.appendChild(zonePoly); zoneSvg.appendChild(zoneLine);
     var markL = el('div', { class: 'gmap-markers' });
+    var zoneV = el('div', { class: 'gmap-zone-v' });
     var zin = el('button', { type: 'button', class: 'gmap-zoom', 'aria-label': 'Aproximar', onclick: function () { zoomBy(1); } }, '+');
     var zout = el('button', { type: 'button', class: 'gmap-zoom', 'aria-label': 'Afastar', onclick: function () { zoomBy(-1); } }, '−');
     var attr = el('div', { class: 'gmap-attr' }, cfg.attributionUrl
       ? el('a', { href: cfg.attributionUrl, target: '_blank', rel: 'noopener', text: cfg.attribution }) : cfg.attribution);
     var root_ = el('div', { class: 'gmap', tabindex: '0', role: 'application', 'aria-label': opts.label || 'Mapa interativo' },
-      tilesL, markL, el('div', { class: 'gmap-ctl' }, zin, zout), attr);
+      tilesL, zoneSvg, markL, zoneV, el('div', { class: 'gmap-ctl' }, zin, zout), attr);
     container.replaceChildren(root_);
 
     var autoFit = null; // pontos para reajustar quando o contêiner for medido/redimensionado (até o usuário mexer no mapa)
@@ -60,7 +66,7 @@
         im.addEventListener('error', function () { failed++; im.classList.add('gmap-tile--fail'); if (!loaded) setStatus('falhou'); });
         tilesL.appendChild(im);
       });
-      renderMarkers();
+      renderMarkers(); renderZone();
     }
     function renderMarkers() {
       markL.replaceChildren();
@@ -69,7 +75,7 @@
         var p = g.latLngToPoint(view, W, H, m.lat, m.lng);
         if (p.x < -20 || p.y < -20 || p.x > W + 20 || p.y > H + 20) return;
         var b = el('button', {
-          type: 'button', class: 'pin pin--' + m.kind + (m.selected ? ' pin--sel' : '') + (m.focus ? ' pin--focus' : ''),
+          type: 'button', class: 'pin pin--' + m.kind + (m.selected ? ' pin--sel' : '') + (m.zone ? ' pin--' + m.zone : '') + (m.focus ? ' pin--focus' : ''),
           'aria-label': m.label || m.id, 'aria-pressed': opts.onMarker ? String(!!m.selected) : null,
           dataset: { id: m.id, kind: m.kind }, disabled: !opts.onMarker,
           onclick: function (e) { e.stopPropagation(); if (opts.onMarker) opts.onMarker(m.id); },
@@ -79,6 +85,52 @@
         markL.appendChild(b);
       });
     }
+    // ---- zona (polígono) desenhada pelo usuário: vértices tocados no mapa; arrastáveis / ajustáveis por teclado
+    var zone = [], zoneMode = false, zoneClosed = false, vDrag = null;
+    function zoneChanged() { renderZone(); if (opts.onZone) opts.onZone(zone.map(function (v) { return { lat: v.lat, lng: v.lng }; }), zoneClosed); }
+    function renderZone() {
+      zoneV.replaceChildren();
+      var pts = zone.map(function (v) { return g.latLngToPoint(view, W, H, v.lat, v.lng); });
+      var str = pts.map(function (p) { return Math.round(p.x * 10) / 10 + ',' + Math.round(p.y * 10) / 10; }).join(' ');
+      zonePoly.setAttribute('points', zoneClosed ? str : ''); zoneLine.setAttribute('points', zoneClosed ? '' : str);
+      zoneSvg.setAttribute('class', 'gmap-zone' + (zoneClosed ? ' gmap-zone--closed' : ''));
+      zone.forEach(function (v, i) {
+        var p = pts[i];
+        var b = el('button', { type: 'button', class: 'zone-v', 'aria-label': 'Ponto ' + (i + 1) + ' da zona. Setas movem, Delete remove.', dataset: { idx: String(i) } });
+        b.style.left = Math.round(p.x) + 'px'; b.style.top = Math.round(p.y) + 'px';
+        b.addEventListener('pointerdown', function (e) {
+          e.stopPropagation(); if (e.button > 0) return;
+          vDrag = { i: i, id: e.pointerId, moved: false, el: b };
+          try { b.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
+        });
+        b.addEventListener('pointermove', function (e) {
+          if (!vDrag || vDrag.id !== e.pointerId) return;
+          var r = root_.getBoundingClientRect(), x = Math.max(0, Math.min(r.width, e.clientX - r.left)), y = Math.max(0, Math.min(r.height, e.clientY - r.top));
+          var ll = g.pointToLatLng(view, W, H, x, y); zone[vDrag.i] = { lat: ll.lat, lng: ll.lng }; vDrag.moved = true;
+          b.style.left = Math.round(x) + 'px'; b.style.top = Math.round(y) + 'px';
+          var np = zone.map(function (z) { var q = g.latLngToPoint(view, W, H, z.lat, z.lng); return Math.round(q.x * 10) / 10 + ',' + Math.round(q.y * 10) / 10; }).join(' ');
+          (zoneClosed ? zonePoly : zoneLine).setAttribute('points', np);
+        });
+        b.addEventListener('pointerup', function (e) {
+          if (!vDrag || vDrag.id !== e.pointerId) return;
+          var moved = vDrag.moved; vDrag = null;
+          if (moved) { zoneChanged(); }
+        });
+        b.addEventListener('keydown', function (e) {
+          var k = e.key, d = 6, dx = 0, dy = 0;
+          if (k === 'ArrowLeft') dx = -d; else if (k === 'ArrowRight') dx = d; else if (k === 'ArrowUp') dy = -d; else if (k === 'ArrowDown') dy = d;
+          else if (k === 'Delete' || k === 'Backspace') { e.preventDefault(); e.stopPropagation(); zone.splice(i, 1); if (zone.length < 3) zoneClosed = false; zoneChanged(); return; }
+          else return;
+          e.preventDefault(); e.stopPropagation();
+          var q = g.latLngToPoint(view, W, H, zone[i].lat, zone[i].lng), ll = g.pointToLatLng(view, W, H, q.x + dx, q.y + dy);
+          zone[i] = { lat: ll.lat, lng: ll.lng }; zoneChanged();
+          var nb = zoneV.querySelector('[data-idx="' + i + '"]'); if (nb) nb.focus();
+        });
+        zoneV.appendChild(b);
+      });
+    }
+    function addZonePoint(lat, lng) { zone.push({ lat: lat, lng: lng }); zoneChanged(); }
+
     function setView(v) {
       view = { lat: g.clampLat(v.lat), lng: g.wrapLng(v.lng), zoom: g.clampZoom(v.zoom, cfg.minZoom, cfg.maxZoom) };
       zin.disabled = view.zoom >= cfg.maxZoom; zout.disabled = view.zoom <= cfg.minZoom;
@@ -87,7 +139,7 @@
     function zoomBy(d) { autoFit = null; setView({ lat: view.lat, lng: view.lng, zoom: view.zoom + d }); }
 
     // ---- interação: arrastar, toque simples, roda, teclado
-    var drag = null, drawMode = false, draw = null, rectEl = null, touches = {}, pinch = null;
+    var drag = null, touches = {}, pinch = null;
     function nTouches() { return Object.keys(touches).length; }
     function touchDist() { var k = Object.keys(touches); return Math.hypot(touches[k[0]].x - touches[k[1]].x, touches[k[0]].y - touches[k[1]].y) || 1; }
     function relPos(e) { var r = root_.getBoundingClientRect(); return { x: Math.max(0, Math.min(r.width, e.clientX - r.left)), y: Math.max(0, Math.min(r.height, e.clientY - r.top)) }; }
@@ -95,26 +147,15 @@
       if (e.button > 0) return;
       // botões (marcadores e zoom) tratam o próprio clique: sem captura do ponteiro, senão o clique seria redirecionado
       if (e.target.closest && e.target.closest('button')) return;
-      if (e.pointerType === 'touch' && !drawMode) {
+      if (e.pointerType === 'touch') {
         // pinça com dois dedos: cada dobra/metade da distância muda um nível de zoom (zoom inteiro)
         touches[e.pointerId] = { x: e.clientX, y: e.clientY };
         try { root_.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
         if (nTouches() === 2) { pinch = { d0: touchDist() }; drag = null; return; }
       }
-      if (drawMode) {
-        draw = { a: relPos(e), b: relPos(e), id: e.pointerId };
-        rectEl = el('div', { class: 'gmap-rect', 'aria-hidden': 'true' }); root_.appendChild(rectEl);
-        try { root_.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
-        return;
-      }
       drag = { x: e.clientX, y: e.clientY, moved: false, id: e.pointerId };
       try { root_.setPointerCapture(e.pointerId); } catch (_) { /* ignore */ }
     });
-    function paintRect() {
-      if (!rectEl || !draw) return;
-      rectEl.style.left = Math.min(draw.a.x, draw.b.x) + 'px'; rectEl.style.top = Math.min(draw.a.y, draw.b.y) + 'px';
-      rectEl.style.width = Math.abs(draw.a.x - draw.b.x) + 'px'; rectEl.style.height = Math.abs(draw.a.y - draw.b.y) + 'px';
-    }
     root_.addEventListener('pointermove', function (e) {
       if (touches[e.pointerId]) touches[e.pointerId] = { x: e.clientX, y: e.clientY };
       if (pinch && nTouches() === 2) {
@@ -122,7 +163,6 @@
         if (ratio >= 1.5) { zoomBy(1); pinch.d0 = touchDist(); } else if (ratio <= 0.67) { zoomBy(-1); pinch.d0 = touchDist(); }
         return;
       }
-      if (draw) { draw.b = relPos(e); paintRect(); return; }
       if (!drag) return;
       var dx = e.clientX - drag.x, dy = e.clientY - drag.y;
       if (!drag.moved && Math.hypot(dx, dy) < 5) return;
@@ -131,22 +171,14 @@
     });
     root_.addEventListener('pointerup', function (e) {
       delete touches[e.pointerId]; if (nTouches() < 2) { if (pinch) { pinch = null; drag = null; return; } }
-      if (draw) {
-        var d0 = draw; draw = null; if (rectEl) { rectEl.remove(); rectEl = null; }
-        if (Math.abs(d0.a.x - d0.b.x) >= 8 && Math.abs(d0.a.y - d0.b.y) >= 8 && opts.onArea) {
-          var p1 = g.pointToLatLng(view, W, H, d0.a.x, d0.a.y), p2 = g.pointToLatLng(view, W, H, d0.b.x, d0.b.y);
-          opts.onArea({ minLat: Math.min(p1.lat, p2.lat), maxLat: Math.max(p1.lat, p2.lat), minLng: Math.min(p1.lng, p2.lng), maxLng: Math.max(p1.lng, p2.lng) });
-        }
-        return;
-      }
       if (!drag) return;
       var d = drag; drag = null;
-      if (!d.moved && opts.onMapClick) {
+      if (!d.moved) {
         var r = root_.getBoundingClientRect(), ll = g.pointToLatLng(view, W, H, e.clientX - r.left, e.clientY - r.top);
-        opts.onMapClick(ll.lat, ll.lng);
+        if (zoneMode && !zoneClosed) addZonePoint(ll.lat, ll.lng); else if (opts.onMapClick) opts.onMapClick(ll.lat, ll.lng);
       }
     });
-    root_.addEventListener('pointercancel', function (e) { delete touches[e.pointerId]; pinch = null; drag = null; draw = null; if (rectEl) { rectEl.remove(); rectEl = null; } });
+    root_.addEventListener('pointercancel', function (e) { delete touches[e.pointerId]; pinch = null; drag = null; });
     root_.addEventListener('wheel', function (e) { e.preventDefault(); zoomBy(e.deltaY < 0 ? 1 : -1); }, { passive: false });
     root_.addEventListener('keydown', function (e) {
       var s = 60, k = e.key;
@@ -166,7 +198,13 @@
       fit: function (points) { autoFit = points && points.length ? points.slice() : null; setView(g.fitView(points, W, H, view, cfg.minZoom, cfg.maxZoom)); },
       resize: function () { measure(); render(); },
       status: function () { return status; },
-      setDrawMode: function (on) { drawMode = !!on; root_.classList.toggle('gmap--draw', drawMode); },
+      setZoneMode: function (on) { zoneMode = !!on; root_.classList.toggle('gmap--draw', zoneMode && !zoneClosed); },
+      getZone: function () { return zone.map(function (v) { return { lat: v.lat, lng: v.lng }; }); },
+      zoneClosed: function () { return zoneClosed; },
+      closeZone: function () { if (zone.length < 3) return false; zoneClosed = true; root_.classList.remove('gmap--draw'); zoneChanged(); return true; },
+      undoZonePoint: function () { if (!zone.length) return; zone.pop(); if (zone.length < 3) zoneClosed = false; zoneChanged(); },
+      clearZone: function () { zone = []; zoneClosed = false; zoneChanged(); },
+      setZone: function (poly, closed) { zone = (poly || []).map(function (v) { return { lat: v.lat, lng: v.lng }; }); zoneClosed = !!closed && zone.length >= 3; renderZone(); },
       destroy: function () { destroyed = true; if (ro) ro.disconnect(); container.replaceChildren(); },
     };
   }

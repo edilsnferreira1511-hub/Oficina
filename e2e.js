@@ -115,8 +115,8 @@ async function suite(browser, label, base) {
   check('código inválido gera erro acessível', (await page.locator('.field-error').count()) >= 1);
   check('localização bloqueada até preencher campos', await page.locator('#loc-box').isHidden());
   await fillEntry('t-100', 'M', 'r_ausente');
-  check('localização liberada após código+tamanho+motivo', await page.locator('#loc-box').isVisible());
-  await page.check('#kind-desconhecida'); await page.click('#add-btn');
+  check('localização liberada após código+tamanho+motivo', await page.locator('#loc-box').isVisible(), await page.evaluate(() => JSON.stringify({ code: document.getElementById('code-in') && document.getElementById('code-in').value, hidden: document.getElementById('loc-box') && document.getElementById('loc-box').hidden, size: (document.querySelector('select[name=size]') || {}).value, err: Array.from(document.querySelectorAll('.field-error')).map((x) => x.textContent) })));
+  await page.click('#add-btn');
   check('item entra no rascunho', /1 item/.test(await txt('#draft-count')));
   await fillEntry('t-100', 'P', 'r_outros'); await page.click('#add-btn');
   check('leitura repetida não infla o rascunho', /1 item/.test(await txt('#draft-count')));
@@ -125,7 +125,7 @@ async function suite(browser, label, base) {
   check('duplicidade não nomeia outra XPT', !/Alfa|Beta|Gama/.test(await txt('#entry-form')));
   await page.click('[data-act=remove]');
   check('remover item do rascunho', /0 item/.test(await txt('#draft-count')));
-  await fillEntry('t-200', 'G', 'r_recusou'); await page.check('#kind-pendente'); await page.click('#add-btn');
+  await fillEntry('t-200', 'G', 'r_recusou'); await page.click('#add-btn');
   await setXpt('x2');
   check('trocar XPT separa o rascunho', /0 item/.test(await txt('#draft-count')));
   await setXpt('x1');
@@ -141,7 +141,7 @@ async function suite(browser, label, base) {
   check('nenhum mapa/grade/canvas desenhado', (await page.locator('.gmap, canvas, main img').count()) === 0);
   check('sem pontos: estado vazio explicado', /0 ponto/.test(await txt('#points-count')));
   await go('entry'); await fillEntry('t-300', 'P', 'r_ausente');
-  check('marcar ponto exige mapa (opção desabilitada, com motivo)', (await page.locator('#kind-marcada').isDisabled()) && /requer mapa/.test(await txt('label[for=kind-marcada]')));
+  check('sem mapa: sem marcar ponto, item segue sem localização confirmada (e sem as 4 opções antigas)', /sem localização confirmada/.test(await txt('#loc-hint')) && (await page.locator('input[name=kind], [id^=kind-]').count()) === 0 && (await page.locator('#confirm-loc').count()) === 0);
   check('aviso de mapa indisponível na entrada', /Mapa indisponível/.test(await txt('#map-unavailable')));
 
   // ---- Provedor de mapa SIMULADO (apenas teste do componente; não é cartografia real)
@@ -168,7 +168,7 @@ async function suite(browser, label, base) {
   const c2 = await txt('#coords-out'); check('[simulado] segundo ponto diferente do primeiro', c1 !== c2);
   await page.click('#confirm-loc');
   await page.click('#add-btn');
-  await fillEntry('SIM-003', 'G', 'r_outros'); await page.check('#kind-desconhecida'); await page.click('#add-btn');
+  await fillEntry('SIM-003', 'G', 'r_outros'); await page.click('#add-btn');
   check('[simulado] 3 itens no rascunho', /3 item/.test(await txt('#draft-count')));
 
   // ---- Mapa/Regiões consumindo o rascunho

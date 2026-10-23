@@ -151,4 +151,43 @@ test('permissões propostas: criar/confirmar/encerrar', () => {
   ['coord_base', 'supervisor', 'administrador'].forEach((p) => ok(P.can(p, 'operacao'), p));
   ['coord_geral', 'despacho', 'motorista'].forEach((p) => eq(P.can(p, 'operacao'), false, p));
 });
+
+// ---------- Zona poligonal (geometria e seleção)
+const G = NS.geo;
+const SQ = [{ lat: 0, lng: 0 }, { lat: 0, lng: 10 }, { lat: 10, lng: 10 }, { lat: 10, lng: 0 }];
+test('polígono: ponto dentro/fora, na concavidade e fora do retângulo envolvente', () => {
+  ok(G.pointInPolygon(5, 5, SQ)); eq(G.pointInPolygon(11, 5, SQ), false); eq(G.pointInPolygon(5, -1, SQ), false);
+  const L = [{ lat: 0, lng: 0 }, { lat: 0, lng: 10 }, { lat: 4, lng: 10 }, { lat: 4, lng: 4 }, { lat: 10, lng: 4 }, { lat: 10, lng: 0 }]; // formato em L
+  ok(G.pointInPolygon(2, 8, L)); ok(G.pointInPolygon(8, 2, L)); eq(G.pointInPolygon(8, 8, L), false, 'dentro do retângulo envolvente mas fora do L');
+});
+test('polígono inválido: <3 pontos, área nula, arestas cruzadas, coordenadas inválidas', () => {
+  eq(G.polygonValid([{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }]), false);
+  eq(G.polygonValid([{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }, { lat: 2, lng: 2 }]), false, 'colineares');
+  eq(G.polygonValid([{ lat: 0, lng: 0 }, { lat: 10, lng: 10 }, { lat: 0, lng: 10 }, { lat: 10, lng: 0 }]), false, 'gravata');
+  eq(G.polygonValid([{ lat: 0, lng: 0 }, { lat: 95, lng: 1 }, { lat: 1, lng: 5 }]), false);
+  ok(G.polygonValid(SQ)); eq(G.pointInPolygon(5, 5, [{ lat: 0, lng: 0 }, { lat: 1, lng: 1 }]), false);
+});
+test('pointsInPolygon ignora pontos sem coordenadas válidas (nunca inventa)', () => {
+  const r = G.pointsInPolygon([{ id: 1, lat: 5, lng: 5 }, { id: 2, lat: 50, lng: 5 }, { id: 3, lat: null, lng: null }, { id: 4 }], SQ);
+  eq(r.inside.map((p) => p.id), [1]); eq(r.outside.map((p) => p.id), [2]);
+});
+test('zoneSummary: separa dentro/fora, exclui pacotes em operação ativa e rascunhos; zona inválida = vazio', () => {
+  const pts = [
+    { id: 'a', lat: 5, lng: 5, eligible: true, source: 'pacote' }, { id: 'b', lat: 6, lng: 6, eligible: false, source: 'pacote' },
+    { id: 'c', lat: 7, lng: 7, eligible: true, source: 'rascunho' }, { id: 'd', lat: 50, lng: 50, eligible: true, source: 'pacote' },
+  ];
+  const s = NS.operations.zoneSummary(pts, SQ);
+  eq(s.inside.length, 3); eq(s.outside.length, 1); eq(s.eligible.map((p) => p.id), ['a']); eq(s.blocked.map((p) => p.id), ['b']); eq(s.drafts.map((p) => p.id), ['c']);
+  const bad = NS.operations.zoneSummary(pts, SQ.slice(0, 2)); eq(bad.valid, false); eq(bad.eligible.length, 0);
+});
+test('zona + ambulância: pacotes de uma operação ativa deixam de ser elegíveis na mesma zona', () => {
+  const D = fresh(), codes = ['zn-1', 'zn-2', 'zn-3'];
+  const ids = codes.map((c) => enter(D, 'x1', c, loc(5, 5)).created[0].id);
+  const st = NS.store.createStore(D, { nowMs: NOW });
+  const inZone = () => NS.operations.zoneSummary(st.mapPoints('x1'), SQ);
+  eq(inZone().eligible.length, 3);
+  const r = A.createAmbulance(D, 'x1', { name: 'Z', responsible: 'R', packageIds: ids.slice(0, 2) }, ctx()); ok(r.ok, JSON.stringify(r));
+  const s = inZone(); eq(s.eligible.length, 1); eq(s.blocked.length, 2);
+  eq(A.createAmbulance(D, 'x1', { name: 'Z2', responsible: 'R', packageIds: ids.slice(0, 1) }, ctx()).ok, false, 'mesmo pacote em duas operações ativas é recusado');
+});
 done('unit-fluxo.test.js');

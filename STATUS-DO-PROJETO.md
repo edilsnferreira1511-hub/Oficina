@@ -1,15 +1,19 @@
-# STATUS DO PROJETO — COOPMETRO XPT V1 (atualizado)
+# STATUS DO PROJETO — COOPMETRO XPT TESTE-FIREBASE
 
-**Pasta:** `/home/claude/coopmetro-xpt-flat/` · **ZIP:** `/mnt/attach/outputs/COOPMETRO-XPT-V1-ATUALIZADO.zip` (uma pasta, sem subpastas)
+**Pasta:** `/home/claude/coopmetro-xpt-flat/` · **ZIP:** `/mnt/attach/outputs/COOPMETRO-XPT-TESTE-FIREBASE.zip` (uma pasta, sem subpastas)
 
-## Implementado (em memória)
-Mapa na Entrada corrigido (causa: nenhum provedor configurado → agora OpenStreetMap + CSP + atribuição + estados de erro; toque, pinça, zoom) · confirmar localização · confirmar entrada local · reentrada sem duplicar · planejamento com pontos reutilizados, região desenhada, revisão · criar ambulância · QR Code · página de separação com bipagem · confirmar saída · encerrar · histórico · permissões por perfil (demonstrativas) · isolamento por XPT.
+## Implementado
+1. **Entrada**: removidas as 4 opções de localização; bipar → mapa → marcar → reposicionar → **Confirmar localização**; só confirmada vira localização; sem ela o pacote segue "sem localização confirmada" (sem coordenadas inventadas); localização salva é mostrada nas consultas.
+2. **Zona poligonal** no mapa real (desenhar/finalizar/desfazer/apagar/cancelar, vértices arrastáveis e por teclado, linhas cruzadas recusadas), contagem dentro/fora/disponíveis/bloqueados, seleção automática de pacotes elegíveis (coordenadas reais, base do usuário, fora de operação ativa), sem localização à parte, retirar individualmente, recálculo ao ajustar. Seleção manual mantida.
+3. **Ambulância** com resumo (pacotes, data/hora, estado, operador autenticado), id único sequencial, QR único, trava de "um pacote, uma operação ativa" (transação + regras).
+4. **Separação/saída/encerramento** como antes, agora **gravados** (modo Firebase).
+5. **Firebase**: login real, recuperação de senha, sessão expirada, perfil/bases do Firestore, telas bloqueadas sem login, serviços com transações, isolamento em `env/teste`, `firestore.rules`, dados iniciais de teste (admin), modo demonstração preservado sem `apiKey`.
 
-## Testado
-Unitários 52 + 21; navegador 598 + 106 (Chromium; celular emulado). Detalhes e limites em `TESTES.md`.
+## Testado (ver TESTES.md)
+52 + 26 + 19 + 10 unitários/estáticos; 598 + 126 + 43 em navegador (Chromium). **Firebase real, Emulator e regras publicadas: não testados.**
 
-## Pendente / bloqueado
-Validar o **mapa real** em aparelho/hospedagem (sem rede aqui) e aprovar o provedor (D-10) · backend (persistência, QR entre aparelhos, permissões reais, índice global) · câmera · Android real · polígono livre · regras D-03/D-04/D-05/D-20.
+## Depende de você (FIREBASE.md)
+`apiKey` · habilitar e-mail/senha e domínios · criar o 1º administrador (UID + documento `users`) · rodar "Configuração inicial" · revisar/mesclar/publicar as regras e testar no Simulador · validar mapa real e Firebase no seu navegador · aprovar a matriz de perfis (D-06) e os demais itens de `DECISOES-PENDENTES.md`.
 
-## Continuidade
-`node run-all.js` deve passar. Gere o ZIP com `sh make-zip.sh` ao fim de cada sessão.
+## Não feito (por restrição ou limite)
+Deploy, Hosting, plano/cobrança, Cloud Functions, migrações/limpezas, uso do projeto real além de `env/teste` (e nem isso foi gravado daqui) · câmera · paginação para milhares de pacotes · tempo real entre aparelhos.

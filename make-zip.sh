@@ -1,9 +1,9 @@
 #!/bin/sh
 # Gera o ZIP de entrega: UMA pasta (coopmetro-xpt) com todos os arquivos dentro, sem subpastas.
-# Uso: sh make-zip.sh [destino.zip]   (padrão: ../COOPMETRO-XPT-V1.zip)
+# Uso: sh make-zip.sh [destino.zip]   (padrão: ../COOPMETRO-XPT-TESTE-FIREBASE.zip)
 set -e
 HERE="$(cd "$(dirname "$0")" && pwd)"
-OUT="${1:-$HERE/../COOPMETRO-XPT-V1.zip}"
+OUT="${1:-$HERE/../COOPMETRO-XPT-TESTE-FIREBASE.zip}"
 case "$OUT" in /*) ;; *) OUT="$(pwd)/$OUT" ;; esac
 TMP="$(mktemp -d)"; mkdir "$TMP/coopmetro-xpt"
 for f in "$HERE"/*; do [ -f "$f" ] && case "$f" in *.zip|*.log) ;; *) cp "$f" "$TMP/coopmetro-xpt/";; esac; done

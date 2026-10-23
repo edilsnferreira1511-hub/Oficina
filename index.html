@@ -3,9 +3,10 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <!-- CSP restritiva: nada de scripts/estilos inline; a única rede permitida é a de IMAGENS de ladrilhos do provedor de mapas
-       (img-src). Ao trocar de provedor, troque o host aqui e em map-config.js. connect-src continua 'none'. -->
-  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self'; style-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; font-src 'self'; connect-src 'none'; base-uri 'none'; form-action 'none'">
+  <!-- CSP restritiva: nada de scripts/estilos inline. Rede permitida: imagens de ladrilhos do provedor de mapas (img-src),
+       o SDK do Firebase em www.gstatic.com (script-src) e as APIs do Google/Firebase (connect-src: Auth e Firestore).
+       Sem apiKey em firebase-config.js nada disso é usado (modo demonstração). Ao trocar de provedor de mapas, troque o host aqui e em map-config.js. -->
+  <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://www.gstatic.com; style-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; font-src 'self'; connect-src https://*.googleapis.com https://*.firebaseio.com; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="color-scheme" content="light dark">
   <title>COOPMETRO XPT · Demonstração</title>
@@ -37,6 +38,7 @@
   <a class="skip-link" href="#main">Pular para o conteúdo</a>
   <div class="demo-banner" role="note"><strong>AMBIENTE DE DEMONSTRAÇÃO</strong><span>dados fictícios, sem gravação no sistema real</span></div>
 
+  <div id="auth-root" class="auth-root" hidden></div>
   <div class="shell">
     <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
       <div class="brand">
@@ -77,6 +79,11 @@
   <script src="views-map.js"></script>
   <script src="views-admin.js"></script>
   <script src="views-amb.js"></script>
+  <script src="firebase-config.js"></script>
+  <script src="firebase-adapter.js"></script>
+  <script src="services.js"></script>
+  <script src="auth.js"></script>
+  <script src="views-setup.js"></script>
   <script src="app.js"></script>
 </body>
 </html>

@@ -12,11 +12,10 @@
   function opLabel(op) { return op.name || op.groupLabel || op.id; }
   function visibleOps(c) {
     var ops = NS.operations.opsOf(c.D, c.xptId);
-    return c.profile === 'motorista' ? ops.filter(function (o) { return o.driverId === 'm1'; }) : ops;
+    return c.profile === 'motorista' ? ops.filter(function (o) { return o.driverId === (c.user ? c.user.driverId : 'm1'); }) : ops;
   }
   function profileLabel(c) { var p = NS.permissions.PROFILES.filter(function (x) { return x.id === c.profile; })[0]; return p ? p.label : c.profile; }
-  function actx(c) { return { nowMs: c.store.nowMs(), operator: 'Operador Demo (' + profileLabel(c) + ')' }; }
-  function progressBar(done, total) {
+    function progressBar(done, total) {
     var b = el('span', { class: 'bar bar--ok' }); b.style.setProperty('--w', (total ? Math.round(done / total * 100) : 0) + '%');
     return el('div', { class: 'progress', role: 'progressbar', 'aria-valuemin': '0', 'aria-valuemax': String(total), 'aria-valuenow': String(done), 'aria-label': 'Progresso da conferência' }, el('span', { class: 'bar-track' }, b));
   }
@@ -40,7 +39,8 @@
     var url = A.qrUrl(root.location.href, op.id);
     var warn = [];
     if (root.location.protocol === 'file:') warn.push('Esta página foi aberta como arquivo (file://): o endereço do QR só funciona neste computador. Publique em http(s) (ex.: GitHub Pages) para abrir em outros aparelhos.');
-    warn.push('Os dados desta demonstração vivem só na memória desta página: em outro aparelho, ou depois de recarregar, a operação não será encontrada (não há backend).');
+    if (NS.mode !== 'remoto') warn.push('Os dados desta demonstração vivem só na memória desta página: em outro aparelho, ou depois de recarregar, a operação não será encontrada (não há backend).');
+    else warn.push('A operação está gravada no servidor: quem tiver login e acesso à base abre a página de separação pelo QR.');
     var body = el('div', { class: 'qr-box', id: 'qr-box' },
       el('div', { class: 'qr-print' }, el('h3', { text: opLabel(op) + ' · ' + op.id }), el('p', { class: 'hint', text: H.xptName(c.D, op.xptId) + ' · Responsável: ' + op.responsible }), qrSvg(url, 'QR Code da operação ' + op.id),
         el('p', { class: 'mono small qr-url', id: 'qr-url', text: url })),
@@ -68,12 +68,13 @@
     ui.modal('Confirmar saída da operação ' + op.id + '?', body, [
       { label: 'Cancelar', onClick: function (close) { close(); } },
       { label: 'Confirmar saída dos conferidos', cls: 'btn--primary', id: 'exit-ok', onClick: function (close) {
-        var r = A.confirmExit(D, op, Object.assign({ authorized: true }, actx(c)));
         close();
-        if (r.ok) { c.store.audit.log('saida_confirmada_demo', op.xptId, op.id + ':' + r.departed.length); ui.announce(r.departed.length + ' pacote(s) com saída registrada (demonstração em memória).'); }
-        else ui.announce(r.message);
-        if (after) after(r);
-        c.store.changed('ops');
+        c.svc.confirmExit(op, c.who).then(function (r) {
+          if (r.ok) { c.store.audit.log('saida_confirmada', op.xptId, op.id + ':' + r.departed.length); ui.announce(r.departed.length + ' pacote(s) com saída registrada.'); }
+          else ui.announce(r.message);
+          if (after) after(r);
+          c.store.changed('ops');
+        });
       } },
     ], { id: 'exit-modal' });
   };
@@ -86,11 +87,13 @@
     ui.modal('Encerrar a operação ' + op.id + '?', body, [
       { label: 'Cancelar', onClick: function (close) { close(); } },
       { label: 'Encerrar operação', cls: 'btn--danger', id: 'close-ok', onClick: function (close) {
-        var r = A.closeOperation(D, op, Object.assign({ authorized: true }, actx(c)));
         close();
-        if (r.ok) { c.store.audit.log('operacao_encerrada_demo', op.xptId, op.id); ui.announce('Operação encerrada. Novas conferências bloqueadas.'); }
-        if (after) after(r);
-        c.store.changed('ops');
+        c.svc.closeOperation(op, c.who).then(function (r) {
+          if (r.ok) { c.store.audit.log('operacao_encerrada', op.xptId, op.id); ui.announce('Operação encerrada. Novas conferências bloqueadas.'); }
+          else ui.announce(r.message);
+          if (after) after(r);
+          c.store.changed('ops');
+        });
       } },
     ], { id: 'close-modal' });
   };
@@ -121,17 +124,20 @@
         return el('li', { class: 'conf-item conf-item--' + (ok ? 'ok' : 'pend'), 'data-code': p.code, 'data-state': ok ? 'conferido' : 'pendente' },
           el('span', { class: 'mono', text: p.code }), el('span', { class: 'conf-tag', text: ok ? (left ? 'Conferido · saiu' : 'Conferido') : 'Pendente' }),
           (ok && canScan && !left) ? el('button', { type: 'button', class: 'btn btn--ghost btn--sm', 'data-act': 'unscan', 'aria-label': 'Remover leitura de ' + p.code, onclick: function () {
-            conf.remove(p.code); result.className = 'scan-result'; result.textContent = 'Leitura de ' + p.code + ' removida.'; draw(); if (o.onChange) o.onChange(); scanIn.focus({ preventScroll: true });
+            c.svc.unscan(op, p.code, c.who).then(function (done) { result.className = 'scan-result'; result.textContent = done ? 'Leitura de ' + p.code + ' removida.' : 'Não foi possível remover a leitura de ' + p.code + '.'; draw(); if (o.onChange) o.onChange(); scanIn.focus({ preventScroll: true }); });
           } }, 'Remover leitura') : null);
       })));
     }
     function scan() {
       if (!canScan) return;
-      var r = conf.scan(scanIn.value);
-      result.className = 'scan-result scan-result--' + (SCAN_TONE[r.status] || 'warn'); result.dataset.status = r.status;
-      result.textContent = (r.code ? r.code + ': ' : '') + r.message;
-      scanIn.value = ''; draw(); if (o.onChange) o.onChange(r);
-      scanIn.focus({ preventScroll: true });
+      var raw = scanIn.value; scanIn.value = '';
+      c.svc.scan(op, raw, c.who).then(function (r) {
+        result.className = 'scan-result scan-result--' + (SCAN_TONE[r.status] || 'warn'); result.dataset.status = r.status;
+        result.textContent = (r.code ? r.code + ': ' : '') + r.message;
+        if (destroyed) return;
+        draw(); if (o.onChange) o.onChange(r);
+        scanIn.focus({ preventScroll: true });
+      });
     }
     scanIn.addEventListener('keydown', function (e) { if (e.key === 'Enter') { e.preventDefault(); scan(); } });
     // leitura contínua: se o foco se perder para o nada (ex.: após um aviso), volta ao campo
@@ -176,7 +182,7 @@
     var panel = H.confPanel(c, cur, { onChange: function () { /* o resumo é do próprio painel */ } });
     return {
       node: H.page([
-        ui.callout('warn', 'Conferência em memória (demonstração).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos. Nada vai para servidor.'),
+        NS.mode === 'remoto' ? ui.callout('info', 'Conferência gravada no servidor (ambiente de teste).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos.') : ui.callout('warn', 'Conferência em memória (demonstração).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos. Nada vai para servidor.'),
         ui.card('Operação (' + c.xpt.name + ')', el('div', { class: 'form-grid' }, ui.field('Operação', opSel),
           dl([['Ambulância', opLabel(cur)], ['Estado', stateBadge(cur)], ['Responsável', cur.responsible], ['Motorista', driverName(D, cur.driverId)]]))),
         ui.card('Leitura de códigos', panel.node),
@@ -203,7 +209,7 @@
       el('div', { class: 'row-actions' }, H.can(c, 'operacao')
         ? el('a', { class: 'btn btn--primary', id: 'plan-amb', href: '#/map' }, 'Planejar nova ambulância (Mapa e Regiões)')
         : noPerm('Criar ambulância', c, 'criar operações')),
-      el('p', { class: 'hint', text: 'Operações criadas aqui existem só na memória da demonstração (somem ao recarregar).' }),
+      NS.mode === 'remoto' ? null : el('p', { class: 'hint', text: 'Operações criadas aqui existem só na memória da demonstração (somem ao recarregar).' }),
       H.demoNote(),
     ]);
   };
@@ -238,11 +244,11 @@
   V.separation = function (c) {
     var D = c.D, id = c.params[0];
     var any = D.operations.filter(function (o) { return o.id === id; })[0];
-    if (!any) return H.page([ui.empty('Operação não encontrada.', 'Os dados desta demonstração ficam só na memória: depois de recarregar a página, ou em outro aparelho, a operação não existe. Com backend, o QR abriria a operação gravada.'), el('a', { class: 'btn btn--ghost', href: '#/ops' }, 'Ir para Operações')]);
+    if (!any) return H.page([ui.empty('Operação não encontrada.', NS.mode === 'remoto' ? 'Ela não existe, não pertence às suas bases ou você não tem permissão para vê-la. Use "Atualizar dados" se ela acabou de ser criada em outro aparelho.' : 'Os dados desta demonstração ficam só na memória: depois de recarregar a página, ou em outro aparelho, a operação não existe. Com backend, o QR abriria a operação gravada.'), el('a', { class: 'btn btn--ghost', href: '#/ops' }, 'Ir para Operações')]);
     var g = H.guard(c, ['ver_base', 'minhas_ops', 'conferir']); if (g) return g;
     if (any.xptId !== c.xptId) return H.page([ui.callout('warn', 'Esta operação pertence a outra base.', 'Selecione no cabeçalho a base à qual você tem acesso. Nenhum dado da operação é exibido.')]);
     var op = any;
-    if (c.profile === 'motorista' && op.driverId !== 'm1') return H.page([ui.callout('warn', 'Operação não atribuída a você (simulação).', 'O motorista só enxerga operações atribuídas.')]);
+    if (c.profile === 'motorista' && op.driverId !== (c.user ? c.user.driverId : 'm1')) return H.page([ui.callout('warn', 'Operação não atribuída a você (simulação).', 'O motorista só enxerga operações atribuídas.')]);
     var s0 = A.summary(D, op), pk = A.opPackages(D, op), withCoords = pk.filter(function (p) { return G.hasCoords(p.location); });
     var av = NS.map.availability(root.CXPT_MAP), ctl = null, mapHost = el('div', { class: 'map-host map-host--mini', id: 'sep-map' });
     var panel;

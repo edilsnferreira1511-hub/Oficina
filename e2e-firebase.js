@@ -1,0 +1,213 @@
+'use strict';
+/* Teste de navegador do MODO FIREBASE contra o backend SIMULADO (fake-firebase.js injetado antes da página): login real de interface,
+ * bloqueio das telas, gravação/recuperação após recarregar, ambulância + zona + QR + separação + saída + encerramento com gravação,
+ * expiração de sessão. NÃO prova nada sobre o Firebase real nem sobre as regras publicadas. Ladrilhos do mapa interceptados (sintéticos).
+ * Uso: node e2e-firebase.js */
+const path = require('path'), fs = require('fs'), http = require('http');
+let chromium;
+try { ({ chromium } = require('/opt/node22/lib/node_modules/playwright')); } catch (_) { ({ chromium } = require('playwright')); }
+const ROOT = __dirname, TILE_HOST = 'https://tile.openstreetmap.org/';
+const TILE_PNG = fs.readFileSync(path.join(ROOT, 'tile-simulado.png'));
+let pass = 0, fail = 0;
+function check(name, cond, extra) { if (cond) pass++; else { fail++; console.log('  ✗ ' + name + (extra ? ' → ' + extra : '')); } }
+function serve() {
+  const types = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript', '.css': 'text/css', '.png': 'image/png', '.jpg': 'image/jpeg' };
+  return new Promise((res) => {
+    const s = http.createServer((q, r) => {
+      const p = decodeURIComponent(q.url.split('?')[0]); const f = path.join(ROOT, p === '/' ? 'index.html' : p);
+      if (!f.startsWith(ROOT) || !fs.existsSync(f) || fs.statSync(f).isDirectory()) { r.writeHead(404); r.end('nf'); return; }
+      r.writeHead(200, { 'content-type': types[path.extname(f)] || 'application/octet-stream' }); r.end(fs.readFileSync(f));
+    }).listen(0, '127.0.0.1', () => res(s));
+  });
+}
+const U = 'env/teste/';
+const SEED = `
+(function () {
+  var fake = window.CXPT_FAKE_FIREBASE.create({ storage: window.localStorage });
+  var a = fake._admin;
+  if (!a.getDoc('${U}xpts/x1')) {
+    [['desp@t.com','despacho',['x1']],['coord@t.com','coord_base',['x1']],['sup@t.com','supervisor',['x1']],['semcad@t.com',null,[]],['sys@t.com','admin_sistema',[]]].forEach(function (u) {
+      a.addAccount(u[0], 'senha-' + u[0], 'uid-' + u[0]);
+      if (u[1]) a.setDoc('${U}users/uid-' + u[0], { name: 'Nome ' + u[0].split('@')[0], email: u[0], role: u[1], xptIds: u[2], active: true, driverId: null });
+    });
+    a.setDoc('${U}xpts/x1', { name: 'XPT Teste Alfa', active: true });
+    a.setDoc('${U}xpts/x2', { name: 'XPT Teste Beta', active: true });
+    a.setDoc('${U}drivers/m1', { name: 'Motorista Teste 1', ident: 'MOT-1', xptId: 'x1', state: 'ativo' });
+    a.setDoc('${U}settings/main', { stayLimitDays: 4 });
+  }
+  window.CXPT_FB = fake; window.CXPT_FB_STATE = 'ready';
+})();`;
+
+async function main(browser, base) {
+  const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
+  const external = [], errors = [];
+  await ctx.route(TILE_HOST + '**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG }));
+  await ctx.addInitScript({ content: fs.readFileSync(path.join(ROOT, 'fake-firebase.js'), 'utf8') });
+  await ctx.addInitScript({ content: SEED });
+  const page = await ctx.newPage();
+  page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
+  page.on('console', (m) => { if (m.type() === 'error') errors.push('console: ' + m.text()); });
+  page.on('request', (r) => { const u = r.url(); if (!/^(data:|blob:)/.test(u) && !u.startsWith(new URL(base).origin + '/') && !u.startsWith(TILE_HOST)) external.push(u); });
+  const txt = (sel) => page.locator(sel).first().innerText();
+  const doc = (p) => page.evaluate((x) => window.CXPT_FB._admin.getDoc(x), p);
+  const docs = (c) => page.evaluate((x) => window.CXPT_FB._admin.listDocs(x), c);
+  const login = async (email) => {
+    await page.fill('#login-email', email); await page.fill('#login-pass', 'senha-' + email); await page.click('#login-btn');
+    await page.waitForSelector('#main[data-render], #blocked-msg', { timeout: 10000 });
+  };
+  const logout = async () => { await page.click('#logout-btn'); await page.waitForSelector('#login-form'); };
+  const go = async (route) => { await page.evaluate((r) => { location.hash = '#/' + r; }, route); await page.waitForFunction((r) => document.getElementById('main').dataset.route === r.split('/')[0], route); };
+  const fillEntry = async (code, size, reason) => { await page.fill('#code-in', code); await page.press('#code-in', 'Enter'); await page.selectOption('select[name=size]', size); await page.selectOption('select[name=reasonId]', reason); };
+  const mapBox = async (sel) => { await page.locator(sel).evaluate((e) => e.scrollIntoView({ block: 'center' })); return page.locator(sel).boundingBox(); };
+
+  // ===== login e bloqueio de telas
+  await page.goto(base + '#/packages');
+  await page.waitForSelector('#login-form');
+  check('17. sem login: só a tela de entrada aparece; telas internas escondidas', (await page.locator('.shell').isHidden()) && (await page.locator('#nav a').count()) === 0 && (await page.locator('#login-email').isVisible()));
+  check('17. sem login: nenhum dado de pacote no DOM', !/DEMO-|Pacotes/.test(await page.locator('body').innerText()) || (await page.locator('#main').innerText()) === '');
+  await page.fill('#login-email', 'desp@t.com'); await page.fill('#login-pass', 'errada'); await page.click('#login-btn');
+  await page.waitForFunction(() => /incorretos/.test(document.getElementById('login-msg').textContent));
+  check('17. senha errada: mensagem clara, continua na tela de login', await page.locator('#login-form').isVisible());
+  await page.fill('#login-email', ''); await page.click('#reset-btn');
+  check('17. recuperar senha exige e-mail', /Digite seu e-mail/.test(await txt('#login-msg')));
+  await page.fill('#login-email', 'desp@t.com'); await page.click('#reset-btn');
+  await page.waitForFunction(() => /enviamos um link/.test(document.getElementById('login-msg').textContent));
+  check('17. recuperar senha: pedido registrado no backend (resposta genérica)', (await page.evaluate(() => window.CXPT_FB._admin.resets())).includes('desp@t.com'));
+  await page.fill('#login-email', 'semcad@t.com'); await page.fill('#login-pass', 'senha-semcad@t.com'); await page.click('#login-btn');
+  await page.waitForSelector('#blocked-msg');
+  check('17. usuário sem cadastro de perfil: acesso bloqueado com instrução', /ainda não foi liberado/.test(await txt('#blocked-msg')) && (await page.locator('.shell').isHidden()));
+  await page.click('#blocked-out'); await page.waitForSelector('#login-form');
+
+  await login('desp@t.com');
+  check('17. login: perfil carregado do Firestore (nome e perfil), sem seletor de perfil demonstrativo', /Nome desp/.test(await txt('#user-badge')) && /Despacho/.test(await txt('#user-badge')) && (await page.locator('#profile-select').count()) === 0);
+  check('17. banner mostra ambiente de TESTE (não demonstração)', /AMBIENTE DE TESTE/.test(await txt('.demo-banner')));
+  check('17. só a base liberada aparece', (await page.locator('#xpt-select option').allInnerTexts()).join('|') === 'XPT Teste Alfa');
+  check('17. pessoa não escolhe o próprio perfil (nenhum controle de perfil na tela)', (await page.locator('select[aria-label*="Perfil"]').count()) === 0);
+
+  // ===== entrada com gravação real
+  await go('entry');
+  await fillEntry('fb-001', 'M', 'r_ausente');
+  const box = await mapBox('#entry-map .gmap');
+  await page.mouse.click(box.x + box.width / 2 + 30, box.y + box.height / 2 - 20);
+  await page.click('#confirm-loc'); await page.click('#add-btn');
+  await fillEntry('fb-002', 'P', 'r_outros'); await page.click('#add-btn'); // sem localização confirmada
+  await page.click('#confirm-entry');
+  check('18. confirmação informa gravação no servidor (não memória)', /Firestore|servidor/.test(await txt('.modal-back')) && !/MEMÓRIA/.test(await txt('.modal-back')));
+  await page.click('#confirm-entry-ok');
+  await page.waitForFunction(() => /e gravado\(s\) no servidor/.test(document.getElementById('entry-msg').textContent));
+  const p1 = await doc(U + 'pk-x'.replace('pk-x', 'packages/pk-FB-001')), p2 = await doc(U + 'packages/pk-FB-002');
+  check('18. pacote gravado no Firestore com coordenadas reais, XPT, estado, histórico', p1 && p1.xptId === 'x1' && p1.state === 'em_estoque' && Math.abs(p1.location.lat + 16.33) < 0.5 && p1.location.kind === 'marcada' && p1.history.length === 1);
+  check('18. pacote sem localização confirmada gravado sem coordenadas inventadas', p2 && p2.location.kind === 'pendente' && p2.location.lat === null);
+  check('18. evento de auditoria imutável com o usuário autenticado', (await docs(U + 'events')).filter((e) => e.data.uid === 'uid-desp@t.com').length === 2);
+  check('18. tudo gravado sob env/teste', (await page.evaluate(() => Object.keys(window.CXPT_FB._admin.state().docs).every((p) => p.indexOf('env/teste/') === 0))));
+
+  // ===== recarregar: sessão e dados continuam
+  await page.reload(); await page.waitForSelector('#main[data-render]');
+  check('20. recarregar: sessão mantida (sem novo login) e dados recuperados', (await page.locator('#login-form').count()) === 0 && /Nome desp/.test(await txt('#user-badge')));
+  await go('packages');
+  check('20. pacotes gravados aparecem na listagem após recarregar', /FB-001/.test(await txt('main')) && /FB-002/.test(await txt('main')));
+  await go('entry'); await page.fill('#code-in', 'fb-001'); await page.press('#code-in', 'Enter');
+  check('20. consulta posterior: localização salva é mostrada (sem marcar de novo)', /Pacote já cadastrado/.test(await txt('#existing-box')) && /-16\.\d+/.test(await txt('#existing-box')));
+  await page.click('#reentry-btn');
+  await page.waitForFunction(() => /gravada no servidor/.test(document.getElementById('entry-msg').textContent));
+  check('18. reentrada gravada como evento sem duplicar', (await doc(U + 'packages/pk-FB-001')).history.length === 2 && (await docs(U + 'packages')).length === 2);
+  // despacho não vê telas que não são dele
+  await go('map');
+  check('19. perfil Despacho não cria ambulância (sem acesso à tela do mapa de planejamento)', /sem acesso|Perfil sem acesso/.test(await txt('main')) || (await page.locator('#amb-create').count()) === 0);
+
+  // ===== coordenador de base: pacotes, zona, ambulância
+  await logout();
+  await login('desp@t.com'); await go('entry');
+  await fillEntry('fb-003', 'G', 'r_recusou');
+  let b2 = await mapBox('#entry-map .gmap'); await page.mouse.click(b2.x + b2.width / 2 - 40, b2.y + b2.height / 2 + 30); await page.click('#confirm-loc'); await page.click('#add-btn');
+  await page.click('#confirm-entry'); await page.click('#confirm-entry-ok');
+  await page.waitForFunction(() => /e gravado\(s\) no servidor/.test(document.getElementById('entry-msg').textContent));
+  await logout();
+  await login('coord@t.com');
+  await go('map');
+  check('19. pontos vêm do Firestore (2 com coordenadas)', /2 ponto/.test(await txt('#points-count')));
+  await page.locator('#regions-map .gmap-zoom[aria-label=Afastar]').click();
+  await page.click('#zone-draw'); let mb = await mapBox('#regions-map .gmap');
+  for (const [x, y] of [[24, 24], [mb.width - 70, 24], [mb.width - 70, mb.height - 50], [24, mb.height - 50]]) await page.mouse.click(mb.x + x, mb.y + y);
+  await page.click('#zone-finish');
+  check('6. zona: dois pacotes com coordenadas reais dentro e selecionados', (await page.getAttribute('#zone-count', 'data-eligible')) === '2' && (await page.getAttribute('#sel-count', 'data-count')) === '2');
+  await page.fill('#amb-name', 'Ambulância FB'); await page.fill('#amb-resp', 'Resp FB');
+  await page.click('#amb-create');
+  check('3. resumo antes de confirmar: pacotes, data/hora, estado e operador', /2 pacote\(s\) serão vinculados/.test(await txt('#amb-confirm-text')) && /Data\/hora/.test(await txt('#amb-confirm-meta')) && /Em separação/.test(await txt('#amb-confirm-meta')) && /Nome coord/.test(await txt('#amb-confirm-meta')));
+  await page.click('#amb-create-ok'); await page.waitForSelector('#qr-modal');
+  const op = await doc(U + 'operations/OP-0001');
+  check('9. operação gravada: id único, base, responsável, pacotes, estado, criador autenticado', op && op.xptId === 'x1' && op.packageIds.length === 2 && op.state === 'em_separacao' && op.responsible === 'Resp FB' && /Nome coord/.test(op.createdBy));
+  check('9. pacotes vinculados à operação (trava de operação ativa) e em separação', (await doc(U + 'packages/pk-FB-001')).activeOpId === 'OP-0001' && (await doc(U + 'packages/pk-FB-003')).state === 'em_separacao');
+  const qrUrl = await txt('#qr-url'); check('9. QR contém só o endereço da operação', new RegExp('#/separation/OP-0001$').test(qrUrl));
+  await page.locator('.modal-back button:has-text("Fechar")').click();
+
+  // ===== QR aberto em "outro aparelho": nova aba, mesma conta → carrega a operação gravada
+  const p2tab = await ctx.newPage();
+  await p2tab.goto(qrUrl); await p2tab.waitForSelector('#main[data-render]');
+  check('10. QR em carga nova: operação carregada do Firestore (nome, responsável, totais)', /Ambulância FB/.test(await p2tab.locator('main').innerText()) && (await p2tab.locator('#cnt-total').innerText()) === '2' && (await p2tab.locator('#cnt-pending').innerText()) === '2');
+  check('10. campo de bipagem com foco para leitor USB/Bluetooth', await p2tab.evaluate(() => document.activeElement && document.activeElement.id === 'scan-in'));
+  const scan = async (pg, c) => { await pg.fill('#scan-in', c); await pg.press('#scan-in', 'Enter'); await pg.waitForFunction((x) => document.getElementById('scan-result').textContent.length > 0, c); };
+  await scan(p2tab, 'fb-001'); await p2tab.waitForSelector('.conf-item[data-code=FB-001][data-state=conferido]');
+  check('11. bipagem: cinza → verde, gravada no servidor', (await p2tab.locator('#cnt-done').innerText()) === '1' && !!(await doc(U + 'operations/OP-0001')).checked['FB-001']);
+  await scan(p2tab, 'FB-001');
+  check('13. código repetido: avisa e não incrementa', /já conferido/.test(await p2tab.locator('#scan-result').innerText()) && (await p2tab.locator('#cnt-done').innerText()) === '1');
+  await scan(p2tab, 'NAO-EXISTE');
+  check('14. código desconhecido: aviso sem alterar a lista', (await p2tab.locator('#scan-result').getAttribute('data-status')) === 'inexistente' && (await p2tab.locator('#cnt-done').innerText()) === '1');
+  await p2tab.close();
+  // a página principal vê a conferência feita em outro aparelho depois de atualizar
+  await page.click('#refresh-btn'); await go('exit');
+  check('20. outro aparelho: após "Atualizar dados" aparece a leitura gravada', (await page.locator('#cnt-done').innerText()) === '1');
+  await scan(page, 'fb-003'); await page.waitForSelector('.conf-item[data-code=FB-003][data-state=conferido]');
+  await page.click('#confirm-exit');
+  check('15. confirmação de saída mostra previstos, conferidos e pendentes', /Esperados: 2 · Conferidos: 2 · Pendentes: 0/.test(await txt('#exit-summary')));
+  await page.click('#exit-ok');
+  await page.waitForFunction(async () => window.CXPT_FB._admin.getDoc('env/teste/operations/OP-0001').state === 'saida_confirmada');
+  const h = (await doc(U + 'packages/pk-FB-001')).history.at(-1);
+  check('15. saída registrada no servidor: em rota + movimentação com operação, usuário, base e data', (await doc(U + 'packages/pk-FB-001')).state === 'em_rota' && /OP-0001/.test(h.note) && /Nome coord/.test(h.operator) && h.xptId === 'x1' && h.at > 0);
+  check('15. perfil coordenador de base não vê "Encerrar operação" habilitado', (await page.locator('#close-op').count()) === 0);
+  await logout(); await login('sup@t.com'); await go('exit');
+  await page.click('#close-op'); await page.click('#close-ok');
+  await page.waitForFunction(() => window.CXPT_FB._admin.getDoc('env/teste/operations/OP-0001').state === 'encerrada');
+  const closed = await doc(U + 'operations/OP-0001');
+  check('16. encerramento (supervisor): operação fechada, histórico preservado, vínculo liberado', closed.history.length >= 4 && closed.closedBy && (await doc(U + 'packages/pk-FB-001')).activeOpId === null);
+  await page.reload(); await page.waitForSelector('#main[data-render]'); await go('exit');
+  check('16. após encerrar: bipagem bloqueada na interface', await page.locator('#scan-in').isDisabled());
+
+  // ===== sessão expira
+  await page.evaluate(() => window.CXPT_FB._admin.expireSession());
+  await page.waitForSelector('#login-form', { timeout: 10000 });
+  check('17. sessão expirada: volta ao login com aviso e telas escondidas', /sessão terminou/.test(await txt('#login-msg')) && (await page.locator('.shell').isHidden()));
+
+
+  // ===== apiKey preenchida mas SDK do Firebase inacessível (sem rede/bloqueio): tela de erro clara, nada interno aparece
+  {
+    const c2 = await browser.newContext({ viewport: { width: 800, height: 800 } });
+    await c2.route('**/firebase-config.js', (r) => r.fulfill({ status: 200, contentType: 'text/javascript', body: "window.CXPT_FIREBASE = { config: { apiKey: 'CHAVE-DE-TESTE-NAO-REAL', projectId: 'coopmetro-xpt' }, sdkVersion: '10.14.1' };" }));
+    await c2.route('https://www.gstatic.com/**', (r) => r.abort());
+    const p = await c2.newPage();
+    await p.goto(base); await p.waitForSelector('#blocked-msg', { timeout: 15000 });
+    check('Firebase configurado mas SDK inacessível: mensagem clara e telas internas escondidas', /Não foi possível carregar o Firebase/.test(await p.locator('#blocked-msg').innerText()) && (await p.locator('.shell').isHidden()));
+    await c2.close();
+  }
+  // ===== sem apiKey (padrão entregue): modo demonstração intacto, sem login e sem rede
+  {
+    const c3 = await browser.newContext({ viewport: { width: 800, height: 800 } });
+    const p = await c3.newPage(); const ext = [];
+    p.on('request', (r) => { const u = r.url(); if (!/^(data:|blob:)/.test(u) && !u.startsWith(new URL(base).origin + '/')) ext.push(u); });
+    await p.goto(base); await p.waitForSelector('#main[data-render]');
+    check('sem apiKey: abre em modo demonstração (sem login, banner de demonstração, seletor de perfil demo)', /DEMONSTRAÇÃO/.test(await p.locator('.demo-banner').innerText()) && (await p.locator('#profile-select').count()) === 1 && (await p.locator('#login-form').count()) === 0);
+    check('sem apiKey: nenhuma requisição a Firebase/Google', ext.every((u) => !/google|firebase|gstatic/.test(u)), ext.join(','));
+    await c3.close();
+  }
+  check('nenhuma requisição externa (backend simulado; ladrilhos interceptados)', external.length === 0, external.join(','));
+  check('nenhum erro JS/console', errors.filter((e) => !/Failed to load resource/.test(e)).length === 0, errors.slice(0, 3).join(' | '));
+  await ctx.close();
+}
+(async () => {
+  const srv = await serve(), base = 'http://127.0.0.1:' + srv.address().port + '/';
+  const browser = await chromium.launch();
+  try { await main(browser, base); } catch (e) { fail++; console.log('  ✗ exceção: ' + (e && e.stack || e)); }
+  await browser.close(); srv.close();
+  console.log('e2e-firebase: ' + pass + ' aprovados, ' + fail + ' reprovados');
+  process.exit(fail ? 1 : 0);
+})();
