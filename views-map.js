@@ -18,6 +18,7 @@
     var unavailable = el('div', { id: 'map-unavailable-box' });
     var list = el('div', { id: 'points-list' }), panel = el('div', { id: 'group-panel' }), tools = el('div', { id: 'tools-box' }), ambBox = el('div', { id: 'amb-box' }), detail = el('div', { id: 'point-detail' }), nocoord = el('div', { id: 'nocoord-list' });
     var live = el('p', { class: 'form-msg', id: 'group-msg', role: 'status' });
+    var ambNote = '', saving = false, bar = el('div', { id: 'sel-bar-host' }); // ambNote: mensagem da criação (fica ao lado do botão, não só junto ao mapa)
 
     function pts() { return points; }
     function pointById(id) { return points.filter(function (p) { return p.id === id; })[0]; }
@@ -78,6 +79,11 @@
       if (zst.circClosed) return NS.operations.circleSummary(points, zst.circle);
       return NS.operations.zoneSummary(points, []);
     }
+    function emptyAreaReason(sm) {
+      var noLoc = H.pkgsOf(c).filter(function (p) { return !G.hasCoords(p.location) && NS.packages.inWarehouse(p); }).length;
+      if (!sm.inside.length) return 'Nenhum pacote elegível: não há pacote com coordenadas dentro da área. Amplie ou mova a área' + (noLoc ? ' (' + noLoc + ' pacote(s) sem localização confirmada não entram em seleção geográfica)' : '') + '.';
+      return 'Nenhum pacote elegível dentro da área: ' + sm.inside.length + ' ponto(s) dentro, mas ' + sm.blocked.length + ' já em operação ativa' + (sm.drafts.length ? ' e ' + sm.drafts.length + ' ainda rascunho (confirme a entrada antes)' : '') + '. Nenhuma ambulância vazia será criada.';
+    }
     function shapeClosed() { return zst.closed || zst.circClosed; }
     function applyZone() {
       zoneInIds = {};
@@ -85,7 +91,7 @@
       if (shapeClosed() && sm.valid) {
         sm.inside.forEach(function (p) { zoneInIds[p.id] = true; });
         group.clear(); group.selectMany(sm.eligible.map(function (p) { return p.id; }), selectable); zst.fromZone = true;
-        live.textContent = sm.eligible.length + ' pacote(s) ' + (zst.circClosed ? 'dentro do círculo' : 'dentro da zona') + ' selecionado(s)' + (sm.blocked.length ? ' (' + sm.blocked.length + ' ignorado(s): já em operação ativa)' : '') + '.';
+        live.textContent = sm.eligible.length ? sm.eligible.length + ' pacote(s) ' + (zst.circClosed ? 'dentro do círculo' : 'dentro da zona') + ' selecionado(s)' + (sm.blocked.length ? ' (' + sm.blocked.length + ' ignorado(s): já em operação ativa)' : '') + '.' : emptyAreaReason(sm);
       } else if (zst.fromZone) { group.clear(); zst.fromZone = false; }
       redraw(); if (shapeClosed()) ui.announce(live.textContent);
     }
@@ -125,8 +131,8 @@
       tools.replaceChildren(el('div', { class: 'zone-panel', id: 'zone-panel' },
         el('h3', { text: 'Circular pacotes no mapa' }),
         el('div', { class: 'row-actions tool-bar' },
-          el('button', { type: 'button', class: 'btn btn--ghost tool-btn' + (zst.circDrawing || zst.circClosed ? ' is-on' : ''), id: 'circle-draw', disabled: !ctl, 'aria-pressed': String(zst.circDrawing || zst.circClosed), onclick: function () { startTool('circle'); } }, 'Círculo'),
-          el('button', { type: 'button', class: 'btn btn--ghost tool-btn' + (zst.drawing || zst.closed ? ' is-on' : ''), id: 'zone-draw', disabled: !ctl, 'aria-pressed': String(zst.drawing || zst.closed), onclick: function () { startTool('polygon'); } }, 'Polígono'),
+          el('button', { type: 'button', class: 'btn btn--ghost tool-btn' + (zst.circDrawing || zst.circClosed ? ' is-on' : ''), id: 'circle-draw', disabled: !ctl, 'aria-pressed': String(zst.circDrawing || zst.circClosed), onclick: function () { startTool('circle'); } }, 'Desenhar círculo'),
+          el('button', { type: 'button', class: 'btn btn--ghost tool-btn' + (zst.drawing || zst.closed ? ' is-on' : ''), id: 'zone-draw', disabled: !ctl, 'aria-pressed': String(zst.drawing || zst.closed), onclick: function () { startTool('polygon'); } }, 'Desenhar zona'),
           el('button', { type: 'button', class: 'btn btn--ghost', id: 'zone-undo', disabled: !ctl || !n, onclick: function () { ctl.undoZonePoint(); } }, 'Desfazer último ponto'),
           el('button', { type: 'button', class: 'btn btn--primary', id: 'zone-finish', disabled: !ctl || !zst.drawing || n < 3, onclick: function () { if (ctl.closeZone()) { zst.drawing = false; ctl.setZoneMode(false); } } }, 'Finalizar desenho'),
           el('button', { type: 'button', class: 'btn btn--ghost', id: 'zone-clear', disabled: !ctl || (!n && !drawingAny && !zst.circle), onclick: clearTools }, 'Cancelar / apagar área')),
@@ -157,16 +163,25 @@
       var drvSel = ui.select('ambDriver', drv.map(function (d) { return { id: d.id, label: d.name }; }), af.driverId, 'Escolha o motorista'); drvSel.id = 'amb-driver'; drvSel.required = true;
       nameIn.addEventListener('input', function () { af.name = nameIn.value; }); respIn.addEventListener('input', function () { af.responsible = respIn.value; });
       drvSel.addEventListener('change', function () { af.driverId = drvSel.value; });
-      var msg = el('small', { class: 'form-msg', id: 'amb-msg', role: 'status' });
+      var msg = el('p', { class: 'form-msg', id: 'amb-msg', role: 'alert', tabindex: '-1', text: ambNote });
+      var why = [];
+      if (!sel.length) why.push(shapeClosed() && summary().valid ? emptyAreaReason(summary()) : 'Nenhum pacote selecionado: desenhe uma zona ou um círculo no mapa, marque pacotes no mapa ou na lista.');
+      if (drafts.length) why.push(drafts.length + ' item(ns) selecionado(s) ainda são rascunho: confirme a entrada em "Entrada de Pacotes" ou remova-os da seleção.');
+      if (!drv.length) why.push('Não há motorista ativo livre nesta base (' + (allDrv.length ? 'todos já têm ambulância ativa' : 'nenhum motorista cadastrado: peça ao administrador para cadastrar em "Motoristas"') + ').');
+      if (sel.length > A.MAX_PACKAGES) why.push('A seleção tem ' + sel.length + ' pacotes; o máximo por ambulância é ' + A.MAX_PACKAGES + ' (a gravação é atômica e tem limite). Retire pacotes ou crie outra ambulância para o restante.');
+      var whyBox = why.length ? el('ul', { class: 'why-list', id: 'amb-why', role: 'status', 'aria-label': 'O que falta para criar a ambulância' }, why.map(function (w) { return el('li', { text: w }); })) : null;
       var review = el('div', { id: 'amb-review', 'data-count': String(sel.length) }, el('h3', { text: 'Revisão da seleção (' + sel.length + ')' }),
         sel.length ? ui.table([{ label: 'Código', render: function (p) { return el('span', { class: 'mono', text: p.code }); } }, { label: 'Tamanho', render: function (p) { return H.sizeLabel(D, p.size); } },
           { label: 'Motivo', render: function (p) { return H.reasonLabel(D, p.reasonId); } }, { label: 'Localização', render: function (p) { return G.LOC_LABEL[p.kind]; } },
           { label: 'Situação', render: function (p) { return p.source === 'pacote' ? ui.badge('Pronto', 'ok') : ui.badge('Rascunho: confirme a entrada antes', 'warn'); } },
           { label: 'Retirar', cls: 'actions', render: function (p) { return el('button', { type: 'button', class: 'btn btn--ghost btn--sm', 'data-act': 'retirar', 'data-code': p.code, 'aria-label': 'Retirar ' + p.code + ' da seleção', onclick: function () { group.toggle(p.id, selectable); live.textContent = p.code + ' retirado da seleção.'; redraw(); } }, 'Retirar'); } }], sel, { label: 'Revisão da seleção', rowAttrs: function (p) { return { 'data-code': p.code }; } })
           : el('p', { class: 'hint', text: 'Selecione pacotes no mapa, na lista ou desenhando uma zona no mapa.' }));
+      function note(t) { ambNote = t; msg.textContent = t; ui.announce(t); if (msg.scrollIntoView) msg.scrollIntoView({ block: 'center' }); try { msg.focus({ preventScroll: true }); } catch (_) { /* ignore */ } }
       function submit() {
-        if (!af.name.trim() || !af.responsible.trim()) { msg.textContent = 'Informe o nome da ambulância e o responsável.'; return; }
-        if (!af.driverId) { msg.textContent = 'Escolha o motorista: cada ambulância é de um motorista.'; return; }
+        if (saving) return;
+        if (!af.name.trim() || !af.responsible.trim()) { note('Informe o nome da ambulância e o responsável.'); return; }
+        if (!af.driverId) { note('Escolha o motorista: cada ambulância é de um motorista.'); return; }
+        ambNote = '';
         var ids = sel.map(function (p) { return p.id; });
         var body = el('div', null, el('p', { id: 'amb-confirm-text', text: ids.length + ' pacote(s) serão vinculados à ambulância "' + af.name.trim() + '" (motorista: ' + (D.drivers.filter(function (d) { return d.id === af.driverId; })[0] || {}).name + ', responsável: ' + af.responsible.trim() + ', ' + c.xpt.name + ') e passarão de "Em estoque" para "Em separação".' }),
           el('p', { id: 'amb-confirm-meta', text: 'Data/hora: ' + ui.fmtDateTime(store.nowMs()) + ' · Estado inicial: Em separação · Operador: ' + operatorLabel() }),
@@ -174,25 +189,29 @@
         ui.modal('Criar a ambulância?', body, [
           { label: 'Voltar e revisar', onClick: function (close) { close(); } },
           { label: 'Criar ambulância', cls: 'btn--primary', id: 'amb-create-ok', onClick: function (close) {
-            close(); live.textContent = 'Gravando…';
+            close(); if (saving) return; saving = true; ambNote = 'Gravando… aguarde a confirmação do servidor.'; redraw();
             c.svc.createAmbulance(c.xptId, { name: af.name, responsible: af.responsible, driverId: af.driverId, packageIds: ids }, c.who).then(function (r) {
-            if (!r.ok) { live.textContent = r.message || Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; }).join(' '); ui.announce(live.textContent); redraw(); return; }
-            store.audit.log('ambulancia_criada_demo', c.xptId, r.op.id + ':' + ids.length);
-            group.clear(); af.name = ''; af.responsible = ''; af.driverId = '';
-            store.changed('ops'); // redesenha: os pacotes passam a "em separação" e saem dos pontos selecionáveis
-            H.showQr(c, r.op);
-            });
+              saving = false;
+              if (!r.ok) { // erro REAL do backend/validação, ao lado do botão; nada foi criado
+                ambNote = (r.message || Object.keys(r.errors || {}).map(function (k) { return r.errors[k]; }).join(' ') || 'Não foi possível criar a ambulância.') + ' Nada foi criado.';
+                redraw(); var m = document.getElementById('amb-msg'); if (m) { ui.announce(ambNote); if (m.scrollIntoView) m.scrollIntoView({ block: 'center' }); try { m.focus({ preventScroll: true }); } catch (_) { /* ignore */ } } return;
+              }
+              ambNote = '';
+              store.audit.log('ambulancia_criada_demo', c.xptId, r.op.id + ':' + ids.length);
+              group.clear(); af.name = ''; af.responsible = ''; af.driverId = '';
+              store.changed('ops'); // redesenha: os pacotes passam a "em separação" e saem dos pontos selecionáveis
+              H.showQr(c, r.op);
+            }, function (e) { saving = false; ambNote = 'Falha inesperada ao gravar (' + ((e && e.message) || 'erro') + '). Nada foi criado.'; redraw(); });
           } },
         ], { id: 'amb-modal' });
       }
       return el('div', { class: 'amb-panel', id: 'amb-panel' }, el('h3', { text: 'Criar ambulância' }), review,
         el('div', { class: 'form-grid' }, ui.field('Nome ou número da ambulância', nameIn), ui.field('Responsável pela operação', respIn), ui.field('Motorista desta ambulância', drvSel, null, drv.length ? 'Uma ambulância por motorista. A cor é definida automaticamente.' : 'Nenhum motorista livre nesta base.')),
         busyDrv.length ? el('p', { class: 'hint', id: 'amb-busy', text: 'Motoristas com ambulância ativa (indisponíveis): ' + busyDrv.map(function (d) { return d.name + ' — ' + busyOf[d.id].id; }).join('; ') + '.' }) : null,
-        !drv.length ? ui.callout('warn', 'Nenhum motorista ativo livre nesta base.', 'Cadastre um motorista (Motoristas) ou encerre uma ambulância ativa.') : null,
-        drafts.length ? ui.callout('warn', drafts.length + ' item(ns) selecionado(s) ainda são rascunho.', 'Confirme a entrada em "Entrada de Pacotes" para poder vinculá-los a uma ambulância.') : null,
+        whyBox,
         el('div', { class: 'row-actions' },
           drafts.length ? el('button', { type: 'button', class: 'btn btn--ghost', id: 'amb-drop-drafts', onclick: function () { drafts.forEach(function (p) { group.toggle(p.id, selectable); }); redraw(); } }, 'Remover rascunhos da seleção') : null,
-          el('button', { type: 'button', class: 'btn btn--primary', id: 'amb-create', disabled: !sel.length || drafts.length > 0 || !drv.length, onclick: submit }, 'Revisar e criar ambulância')),
+          el('button', { type: 'button', class: 'btn btn--primary', id: 'amb-create', disabled: saving || !sel.length || drafts.length > 0 || !drv.length || sel.length > A.MAX_PACKAGES, onclick: submit }, saving ? 'Gravando…' : 'Revisar e criar ambulância')),
         msg);
     }
     function areaForm() {

@@ -17,6 +17,7 @@
     function snap(s) { return { exists: s.exists(), data: s.exists() ? s.data() : null }; }
     function toUser(u) { return u ? { uid: u.uid, email: u.email, displayName: u.displayName } : null; }
     window.CXPT_FB = {
+      kind: 'real', // FIREBASE REAL (SDK oficial contra o projeto); o backend dos testes automatizados usa kind 'simulado'
       auth: {
         onChange: function (cb) { return Au.onAuthStateChanged(auth, function (u) { cb(toUser(u)); }); },
         signIn: function (email, pw) { return Au.signInWithEmailAndPassword(auth, email, pw).then(function (c) { return toUser(c.user); }); },

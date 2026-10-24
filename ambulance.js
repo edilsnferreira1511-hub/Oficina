@@ -26,7 +26,16 @@
   }
   function pad(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
   function isActive(op) { return !!op && op.state !== STATE.ENCERRADA; }
-  function opPkgs(D, op) { return op.packageIds.map(function (id) { return D.packages.filter(function (p) { return p.id === id; })[0]; }).filter(Boolean); }
+  var MAX_PACKAGES = 200; // uma ambulância é gravada numa transação atômica (limite de 500 gravações do Firestore: 2 por pacote + operação + contador)
+  /** Pacotes da operação. Quem não pode ler a coleção de pacotes (motorista) recebe só id+código a partir de op.packageCodes. */
+  function opPkgs(D, op) {
+    return op.packageIds.map(function (id, i) {
+      var f = D.packages.filter(function (p) { return p.id === id; })[0];
+      if (f) return f;
+      var code = op.packageCodes && op.packageCodes[i];
+      return code ? { id: id, code: code, xptId: op.xptId, state: 'em_separacao', size: null, location: null } : null;
+    }).filter(Boolean);
+  }
   function activeOpOf(D, pkgId, exceptOpId) {
     return D.operations.filter(function (o) { return isActive(o) && o.id !== exceptOpId && o.packageIds.indexOf(pkgId) >= 0; })[0] || null;
   }
@@ -76,6 +85,7 @@
     }
     var ids = (f.packageIds || []).filter(function (id, i, a) { return a.indexOf(id) === i; });
     if (!ids.length) errors.packageIds = 'Selecione ao menos um pacote.';
+    if (ids.length > MAX_PACKAGES) errors.packageIds = 'No máximo ' + MAX_PACKAGES + ' pacotes por ambulância (a gravação é atômica e tem limite). Retire pacotes ou crie outra ambulância para o restante.';
     var blocked = [];
     ids.forEach(function (id) {
       var p = D.packages.filter(function (x) { return x.id === id; })[0], why = ineligible(D, xptId, p);
@@ -190,7 +200,7 @@
   function qrUrl(baseHref, opId) { return String(baseHref).split('#')[0] + '#/separation/' + encodeURIComponent(opId); }
 
   NS.ambulance = {
-    STATE: STATE, COLORS: COLORS, colorOf: colorOf, isActive: isActive, activeOpOf: activeOpOf, ineligible: ineligible, createAmbulance: createAmbulance,
+    STATE: STATE, MAX_PACKAGES: MAX_PACKAGES, COLORS: COLORS, colorOf: colorOf, isActive: isActive, activeOpOf: activeOpOf, ineligible: ineligible, createAmbulance: createAmbulance,
     scan: scan, unscan: unscan, summary: summary, confirmExit: confirmExit, closeOperation: closeOperation, qrUrl: qrUrl, opPackages: opPkgs,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.ambulance;

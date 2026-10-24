@@ -51,7 +51,8 @@
         return Promise.resolve(A.createAmbulance(D, xptId, form, { authorized: ok(who, 'operacao'), nowMs: store.nowMs(), operator: who.operator }));
       },
       scan: function (op, raw, who) {
-        return Promise.resolve(A.scan(D, op, raw, { authorized: ok(who, 'conferir'), nowMs: store.nowMs(), operator: who.operator }));
+        var mine = ok(who, 'conferir_propria') && !!who.driverId && op.driverId === who.driverId; // motorista: só a própria ambulância
+        return Promise.resolve(A.scan(D, op, raw, { authorized: ok(who, 'conferir') || mine, nowMs: store.nowMs(), operator: who.operator }));
       },
       unscan: function (op, code, who) { return Promise.resolve(A.unscan(D, op, code, { nowMs: store.nowMs(), operator: who.operator })); },
       confirmExit: function (op, who) {
@@ -111,7 +112,7 @@
       registerEntries: function (xptId, items) {
         if (!can('entrada')) return Promise.resolve({ created: [], skipped: items.map(function (i) { return { code: i.code, reason: 'sem_permissao' }; }), error: 'Seu perfil não pode registrar entradas.' });
         var chunks = [], i;
-        for (i = 0; i < items.length; i += 100) chunks.push(items.slice(i, i + 100));
+        for (i = 0; i < items.length; i += 15) chunks.push(items.slice(i, i + 15)); // regras do Firestore: no máximo 20 acessos a documentos por transação (1 'codes' por pacote)
         var total = { created: [], skipped: [] };
         return chunks.reduce(function (chain, chunk) {
           return chain.then(function () {
@@ -152,7 +153,8 @@
       createAmbulance: function (xptId, form) {
         if (!can('operacao')) return Promise.resolve({ ok: false, reason: 'sem_permissao', message: 'Seu perfil não pode criar operações.' });
         var ids = (form.packageIds || []).filter(function (id, i, a) { return a.indexOf(id) === i; });
-        return run(function (tx) {
+        // atualiza as operações conhecidas ANTES (cor livre e "um motorista, uma ambulância" usam este conhecimento; o bloqueio de pacote duplicado é da transação)
+        return loadAll(fb, user).then(function (data) { applyLoaded(D, data); }, function () { /* sem rede: a transação abaixo falha com mensagem clara */ }).then(function () { return run(function (tx) {
           return Promise.all([tx.get(path('counters', 'operations')), loadFresh(tx, ids, 'packages')]).then(function (res) {
             var counter = res[0], n = counter.exists ? counter.data.n : 0, fresh = res[1];
             var m = mini();
@@ -179,11 +181,12 @@
             op.history.forEach(function (e) { putEvent(tx, e, { opId: op.id, xptId: xptId }); });
             return { ok: true, op: op, pkgs: touched };
           });
-        }).then(function (r) { if (r.ok) { r.pkgs.forEach(mergePkg); r.op = mergeOp(r.op); delete r.pkgs; } return r.ok ? r : (r.detail || r); });
+        }).then(function (r) { if (r.ok) { r.pkgs.forEach(mergePkg); r.op = mergeOp(r.op); delete r.pkgs; } return r.ok ? r : (r.detail || r); }); });
       },
 
       scan: function (op, raw) {
-        if (!can('conferir')) return Promise.resolve({ status: 'sem_permissao', message: 'Seu perfil não pode conferir pacotes.' });
+        var driverMode = user.role === 'motorista';
+        if (!(can('conferir') || (can('conferir_propria') && driverMode && !!user.driverId && op.driverId === user.driverId))) return Promise.resolve({ status: 'sem_permissao', message: 'Seu perfil não pode conferir pacotes desta operação.' });
         var v = NS.codes.validate(raw);
         return fb.db.runTransaction(function (tx) {
           return tx.get(path('operations', op.id)).then(function (os) {
@@ -191,7 +194,7 @@
             var o = clean(os.data), m = mini(); m.operations.push(o);
             m.packages = (o.packageCodes || []).map(function (c, i) { return { id: o.packageIds[i], code: c, xptId: o.xptId, state: 'em_separacao' }; });
             var inOp = v.ok && o.packageCodes.indexOf(v.code) >= 0;
-            var more = !v.ok || inOp || !A.isActive(o) ? Promise.resolve(null) : getMaybe(tx, path('packages', pkgIdFor(v.code)));
+            var more = !v.ok || inOp || !A.isActive(o) || driverMode ? Promise.resolve(null) : getMaybe(tx, path('packages', pkgIdFor(v.code))); // motorista nunca lê a coleção de pacotes
             return more.then(function (ps) {
               var other = Promise.resolve(null);
               if (ps && ps.exists && ps.data.xptId === o.xptId) {
@@ -211,6 +214,7 @@
       },
 
       unscan: function (op, code) {
+        if (!can('conferir')) return Promise.resolve(false); // motorista não remove leituras
         return fb.db.runTransaction(function (tx) {
           return tx.get(path('operations', op.id)).then(function (os) {
             if (!os.exists) return { done: false };
@@ -298,7 +302,10 @@
     var xpts = global ? fb.db.list(ENV + '/xpts', []) : Promise.all(ids.map(function (id) { return fb.db.get(path('xpts', id)).then(function (s) { return s.exists ? [{ id: id, data: s.data }] : []; }); })).then(function (p) { return [].concat.apply([], p); });
     var isDriver = user.role === 'motorista';
     var ops = isDriver ? (user.driverId ? fb.db.list(ENV + '/operations', [['driverId', '==', user.driverId]]) : Promise.resolve([])) : byXpt('operations');
-    return Promise.all([xpts, byXpt('regions'), byXpt('drivers'), isDriver || user.role === 'admin_sistema' ? Promise.resolve([]) : byXpt('packages'), ops, fb.db.get(path('settings', 'main'))])
+    // motorista: nada de listas gerais (regiões, motoristas, pacotes): só o próprio cadastro de motorista e as próprias operações
+    var regions = isDriver ? Promise.resolve([]) : byXpt('regions');
+    var drivers = isDriver ? (user.driverId ? fb.db.get(path('drivers', user.driverId)).then(function (s) { return s.exists ? [{ id: user.driverId, data: s.data }] : []; }) : Promise.resolve([])) : byXpt('drivers');
+    return Promise.all([xpts, regions, drivers, isDriver || user.role === 'admin_sistema' ? Promise.resolve([]) : byXpt('packages'), ops, fb.db.get(path('settings', 'main'))])
       .then(function (r) { return { xpts: r[0], regions: r[1], drivers: r[2], packages: r[3], operations: r[4], settings: r[5].exists ? r[5].data : {} }; });
   }
   function docs(list) { return list.map(function (x) { return Object.assign({ id: x.id }, x.data); }); }
@@ -335,6 +342,38 @@
     }).catch(failure);
   }
 
-  NS.services = { ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
+  /** Cadastra um motorista (SOMENTE se o id ainda não existir). Quem tem 'config'. Nada é sobrescrito. */
+  function registerDriver(fb, user, d) {
+    var P = NS.permissions;
+    if (!P.can(user.role, 'config') && user.role !== 'admin_sistema') return Promise.resolve({ ok: false, message: 'Sem permissão para cadastrar motoristas.' });
+    var name = String((d && d.name) || '').trim(), xptId = String((d && d.xptId) || '').trim(), ident = String((d && d.ident) || '').trim();
+    var id = String((d && d.id) || '').trim().replace(/[^A-Za-z0-9_-]/g, '');
+    if (!name || !xptId || !id) return Promise.resolve({ ok: false, message: 'Informe identificador (letras/números), nome e base do motorista.' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('drivers', id)).then(function (s) {
+        if (s.exists) return { ok: false, message: 'Já existe um motorista com o identificador "' + id + '". Nada foi alterado.' };
+        tx.set(path('drivers', id), { name: name, ident: ident, xptId: xptId, state: 'ativo' }); return { ok: true, id: id };
+      });
+    }).catch(failure);
+  }
+  /** Vincula um login (UID do Authentication) a um perfil: cria env/teste/users/{uid} (nunca sobrescreve; nunca o próprio). Só admin_sistema. */
+  function linkUser(fb, user, u) {
+    if (user.role !== 'admin_sistema') return Promise.resolve({ ok: false, message: 'Somente o administrador do sistema vincula usuários.' });
+    var uid = String((u && u.uid) || '').trim(), name = String((u && u.name) || '').trim(), email = String((u && u.email) || '').trim(), role = String((u && u.role) || '');
+    if (!uid || uid === user.uid) return Promise.resolve({ ok: false, message: uid ? 'Você não pode alterar o seu próprio perfil.' : 'Informe o UID copiado do Authentication.' });
+    if (!NS.permissions.PROFILES.some(function (p) { return p.id === role; })) return Promise.resolve({ ok: false, message: 'Perfil inválido.' });
+    if (!name || !email) return Promise.resolve({ ok: false, message: 'Informe nome e e-mail.' });
+    var xptIds = (u.xptIds || []).filter(Boolean), isGlobal = role === 'administrador' || role === 'coord_geral' || role === 'admin_sistema';
+    if (!isGlobal && !xptIds.length) return Promise.resolve({ ok: false, message: 'Informe ao menos uma base para este perfil.' });
+    if (role === 'motorista' && !String(u.driverId || '').trim()) return Promise.resolve({ ok: false, message: 'Motorista precisa de um motorista cadastrado (driverId).' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('users', uid)).then(function (s) {
+        if (s.exists) return { ok: false, message: 'Este UID já tem perfil cadastrado. Nada foi alterado.' };
+        tx.set(path('users', uid), { name: name, email: email, role: role, xptIds: xptIds, active: true, driverId: role === 'motorista' ? String(u.driverId).trim() : null }); return { ok: true };
+      });
+    }).catch(failure);
+  }
+
+  NS.services = { registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.services;
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -136,6 +136,13 @@ async function main(browser, base) {
   await page.click('#amb-create');
   check('3. sem motorista não cria: mensagem pede o motorista e nada é gravado', /Escolha o motorista/.test(await txt('#amb-msg')) && !(await doc(U + 'operations/OP-0001')));
   await page.selectOption('#amb-driver', 'm1');
+  // falha de gravação: o erro REAL aparece ao lado do botão, nada é criado, nada é mostrado como sucesso
+  await page.evaluate(() => window.CXPT_FB._admin.setFail(true));
+  await page.click('#amb-create'); await page.click('#amb-create-ok');
+  await page.waitForFunction(() => /Nada foi criado/.test((document.getElementById('amb-msg') || {}).textContent || ''));
+  check('1. erro de gravação: mensagem real junto ao botão, sem QR e sem operação gravada (sem falso sucesso)', (await page.locator('#qr-modal').count()) === 0 && !(await doc(U + 'operations/OP-0001')) && (await docs(U + 'operations')).length === 0 && /Nada foi criado/.test(await txt('#amb-msg')));
+  check('1. erro de gravação: pacotes continuam livres (sem trava de operação)', (await doc(U + 'packages/pk-FB-001')).activeOpId == null);
+  await page.evaluate(() => window.CXPT_FB._admin.setFail(false));
   await page.click('#amb-create');
   check('3. resumo antes de confirmar: pacotes, data/hora, estado e operador', /2 pacote\(s\) serão vinculados/.test(await txt('#amb-confirm-text')) && /Data\/hora/.test(await txt('#amb-confirm-meta')) && /Em separação/.test(await txt('#amb-confirm-meta')) && /Nome coord/.test(await txt('#amb-confirm-meta')));
   await page.click('#amb-create-ok'); await page.waitForSelector('#qr-modal');
@@ -169,14 +176,43 @@ async function main(browser, base) {
   await page.fill('#sort-in', 'FB-404'); await page.press('#sort-in', 'Enter'); await page.waitForSelector('#sort-in-result.big-result--fail');
   check('Separar (servidor): código inexistente = vermelho', /não encontrado/i.test(await txt('#sort-in-result')));
   check('Separar não grava nada: a ambulância continua com 1 conferido', Object.keys((await doc(U + 'operations/OP-0001')).checked).length === 1);
-  await logout(); await login('mot@t.com'); await go('check');
-  check('motorista (servidor): vê só a própria ambulância e os códigos dela', /Ambulância FB/.test(await txt('main')) && (await page.locator('#my-codes .chip').count()) === 2);
-  await page.fill('#check-in', 'FB-003'); await page.press('#check-in', 'Enter'); await page.waitForSelector('#check-in-result.big-result--ok');
-  check('motorista (servidor): pacote da ambulância = verde', /Pacote da sua ambulância/.test(await txt('#check-in-result')));
-  await page.waitForFunction(() => document.getElementById('check-in-result').textContent === '', null, { timeout: 5000 });
-  await page.fill('#check-in', 'FB-777'); await page.press('#check-in', 'Enter'); await page.waitForSelector('#check-in-result.big-result--wrong');
-  check('motorista (servidor): outro código = vermelho, sem revelar nada de outras ambulâncias', /Não pertence à sua ambulância/.test(await txt('#check-in-result')) && !/Ambulância FB/.test(await txt('#check-in-result')));
-  check('motorista não consegue ler pacotes pelo servidor (regras)', await page.evaluate(() => window.CXPT_FB.db.get('env/teste/packages/pk-FB-001').then(() => false, () => true)));
+  // ===== MOTORISTA: acesso exclusivo à bipagem da PRÓPRIA operação (interface reduzida + regras)
+  await page.evaluate((u) => { const a = window.CXPT_FB._admin; // outra ambulância (de outro motorista) e um pacote de outra base, criados pelo "Console" para provar o isolamento
+    a.setDoc(u + 'operations/OP-9002', { id: 'OP-9002', xptId: 'x1', name: 'Ambulância Alheia', state: 'em_separacao', driverId: 'm2', packageCodes: ['ZZ-9'], packageIds: ['pk-ZZ-9'], checked: {}, history: [], responsible: 'X', createdBy: 'X', createdAt: 1 });
+    a.setDoc(u + 'packages/pk-ZZ-9', { id: 'pk-ZZ-9', code: 'ZZ-9', xptId: 'x1', state: 'em_separacao', activeOpId: 'OP-9002', location: { kind: 'pendente', lat: null, lng: null }, history: [] }); }, U);
+  await logout(); await login('mot@t.com');
+  check('motorista: após o login cai direto na tela da própria ambulância (sem painel de despacho)', (await page.evaluate(() => document.getElementById('main').dataset.route)) === 'separation' && /OP-0001/.test(await txt('#drv-op')));
+  const navTxt = (await page.locator('#nav a').allInnerTexts()).join('|');
+  check('motorista: menu reduzido (sem Mapa, Entrada, Saída, Pacotes, Usuários)', !/Mapa|Entrada|Saída|Pacotes|Usuários|Configura/i.test(navTxt), navTxt);
+  check('motorista: vê apenas ambulância, operação, contadores e os próprios códigos', (await page.locator('#cnt-total').innerText()) === '2' && (await page.locator('#cnt-done').innerText()) === '1' && (await page.locator('.conf-item').count()) === 2 && !/ZZ-9|Ambulância Alheia/.test(await page.locator('body').innerText()));
+  for (const r of ['map', 'entry', 'exit', 'packages', 'setup', 'sort']) {
+    await page.evaluate((x) => { location.hash = '#/' + x; }, r); await page.waitForTimeout(150);
+    check('motorista: rota #/' + r + ' é redirecionada para a bipagem', (await page.evaluate(() => document.getElementById('main').dataset.route)) === 'separation' && (await page.locator('#amb-create, #zone-draw, #confirm-exit, #close-op').count()) === 0);
+  }
+  await page.evaluate(() => { location.hash = '#/separation/OP-9002'; }); await page.waitForSelector('#driver-denied');
+  check('motorista: QR/URL de OUTRA ambulância = acesso negado, sem revelar dados', /não foi atribuída a você/.test(await txt('main')) && !/Ambulância Alheia|ZZ-9/.test(await page.locator('body').innerText()));
+  await page.evaluate(() => { location.hash = '#/separation/OP-0001'; }); await page.waitForSelector('#drv-in');
+  const dscan = async (c) => { await page.fill('#drv-in', c); await page.press('#drv-in', 'Enter'); await page.waitForFunction(() => document.getElementById('drv-in-result').textContent.length > 0); };
+  await dscan('FB-003'); await page.waitForSelector('.conf-item[data-code=FB-003][data-state=conferido]');
+  check('motorista: bip do próprio pacote → conferido, gravado no servidor', (await page.locator('#cnt-done').innerText()) === '2' && !!(await doc(U + 'operations/OP-0001')).checked['FB-003']);
+  await page.waitForFunction(() => document.getElementById('drv-in-result').textContent === '', null, { timeout: 8000 }).catch(() => {});
+  await dscan('FB-003');
+  check('motorista: bip repetido avisa e não duplica', /Já conferido/.test(await txt('#drv-in-result')) && (await page.locator('#cnt-done').innerText()) === '2' && Object.keys((await doc(U + 'operations/OP-0001')).checked).length === 2);
+  await page.waitForTimeout(100); await dscan('ZZ-9');
+  check('motorista: pacote de outra ambulância → conflito sem revelar nada e sem gravar', /outra operação|desconhecido/i.test(await txt('#drv-in-result')) && !/Alheia|OP-9002/.test(await txt('#drv-in-result')) && !(await doc(U + 'operations/OP-9002')).checked['ZZ-9']);
+  await dscan('FB-777');
+  check('motorista: código desconhecido → aviso sem alterar nada', /desconhecido|não pertence/i.test(await txt('#drv-in-result')) && (await page.locator('#cnt-done').innerText()) === '2');
+  // regras do servidor (o que o app não mostra também é bloqueado — não basta esconder menus)
+  const deny = (fn, arg) => page.evaluate(async ([src, a]) => { try { await (new Function('FB', 'a', 'return (' + src + ')(FB, a)'))(window.CXPT_FB, a); return 'PERMITIDO'; } catch (e) { return e.code || e.message || 'erro'; } }, [fn, arg]);
+  check('regras: motorista NÃO lê pacotes', /permission-denied/.test(await deny('(FB,a)=>FB.db.get(a)', U + 'packages/pk-FB-001')));
+  check('regras: motorista NÃO lista pacotes', /permission-denied/.test(await deny('(FB,a)=>FB.db.list(a,[])', U + 'packages')));
+  check('regras: motorista NÃO lê operação de outro motorista', /permission-denied/.test(await deny('(FB,a)=>FB.db.get(a)', U + 'operations/OP-9002')));
+  check('regras: motorista NÃO lê outro motorista, usuários nem configurações de gestão', /permission-denied/.test(await deny('(FB,a)=>FB.db.get(a)', U + 'drivers/m2')) && /permission-denied/.test(await deny('(FB,a)=>FB.db.list(a,[])', U + 'users')));
+  check('regras: motorista NÃO cria ambulância', /permission-denied/.test(await deny('(FB,a)=>FB.db.runTransaction(tx=>{tx.set(a,{id:"OP-X",xptId:"x1",state:"em_separacao",driverId:"m1",packageCodes:[],packageIds:[],checked:{},history:[]});})', U + 'operations/OP-X')));
+  check('regras: motorista NÃO confirma saída nem encerra a própria operação', /permission-denied/.test(await deny('(FB,a)=>FB.db.runTransaction(tx=>tx.get(a).then(r=>{tx.update(a,{state:"saida_confirmada"});}))', U + 'operations/OP-0001')) && /permission-denied/.test(await deny('(FB,a)=>FB.db.runTransaction(tx=>tx.get(a).then(r=>{tx.update(a,{state:"encerrada"});}))', U + 'operations/OP-0001')));
+  check('regras: motorista NÃO bipa na operação de outro motorista', /permission-denied/.test(await deny('(FB,a)=>FB.db.runTransaction(tx=>tx.get(a).then(r=>{tx.update(a,{checked:{"ZZ-9":{at:1}}});}))', U + 'operations/OP-9002')));
+  check('regras: motorista NÃO altera o próprio perfil nem o vínculo', /permission-denied/.test(await deny('(FB,a)=>FB.db.runTransaction(tx=>tx.get(a).then(r=>{tx.update(a,{role:"administrador"});}))', U + 'users/uid-mot@t.com')));
+  check('nada do motorista alterou pacotes (somente a conferência na operação)', (await doc(U + 'packages/pk-FB-001')).state === 'em_separacao' && (await doc(U + 'operations/OP-9002')).state === 'em_separacao');
   await logout(); await login('coord@t.com'); await go('exit');
   await scan(page, 'fb-003'); await page.waitForSelector('.conf-item[data-code=FB-003][data-state=conferido]');
   await page.click('#confirm-exit');
@@ -193,6 +229,24 @@ async function main(browser, base) {
   check('16. encerramento (supervisor): operação fechada, histórico preservado, vínculo liberado', closed.history.length >= 4 && closed.closedBy && (await doc(U + 'packages/pk-FB-001')).activeOpId === null);
   await page.reload(); await page.waitForSelector('#main[data-render]'); await go('exit');
   check('16. após encerrar: bipagem bloqueada na interface', await page.locator('#scan-in').isDisabled());
+
+  // ===== administrador do sistema: diagnóstico, cadastro de motorista e vínculo de usuário (create-only)
+  await logout(); await login('sys@t.com'); await go('setup');
+  await page.waitForFunction(() => document.querySelectorAll('#diag-list li').length >= 6);
+  const dg = await page.locator('#diag-list').innerText();
+  check('diagnóstico: marca claramente BACKEND SIMULADO (não é o Firebase real) e lê o perfil no servidor', /BACKEND SIMULADO/.test(dg) && /✓ leitura REAL do seu perfil/.test(dg) && /✗ .*BACKEND SIMULADO/.test(dg));
+  check('banner: ambiente de teste com aviso de backend simulado', /BACKEND SIMULADO/.test(await txt('.demo-banner')));
+  await page.fill('#drv-new-id', 'm10'); await page.fill('#drv-new-name', 'Motorista Novo'); await page.fill('#drv-new-xpt', 'x1'); await page.click('#drv-new-btn');
+  await page.waitForFunction(() => /cadastrado/.test(document.getElementById('drv-new-msg').textContent));
+  check('cadastro de motorista gravado em env/teste/drivers', (await doc(U + 'drivers/m10')).name === 'Motorista Novo' && (await doc(U + 'drivers/m10')).state === 'ativo');
+  await page.click('#drv-new-btn'); await page.waitForFunction(() => /Já existe/.test(document.getElementById('drv-new-msg').textContent));
+  check('cadastro repetido NÃO sobrescreve', (await doc(U + 'drivers/m10')).name === 'Motorista Novo');
+  await page.fill('#usr-new-uid', 'uid-novo'); await page.fill('#usr-new-name', 'Novo Mot'); await page.fill('#usr-new-email', 'novo@t.com'); await page.selectOption('#usr-new-role', 'motorista'); await page.fill('#usr-new-xpts', 'x1'); await page.fill('#usr-new-driver', 'm10'); await page.click('#usr-new-btn');
+  await page.waitForFunction(() => /Perfil criado/.test(document.getElementById('usr-new-msg').textContent));
+  const nu = await doc(U + 'users/uid-novo'); check('vínculo de usuário: perfil motorista com driverId e base, ativo', nu && nu.role === 'motorista' && nu.driverId === 'm10' && nu.xptIds[0] === 'x1' && nu.active === true);
+  await page.click('#usr-new-btn'); await page.waitForFunction(() => /já tem perfil/.test(document.getElementById('usr-new-msg').textContent));
+  await page.fill('#usr-new-uid', 'uid-sys@t.com'); await page.click('#usr-new-btn'); await page.waitForFunction(() => /próprio perfil/.test(document.getElementById('usr-new-msg').textContent));
+  check('vínculo: não altera perfil existente nem o próprio', (await doc(U + 'users/uid-sys@t.com')).role === 'admin_sistema');
 
   // ===== sessão expira
   await page.evaluate(() => window.CXPT_FB._admin.expireSession());

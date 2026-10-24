@@ -37,6 +37,9 @@ service cloud.firestore {
     function canDevolucao() { return active() && role() in ['supervisor', 'coord_base']; }
     function canUsuarios() { return active() && role() in ['admin_sistema']; }
     function canConfig()   { return active() && role() in ['admin_sistema', 'administrador']; }
+    // motorista: só enxerga e confere a operação cujo driverId é o dele (userDoc.driverId); o QR nunca autentica nem autoriza
+    function isDriver() { return active() && role() == 'motorista' && userDoc().data.driverId is string; }
+    function ownOp(op) { return isDriver() && op.driverId == userDoc().data.driverId; }
     function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
 
     // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/teste)
@@ -57,12 +60,13 @@ service cloud.firestore {
       allow delete: if false;
     }
     match /env/teste/regions/{id} {
-      allow get, list: if canUsuarios() || hasBase(resource.data.xptId);
+      allow get, list: if canUsuarios() || (canVerBase() && hasBase(resource.data.xptId));
       allow create, update: if canConfig();
       allow delete: if false;
     }
     match /env/teste/drivers/{id} {
-      allow get, list: if canUsuarios() || hasBase(resource.data.xptId);
+      // motorista lê apenas o próprio cadastro (nunca a lista de motoristas da base)
+      allow get, list: if canUsuarios() || (canVerBase() && hasBase(resource.data.xptId)) || (isDriver() && id == userDoc().data.driverId);
       allow create, update: if canConfig();
       allow delete: if false;
     }
@@ -127,8 +131,7 @@ service cloud.firestore {
 
     // Operações (ambulâncias)
     match /env/teste/operations/{opId} {
-      allow get, list: if (canVerBase() && hasBase(resource.data.xptId))
-        || (active() && role() == 'motorista' && resource.data.driverId == userDoc().data.driverId);
+      allow get, list: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data);
 
       allow create: if canOperacao() && hasBase(request.resource.data.xptId)
         && request.resource.data.state == 'em_separacao'
@@ -141,6 +144,9 @@ service cloud.firestore {
         && request.resource.data.history[0:resource.data.history.size()] == resource.data.history
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history', 'state', 'departed', 'closedAt', 'closedBy', 'pendingAtClose'])
         && ((request.resource.data.state == resource.data.state && canConferir() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history']))
+          // motorista: só bipa a PRÓPRIA operação; só acrescenta leituras de códigos que pertencem a ela; nunca muda estado, histórico anterior ou outras operações
+          || (request.resource.data.state == resource.data.state && ownOp(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history'])
+            && request.resource.data.checked.keys().hasAll(resource.data.checked.keys()) && request.resource.data.checked.keys().hasOnly(resource.data.packageCodes))
           || (resource.data.state == 'em_separacao' && request.resource.data.state == 'saida_confirmada' && canSaida())
           || (request.resource.data.state == 'encerrada' && canEncerrar()));
 
@@ -149,7 +155,8 @@ service cloud.firestore {
 
     // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.
     match /env/teste/events/{eventId} {
-      allow create: if (canAnyWrite() || canConferir()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId);
+      allow create: if (canAnyWrite() || canConferir() || isDriver()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
+        && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/teste/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId));
       allow get, list: if canVerBase() && resource.data.keys().hasAll(['uid']) && (isGlobal() || resource.data.xptId in userDoc().data.xptIds);
       allow update, delete: if false;
     }

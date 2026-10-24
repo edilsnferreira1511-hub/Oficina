@@ -1,4 +1,4 @@
-# COOPMETRO XPT — versão TESTE-FIREBASE (círculo/polígono, ambulância por motorista, Separar, login real, Firestore)
+# COOPMETRO XPT — versão TESTE-FIREBASE-CORRIGIDO (círculo/polígono, ambulância por motorista, Separar, login real, Firestore)
 
 > **Dois modos, decididos por `firebase-config.js`:**
 > - **`apiKey` vazia (como entregue): MODO DEMONSTRAÇÃO** — dados fictícios só em memória, sem login, sem rede (exceto ladrilhos do mapa).
@@ -6,6 +6,8 @@
 >
 > **Nada foi publicado, nenhum deploy foi feito, o Hosting e o plano Firebase não foram tocados, nada foi gravado no Firebase real a partir deste ambiente.**
 > **O que depende de você** está em `FIREBASE.md` (seção "Ações suas"): colar a `apiKey`, criar o 1º administrador, publicar/mesclar as regras, abrir por `http(s)`.
+
+> **Leia primeiro:** `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md` (causa da falha de criação, correções, estado real do Firebase, matriz de permissões, motorista via QR e o que depende de você). Esta versão **não foi testada contra o Firebase real**.
 
 ## Como abrir (IMPORTANTE para o mapa)
 - **Para o mapa aparecer, abra por `http(s)`**, não com duplo clique: o servidor público do OpenStreetMap exige o cabeçalho `Referer`, que o navegador **não envia** para arquivos abertos como `file://`. Nesse caso a tela diz exatamente isso ("mapa indisponível") em vez de desenhar um mapa falso.

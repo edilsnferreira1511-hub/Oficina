@@ -164,6 +164,46 @@ atest('gravação que falha na rede não aparece como salva (cache e banco intac
   eq(r.created.length, 0); ok(/conexão|gravad/i.test(r.error || '')); eq(d.D.packages.length, n); ok(!w._admin.getDoc(U + 'packages/pk-NET-1'));
   fail = false; const r2 = await d.svc.registerEntries('x1', [item('NET-1')], d.who); eq(r2.created.length, 1);
 });
+function addDriverUser(w, email, driverId, xpts) { w._admin.addAccount(email, 'senha-' + email, 'uid-' + email); w._admin.setDoc(U + 'users/uid-' + email, { name: 'Mot ' + email, email, role: 'motorista', xptIds: xpts, active: true, driverId }); }
+atest('motorista (servidor): carrega só a própria operação/cadastro, bipa o próprio pacote, sem ler pacotes e sem administrar', async () => {
+  const w = world(), { r } = await setupOp(w, ['M-1', 'M-2']); ok(r.ok);
+  addDriverUser(w, 'm6@t.com', 'm6', ['x1']); addDriverUser(w, 'm7@t.com', 'm7', ['x1']);
+  const m = await device(w, 'm6@t.com'); eq(m.D.packages.length, 0, 'sem pacotes'); eq(m.D.operations.length, 1); eq(m.D.drivers.length, 1); eq(m.D.regions.length, 0);
+  const op = m.D.operations[0]; eq(op.driverId, 'm6');
+  eq((await m.svc.scan(op, 'm-1', m.who)).status, 'ok'); eq(w._admin.getDoc(U + 'operations/OP-0001').checked['M-1'].operator, m.user.name);
+  eq((await m.svc.scan(op, 'M-1', m.who)).status, 'repetido'); eq(Object.keys(w._admin.getDoc(U + 'operations/OP-0001').checked).length, 1, 'sem duplicar');
+  eq((await m.svc.scan(op, 'NADA-1', m.who)).status === 'ok', false);
+  eq(w._admin.getDoc(U + 'packages/pk-M-1').state, 'em_separacao', 'bipar não confirma saída');
+  await denied(m.fb.db.get(U + 'packages/pk-M-1'), 'pacote'); await denied(m.fb.db.list(U + 'packages', []), 'lista');
+  const o = await device(w, 'm7@t.com'); eq(o.D.operations.length, 0, 'outro motorista não vê a operação');
+  await denied(o.fb.db.get(U + 'operations/OP-0001'), 'op alheia');
+  await denied(o.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then(() => tx.update(U + 'operations/OP-0001', { checked: { 'M-2': { at: 1 } } }))), 'bip alheio');
+  await denied(m.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then(() => tx.update(U + 'operations/OP-0001', { state: 'encerrada' }))), 'encerrar');
+  await denied(m.fb.db.runTransaction((tx) => tx.get(U + 'users/uid-m6@t.com').then(() => tx.update(U + 'users/uid-m6@t.com', { role: 'administrador' }))), 'perfil');
+});
+atest('motorista: operação encerrada bloqueia bipagem (serviço e regras)', async () => {
+  const w = world(), { r } = await setupOp(w, ['E-1']); ok(r.ok);
+  addDriverUser(w, 'm6@t.com', 'm6', ['x1']);
+  const m = await device(w, 'm6@t.com'); const op = m.D.operations[0];
+  const sup = await device(w, 'sup@t.com'); const sop = sup.D.operations[0];
+  eq((await sup.svc.scan(sop, 'E-1', sup.who)).status, 'ok'); await sup.svc.confirmExit(sop, sup.who); await sup.svc.closeOperation(sop, sup.who);
+  const m2 = await device(w, 'm6@t.com'); const op2 = m2.D.operations[0]; ok(op2.state === 'encerrada');
+  const x = await m2.svc.scan(op2, 'E-1', m2.who); ok(x.status !== 'ok', 'não deve gravar'); 
+  await denied(m2.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then(() => tx.update(U + 'operations/OP-0001', { checked: { 'E-1': { at: 2 } } }))), 'encerrada');
+});
+atest('cadastro de motorista e vínculo de usuário: só quem pode, create-only, nunca o próprio perfil', async () => {
+  const w = world(), s = await device(w, 'sys@t.com'), d = await device(w, 'desp@t.com');
+  ok(!(await SV.registerDriver(d.fb, d.user, { id: 'm20', name: 'X', xptId: 'x1' })).ok, 'despacho não cadastra');
+  ok(!(await SV.registerDriver(s.fb, s.user, { id: '', name: 'X', xptId: 'x1' })).ok, 'dados obrigatórios');
+  ok((await SV.registerDriver(s.fb, s.user, { id: 'm20', name: 'Novo', xptId: 'x1' })).ok); eq(w._admin.getDoc(U + 'drivers/m20').state, 'ativo');
+  const again = await SV.registerDriver(s.fb, s.user, { id: 'm20', name: 'Outro', xptId: 'x1' }); ok(!again.ok); eq(w._admin.getDoc(U + 'drivers/m20').name, 'Novo', 'não sobrescreve');
+  ok(!(await SV.linkUser(d.fb, d.user, { uid: 'u9', name: 'A', email: 'a@a', role: 'motorista', xptIds: ['x1'], driverId: 'm20' })).ok, 'só admin_sistema');
+  ok(!(await SV.linkUser(s.fb, s.user, { uid: s.user.uid, name: 'A', email: 'a@a', role: 'administrador' })).ok, 'não o próprio');
+  ok(!(await SV.linkUser(s.fb, s.user, { uid: 'u9', name: 'A', email: 'a@a', role: 'motorista', xptIds: ['x1'] })).ok, 'motorista exige driverId');
+  ok(!(await SV.linkUser(s.fb, s.user, { uid: 'u9', name: 'A', email: 'a@a', role: 'despacho', xptIds: [] })).ok, 'base obrigatória');
+  ok((await SV.linkUser(s.fb, s.user, { uid: 'u9', name: 'A', email: 'a@a', role: 'motorista', xptIds: ['x1'], driverId: 'm20' })).ok);
+  eq(w._admin.getDoc(U + 'users/u9').driverId, 'm20'); ok(!(await SV.linkUser(s.fb, s.user, { uid: 'u9', name: 'B', email: 'b@b', role: 'administrador', xptIds: [] })).ok); eq(w._admin.getDoc(U + 'users/u9').role, 'motorista');
+});
 atest('bipagem remota: ok → repetido → desconhecido → pacote de outra operação; persistência e bloqueio após encerrar', async () => {
   const w = world(), { d, c, r } = await setupOp(w, ['S-1', 'S-2', 'S-3']); ok(r.ok);
   const op = c.D.operations[0];

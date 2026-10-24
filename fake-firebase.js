@@ -20,7 +20,7 @@
     var S = opts.state || { docs: {}, accounts: [], resets: [], seq: 0 }, session = null; // opts.state: banco compartilhado entre vários "aparelhos"
     if (storage && !opts.state) { try { var raw = storage.getItem(KEY); if (raw) S = JSON.parse(raw); } catch (_) { /* ignore */ } }
     if (storage) { try { var rs = storage.getItem(KEY + '-session'); if (rs) session = JSON.parse(rs); } catch (_) { /* ignore */ } }
-    var listeners = [], stats = { txRuns: 0, conflicts: 0 };
+    var listeners = [], stats = { txRuns: 0, conflicts: 0 }, forceFail = false;
     function save() { if (storage) { try { storage.setItem(KEY, JSON.stringify(S)); if (session) storage.setItem(KEY + '-session', JSON.stringify(session)); else storage.removeItem(KEY + '-session'); } catch (_) { /* ignore */ } } }
     function sync() { // várias abas/aparelhos de teste compartilham o mesmo "servidor" (armazenamento do navegador de teste)
       if (!storage || opts.state) return;
@@ -35,6 +35,8 @@
     function inR(list) { return active() && list.indexOf(role()) >= 0; }
     function hasBase(x) { return active() && (ROLES.GLOBAL.indexOf(role()) >= 0 || (mydata().xptIds || []).indexOf(x) >= 0); }
     function seg(p) { return p.split('/'); }
+    function isDriver() { var d = mydata(); return active() && role() === 'motorista' && typeof d.driverId === 'string'; }
+    function ownOp(op) { return !!op && isDriver() && op.driverId === mydata().driverId; }
     function canAnyWrite() { return inR(ROLES.ENTRADA) || inR(ROLES.OPERACAO) || inR(ROLES.SAIDA) || inR(ROLES.ENCERRAR) || inR(ROLES.CORRECAO) || inR(ROLES.DEVOLUCAO); }
     function affected(a, b) { var k = {}; Object.keys(a || {}).concat(Object.keys(b || {})).forEach(function (x) { if (JSON.stringify((a || {})[x]) !== JSON.stringify((b || {})[x])) k[x] = 1; }); return Object.keys(k); }
     function onlyKeys(a, b, allowed) { return affected(a, b).every(function (k) { return allowed.indexOf(k) >= 0; }); }
@@ -52,7 +54,7 @@
       }
       if (col === 'xpts') { if (kind === 'get') return hasBase(id) || inR(ROLES.USUARIOS); if (kind === 'list') return inR(ROLES.GLOBAL) || inR(ROLES.USUARIOS); if (kind === 'create' || kind === 'update') return inR(ROLES.CONFIG) || inR(ROLES.USUARIOS); return false; }
       if (col === 'regions' || col === 'drivers') {
-        if (kind === 'get' || kind === 'list') return inR(ROLES.USUARIOS) || (!!before && hasBase(before.xptId));
+        if (kind === 'get' || kind === 'list') return inR(ROLES.USUARIOS) || (!!before && inR(ROLES.VER_BASE) && hasBase(before.xptId)) || (col === 'drivers' && isDriver() && id === mydata().driverId);
         if (kind === 'create' || kind === 'update') return inR(ROLES.CONFIG);
         return false;
       }
@@ -90,18 +92,24 @@
         return false;
       }
       if (col === 'operations') {
-        var drv = active() && role() === 'motorista' && before && before.driverId === mydata().driverId;
+        var drv = ownOp(before);
         if (kind === 'get' || kind === 'list') return !!before && ((inR(ROLES.VER_BASE) && hasBase(before.xptId)) || drv);
         if (kind === 'create') return inR(ROLES.OPERACAO) && hasBase(after.xptId) && after.state === 'em_separacao' && !!afterDocs['env/teste/counters/operations'];
         if (kind === 'update') {
           if (before.state === 'encerrada' || !hasBase(before.xptId) || after.xptId !== before.xptId || !prefixSame(before.history, after.history)) return false;
           if (!onlyKeys(before, after, ['checked', 'history', 'state', 'departed', 'closedAt', 'closedBy', 'pendingAtClose'])) return false;
           return (after.state === before.state && inR(ROLES.CONFERIR) && onlyKeys(before, after, ['checked', 'history']))
+            || (after.state === before.state && drv && onlyKeys(before, after, ['checked', 'history']) && Object.keys(before.checked || {}).every(function (k) { return !!(after.checked || {})[k]; })
+              && Object.keys(after.checked || {}).every(function (k) { return (before.packageCodes || []).indexOf(k) >= 0; }))
             || (before.state === 'em_separacao' && after.state === 'saida_confirmada' && inR(ROLES.SAIDA)) || (after.state === 'encerrada' && inR(ROLES.ENCERRAR));
         }
         return false;
       }
-      if (col === 'events') { if (kind === 'create') return (canAnyWrite() || inR(ROLES.CONFERIR)) && after.uid === session.uid && hasBase(after.xptId); return false; }
+      if (col === 'events') {
+        if (kind !== 'create') return false;
+        var opDoc = typeof after.opId === 'string' && S.docs['env/teste/operations/' + after.opId] ? S.docs['env/teste/operations/' + after.opId].data : null;
+        return (canAnyWrite() || inR(ROLES.CONFERIR) || isDriver()) && after.uid === session.uid && hasBase(after.xptId) && (!isDriver() || (typeof after.opId === 'string' && !!opDoc && opDoc.driverId === mydata().driverId));
+      }
       return false;
     }
 
@@ -154,7 +162,11 @@
                 stats.conflicts++; if (attempt >= 5) throw err('aborted', 'Too much contention'); return once();
               }
               var paths = Object.keys(writes);
-              if (opts.failCommit && opts.failCommit()) throw err('unavailable', 'Network down');
+              if ((opts.failCommit && opts.failCommit()) || forceFail) throw err('unavailable', 'Network down');
+              // limites do Firestore real: 500 gravações por transação; 20 acessos a documentos distintos pelas regras (get/exists/existsAfter)
+              if (paths.length > 500) throw err('invalid-argument', 'maximum 500 writes allowed per request');
+              var access = {}; paths.forEach(function (p) { var q = seg(p); if (q[2] === 'packages' && !S.docs[p]) access['codes/' + writes[p].code] = 1; if (q[2] === 'operations' && !S.docs[p]) access['counters/operations'] = 1; if (q[2] === 'events' && writes[p].opId && isDriver()) access['operations/' + writes[p].opId] = 1; });
+              if (1 + Object.keys(access).length > 20) throw err('permission-denied', 'Too many document access calls in rules (limit 20)');
               var after = {}; paths.forEach(function (p) { after[p] = writes[p]; });
               paths.forEach(function (p) {
                 var ex = S.docs[p], kind = ex ? 'update' : 'create';
@@ -193,12 +205,13 @@
       setDoc: function (path, data) { S.docs[path] = { data: clone(data), v: (S.docs[path] ? S.docs[path].v : 0) + 1 }; save(); },
       getDoc: function (path) { sync(); return S.docs[path] ? clone(S.docs[path].data) : null; },
       listDocs: function (col) { sync(); return Object.keys(S.docs).filter(function (p) { return p.indexOf(col + '/') === 0 && seg(p).length === seg(col).length + 1; }).map(function (p) { return { path: p, data: clone(S.docs[p].data) }; }); },
+      setFail: function (on) { forceFail = !!on; },
       expireSession: function () { session = null; save(); notify(); },
       resets: function () { return S.resets.slice(); },
       stats: stats, reset: function () { S.docs = {}; S.accounts = []; S.resets = []; session = null; save(); },
       state: function () { return S; },
     };
-    return { auth: auth, db: db, _admin: admin, ROLES: ROLES };
+    return { kind: 'simulado', auth: auth, db: db, _admin: admin, ROLES: ROLES };
   }
   var api = { create: create, ROLES: ROLES };
   root.CXPT_FAKE_FIREBASE = api;

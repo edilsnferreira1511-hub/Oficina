@@ -3,7 +3,10 @@
 ## Ambiente
 Node v22.22.0 · Playwright 1.56.1 · Chromium (/opt/pw-browsers, headless) · OpenCV 5.0.0 (só para decodificar o QR) · Linux. Somente Chromium; celular **emulado** (390 px, toque), não aparelho real.
 
-## Última execução
+## Última execução (versão CORRIGIDO)
+unit 52 · unit-fluxo 30 · unit-firebase 22 · rules-lint 12 · e2e 598 · e2e-fluxo 173 · e2e-firebase 79 — 0 falhas, todos contra backend SIMULADO. Nenhum teste rodou contra o Firebase real. Ver `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md`.
+
+## Execução anterior (histórico)
 | Tipo | Arquivo | Resultado |
 |---|---|---|
 | Unitário | `unit.test.js` | **52 aprovados** |

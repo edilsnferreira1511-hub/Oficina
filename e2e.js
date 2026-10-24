@@ -273,8 +273,8 @@ async function suite(browser, label, base) {
   await go('help');
   check('ajuda explica perda de dados ao recarregar', /recarreg/i.test(await txt('main')));
   await page.selectOption('#profile-select', 'motorista');
-  await go('entry');
-  check('perfil motorista não acessa a entrada (aviso, sem proteção real)', /perfil|permiss/i.test(await txt('main')));
+  await page.evaluate(() => { location.hash = '#/entry'; }); await page.waitForTimeout(200);
+  check('perfil motorista não acessa a entrada (redirecionado à própria bipagem)', (await page.evaluate(() => document.getElementById('main').dataset.route)) === 'separation' && (await page.locator('#code-in').count()) === 0);
   await page.selectOption('#profile-select', 'despacho');
 
   // ---- requisições externas e erros

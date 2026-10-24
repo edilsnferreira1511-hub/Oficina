@@ -56,6 +56,22 @@ t('modelo de regras usado nos testes == regras', () => {
   const R = FAKE.ROLES, map = { canVerBase: 'VER_BASE', canEntrada: 'ENTRADA', canConferir: 'CONFERIR', canOperacao: 'OPERACAO', canCorrecao: 'CORRECAO', canSaida: 'SAIDA', canEncerrar: 'ENCERRAR', canDevolucao: 'DEVOLUCAO', canUsuarios: 'USUARIOS', canConfig: 'CONFIG' };
   Object.keys(map).forEach((fn) => ok(setEq(roles(fn), R[map[fn]]), fn));
 });
+t('motorista: regras de acesso exclusivo à PRÓPRIA operação', () => {
+  ok(/function isDriver\(\)[^}]*role\(\) == 'motorista'/.test(code), 'isDriver'); ok(/function ownOp\(op\)[^}]*op\.driverId == userDoc\(\)\.data\.driverId/.test(code), 'ownOp compara driverId do servidor');
+  const ops = /match \/env\/teste\/operations\/\{opId\} \{([\s\S]*?)\n    \}/.exec(code); ok(ops, 'bloco operations');
+  const create = /allow create:[^;]*;/.exec(ops[1])[0]; ok(!/ownOp|isDriver/.test(create), 'motorista não cria operação');
+  ok(/allow get, list:[^;]*ownOp\(resource\.data\)/.test(ops[1]), 'motorista lê só a própria operação');
+  const up = /allow update:[\s\S]*?;\n/.exec(ops[1])[0]; ok(/ownOp\(resource\.data\)[^|]*hasOnly\(\['checked', 'history'\]\)/.test(up), 'motorista só altera checked/history'); ok(/hasOnly\(resource\.data\.packageCodes\)/.test(up), 'só códigos da própria operação');
+  ok(!/ownOp[^|]*(saida_confirmada|encerrada)/.test(up), 'motorista não confirma saída nem encerra');
+  const pk = /match \/env\/teste\/packages\/\{pkId\} \{([\s\S]*?)\n    \}/.exec(code); if (pk) ok(!/isDriver|ownOp/.test(pk[1]), 'motorista não lê pacotes');
+  ['users', 'xpts', 'regions', 'drivers'].forEach((c) => { const b = new RegExp('match /env/teste/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b, c); if (c !== 'drivers') ok(!/isDriver|ownOp/.test(b[1]), c + ' sem acesso do motorista'); });
+  ok(/allow get, list:[^;]*isDriver\(\) && id == userDoc\(\)\.data\.driverId/.test(code), 'motorista só lê o próprio cadastro de motorista');
+});
+t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhuma ação administrativa', () => {
+  ok(setEq(rolesWith('conferir_propria'), ['motorista']));
+  ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config', 'ver_global'].forEach((a) => ok(!P.can('motorista', a), a));
+  ok(P.can('despacho', 'entrada') && P.can('despacho', 'conferir') && !P.can('despacho', 'operacao'));
+});
 t('firebase-config não contém segredos e apiKey não foi inventada', () => {
   const cfg = fs.readFileSync(path.join(__dirname, 'firebase-config.js'), 'utf8');
   ok(/apiKey: '',/.test(cfg), 'apiKey deve estar vazia até o dono informar'); ok(!/AIza[0-9A-Za-z_-]{20,}/.test(cfg)); ok(!/private_key|service_account|BEGIN PRIVATE/i.test(cfg));

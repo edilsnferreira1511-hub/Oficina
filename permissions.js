@@ -26,6 +26,7 @@
     { id: 'usuarios', label: 'Administrar usuários e bases' },
     { id: 'config', label: 'Alterar configurações (motivos, limites)' },
     { id: 'minhas_ops', label: 'Ver operações atribuídas a si' },
+    { id: 'conferir_propria', label: 'Bipar (conferir) os pacotes da PRÓPRIA ambulância' },
   ];
   // true = permitido na PROPOSTA. Nada aprovado (D-06).
   var M = {
@@ -35,7 +36,7 @@
     supervisor: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, encerrar: 1, correcao: 1, devolucao: 1 },
     coord_base: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, correcao: 1, devolucao: 1 },
     despacho: { ver_base: 1, entrada: 1, conferir: 1 },
-    motorista: { minhas_ops: 1 },
+    motorista: { minhas_ops: 1, conferir_propria: 1 },
   };
   function can(profileId, actionId) { return !!(M[profileId] && M[profileId][actionId]); }
   function matrix() {

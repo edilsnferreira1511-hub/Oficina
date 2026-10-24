@@ -12,7 +12,7 @@
   function opLabel(op) { return op.name || op.groupLabel || op.id; }
   function visibleOps(c) {
     var ops = NS.operations.opsOf(c.D, c.xptId);
-    return c.profile === 'motorista' ? ops.filter(function (o) { return o.driverId === (c.user ? c.user.driverId : 'm1'); }) : ops;
+    return c.profile === 'motorista' ? ops.filter(function (o) { return o.driverId === c.driverId; }) : ops;
   }
   function profileLabel(c) { var p = NS.permissions.PROFILES.filter(function (x) { return x.id === c.profile; })[0]; return p ? p.label : c.profile; }
     function progressBar(done, total) {
@@ -242,13 +242,14 @@
 
   // ---------- página de separação (aberta pelo QR Code)
   V.separation = function (c) {
+    if (c.profile === 'motorista') return V.driverOp(c); // motorista nunca vê a página de separação do despacho
     var D = c.D, id = c.params[0];
     var any = D.operations.filter(function (o) { return o.id === id; })[0];
     if (!any) return H.page([ui.empty('Operação não encontrada.', NS.mode === 'remoto' ? 'Ela não existe, não pertence às suas bases ou você não tem permissão para vê-la. Use "Atualizar dados" se ela acabou de ser criada em outro aparelho.' : 'Os dados desta demonstração ficam só na memória: depois de recarregar a página, ou em outro aparelho, a operação não existe. Com backend, o QR abriria a operação gravada.'), el('a', { class: 'btn btn--ghost', href: '#/ops' }, 'Ir para Operações')]);
     var g = H.guard(c, ['ver_base', 'minhas_ops', 'conferir']); if (g) return g;
     if (any.xptId !== c.xptId) return H.page([ui.callout('warn', 'Esta operação pertence a outra base.', 'Selecione no cabeçalho a base à qual você tem acesso. Nenhum dado da operação é exibido.')]);
     var op = any;
-    if (c.profile === 'motorista' && op.driverId !== (c.user ? c.user.driverId : 'm1')) return H.page([ui.callout('warn', 'Operação não atribuída a você (simulação).', 'O motorista só enxerga operações atribuídas.')]);
+    if (c.profile === 'motorista' && op.driverId !== c.driverId) return H.page([ui.callout('warn', 'Operação não atribuída a você (simulação).', 'O motorista só enxerga operações atribuídas.')]);
     var s0 = A.summary(D, op), pk = A.opPackages(D, op), withCoords = pk.filter(function (p) { return G.hasCoords(p.location); });
     var av = NS.map.availability(root.CXPT_MAP), ctl = null, mapHost = el('div', { class: 'map-host map-host--mini', id: 'sep-map' });
     var panel;

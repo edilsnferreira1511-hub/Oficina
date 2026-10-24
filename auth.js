@@ -12,6 +12,13 @@
     'auth/invalid-email': 'E-mail inválido.', 'auth/user-disabled': 'Este usuário foi desativado. Procure o administrador.',
     'auth/too-many-requests': 'Muitas tentativas. Aguarde alguns minutos e tente de novo.', 'auth/network-request-failed': 'Sem conexão com a internet.',
     'auth/missing-password': 'Informe a senha.',
+    'auth/operation-not-allowed': 'O login por e-mail e senha não está ativado no Firebase. O administrador deve ativar em Console → Authentication → Sign-in method → E-mail/senha.',
+    'auth/unauthorized-domain': 'Este endereço do site não está autorizado no Firebase. O administrador deve incluí-lo em Console → Authentication → Settings → Authorized domains.',
+    'auth/invalid-api-key': 'A apiKey em firebase-config.js é inválida. Copie de novo em Console → Configurações do projeto → Seus apps → Coopmetro.',
+    'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'A apiKey em firebase-config.js é inválida. Copie de novo em Console → Configurações do projeto → Seus apps → Coopmetro.',
+    'auth/app-not-authorized': 'Este app não está autorizado a usar o Firebase com a apiKey informada (confira restrições da chave no Google Cloud).',
+    'auth/configuration-not-found': 'O Authentication ainda não foi configurado neste projeto Firebase (Console → Authentication → Primeiros passos).',
+    'auth/internal-error': 'Erro interno do Firebase Auth. Verifique a apiKey e o domínio autorizado.',
   };
   function authMessage(e) { return AUTH_ERRORS[(e && e.code) || ''] || 'Não foi possível entrar. Tente novamente.'; }
 

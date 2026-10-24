@@ -352,16 +352,44 @@ async function main(browser, base) {
   check('10b. código inválido: vermelho "inválido"', /big-result--fail/.test(await sortScan('AB CD')) && /inválido/i.test(await txt('#sort-in-result')));
   check('10b. consultar na tela Separar não grava nada (dados idênticos)', (await snapshot()) === before10);
   check('10b. Separar cabe em 390 px e sem "null"', (await D(() => document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1)) && await noNull());
-  await setProfile('motorista'); await go('check');
-  check('10b. motorista: vê só a própria ambulância (Demo 1) e seus pacotes, sem a ambulância criada agora', /Ambulância Demo 1/.test(await txt('main')) && !/Ambulância Teste 1/.test(await txt('main')) && (await page.locator('#my-codes .chip').count()) >= 1);
-  const myCode = await page.locator('#my-codes .chip').first().innerText();
-  const chk = async (code) => { await page.fill('#check-in', code); await page.press('#check-in', 'Enter'); await page.waitForSelector('#check-in-result.big-result--ok, #check-in-result.big-result--wrong, #check-in-result.big-result--warn'); return page.locator('#check-in-result').getAttribute('class'); };
-  check('10b. motorista bipa pacote da sua ambulância: verde', /big-result--ok/.test(await chk(myCode)) && /Pacote da sua ambulância/.test(await txt('#check-in-result')));
-  await page.waitForFunction(() => document.getElementById('check-in-result').textContent === '', null, { timeout: 5000 });
-  check('10b. motorista bipa pacote de outra ambulância: vermelho', /big-result--wrong/.test(await chk('FLX-002')) && /outra ambulância/i.test(await txt('#check-in-result')));
-  await page.waitForFunction(() => document.getElementById('check-in-result').textContent === '', null, { timeout: 5000 });
-  check('10b. código inválido: âmbar de atenção', /big-result--warn/.test(await chk('AB CD')));
-  check('10b. tela do motorista não grava nada', (await snapshot()) === before10);
+  // ----- motorista (demonstração): interface separada e reduzida; o QR/URL nunca abre painéis do despacho
+  await setProfile('motorista');
+  await page.waitForFunction(() => document.getElementById('main').dataset.route === 'separation');
+  const navTxt = await txt('#nav');
+  check('10b. motorista: menu com um único item ("Minha ambulância"), sem despacho/entrada/mapa/relatórios', (await page.locator('#nav a').count()) === 1 && /Minha ambulância/.test(navTxt) && !/Mapa|Entrada|Operações|Relatórios|XPT|Pacotes/.test(navTxt));
+  check('10b. motorista: barra reduzida (sem seletor de base nem alertas do despacho)', (await page.locator('#xpt-select').count()) === 0 && (await page.locator('.bell').count()) === 0);
+  check('10b. motorista: vê só a própria ambulância (Demo 1) com operação, motorista e códigos', /Ambulância Demo 1/.test(await txt('main')) && /OP-DEMO-001/.test(await txt('#drv-op')) && /Motorista Demo 1/.test(await txt('#drv-info')) && (await page.locator('.conf-item').count()) >= 1 && !/Ambulância Teste 1/.test(await txt('main')));
+  check('10b. motorista: nenhum botão de criar/confirmar saída/encerrar/QR/abrir separação do despacho', (await page.locator('#amb-create, #confirm-exit, #close-op, #show-qr, #open-sep, #plan-amb').count()) === 0);
+  for (const r of ['map', 'entry', 'ops', 'exit', 'packages', 'reports', 'drivers', 'xpts', 'sort', 'setup', 'operation/' + op.id]) {
+    await page.evaluate((x) => { location.hash = '#/' + x; }, r); await page.waitForTimeout(80);
+    if ((await page.evaluate(() => document.getElementById('main').dataset.route)) !== 'separation' || !/#\/separation$/.test(await page.evaluate(() => location.hash))) check('10b. motorista não abre a rota ' + r, false);
+    else pass++;
+  }
+  await page.evaluate((id) => { location.hash = '#/separation/' + id; }, op.id);
+  await page.waitForFunction(() => document.getElementById('driver-denied'));
+  check('10b. QR/URL de OUTRA ambulância (a recém-criada, de outro motorista): acesso negado sem revelar dados', /Acesso negado/.test(await txt('main')) && !/Ambulância Teste 1|FLX-|Responsável Demo/.test(await txt('main')) && (await page.locator('#scan-in, #drv-in').count()) === 0);
+  await page.evaluate(() => { location.hash = '#/separation/OP-DEMO-002'; });
+  await page.waitForFunction(() => document.getElementById('driver-denied'));
+  check('10b. operação demo de outro motorista (Demo 2): acesso negado', /Acesso negado/.test(await txt('main')));
+  await page.evaluate(() => { location.hash = '#/separation/OP-INEXISTENTE'; });
+  await page.waitForFunction(() => document.getElementById('driver-denied'));
+  check('10b. operação inexistente: mesma resposta de acesso negado (não revela se existe)', /Acesso negado/.test(await txt('main')));
+  await page.click('#driver-home'); await page.waitForSelector('#drv-op');
+  const myCodes = await page.locator('.conf-item').evaluateAll((l) => l.map((x) => x.dataset.code));
+  const drvScan = async (code) => { await page.fill('#drv-in', code); await page.press('#drv-in', 'Enter'); await page.waitForSelector('#drv-in-result.big-result--ok, #drv-in-result.big-result--wrong, #drv-in-result.big-result--warn, #drv-in-result.big-result--fail'); return page.locator('#drv-in-result').getAttribute('class'); };
+  const beforeDrv = JSON.parse(await snapshot());
+  check('10b. motorista bipa pacote da própria ambulância: verde "Conferido" e contagem 1', /big-result--ok/.test(await drvScan(myCodes[0].toLowerCase())) && /Conferido/.test(await txt('#drv-in-result')) && (await txt('#cnt-done')) === '1' && (await page.locator('.conf-item[data-state=conferido]').count()) === 1);
+  await page.waitForFunction(() => document.getElementById('drv-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. repetido: âmbar "Já conferido", sem duplicar a contagem', /big-result--warn/.test(await drvScan(myCodes[0])) && /Já conferido/.test(await txt('#drv-in-result')) && (await txt('#cnt-done')) === '1');
+  await page.waitForFunction(() => document.getElementById('drv-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. pacote de outra operação: vermelho, sem revelar nome da outra ambulância', /big-result--wrong/.test(await drvScan('FLX-002')) && /outra operação/i.test(await txt('#drv-in-result')) && !/Ambulância Teste|Demo 2/.test(await txt('#drv-in-result')) && (await txt('#cnt-done')) === '1');
+  await page.waitForFunction(() => document.getElementById('drv-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. código desconhecido: vermelho sem alterar nada', /big-result--wrong/.test(await drvScan('ZZZ-999')) && /desconhecido/i.test(await txt('#drv-in-result')) && (await txt('#cnt-done')) === '1');
+  await page.waitForFunction(() => document.getElementById('drv-in-result').textContent === '', null, { timeout: 5000 });
+  check('10b. código inválido: âmbar', /big-result--warn/.test(await drvScan('AB CD')));
+  const afterDrv = JSON.parse(await snapshot());
+  check('10b. bipagem do motorista só registrou a conferência da própria operação (estados de pacotes intactos)', JSON.stringify(afterDrv.p) === JSON.stringify(beforeDrv.p) && afterDrv.o.filter((o) => JSON.stringify(o) !== JSON.stringify(beforeDrv.o.find((x) => x.id === o.id))).map((o) => o.id).join() === 'OP-DEMO-001');
+  check('10b. tela do motorista cabe em 390 px e sem "null"', (await D(() => document.documentElement.scrollWidth - document.documentElement.clientWidth <= 1)) && await noNull());
   await setProfile('coord_base'); await go('separation/' + op.id);
 
   // ===== 11-14. Bipagem
@@ -401,7 +429,7 @@ async function main(browser, base) {
   await setProfile('despacho');
   check('16. Despacho consegue bipar, mas não confirma saída (bloqueado com motivo)', (await page.locator('#scan-in').isEnabled()) && (await page.locator('#confirm-exit').count()) === 0 && /não pode confirmar saída/i.test(await txt('#op-actions')));
   await setProfile('motorista');
-  check('16. Motorista sem atribuição não vê a operação', /não atribuída/i.test(await txt('main')) && (await page.locator('#scan-in').count()) === 0);
+  check('16. Motorista sem atribuição não vê a operação', /Acesso negado/i.test(await txt('main')) && !/Ambulância Teste 1|FLX-/.test(await txt('main')) && (await page.locator('#scan-in').count()) === 0);
   await setProfile('coord_base');
 
   // ===== 15. Confirmar saída: só os conferidos

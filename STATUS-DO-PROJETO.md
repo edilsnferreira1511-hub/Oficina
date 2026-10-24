@@ -1,6 +1,6 @@
 # STATUS DO PROJETO — COOPMETRO XPT TESTE-FIREBASE
 
-**Pasta:** `/home/claude/coopmetro-xpt-flat/` · **ZIP:** `/mnt/attach/outputs/COOPMETRO-XPT-TESTE-FIREBASE.zip` (uma pasta, sem subpastas)
+**Pasta:** `/home/claude/coopmetro-xpt-flat/` · **ZIP:** `/mnt/attach/outputs/COOPMETRO-XPT-TESTE-FIREBASE-CORRIGIDO.zip` (uma pasta, sem subpastas)
 
 ## Implementado
 1. **Entrada**: removidas as 4 opções de localização; bipar → mapa → marcar → reposicionar → **Confirmar localização**; só confirmada vira localização; sem ela o pacote segue "sem localização confirmada" (sem coordenadas inventadas); localização salva é mostrada nas consultas.
@@ -19,3 +19,7 @@
 
 ## Não feito (por restrição ou limite)
 Deploy, Hosting, plano/cobrança, Cloud Functions, migrações/limpezas, uso do projeto real além de `env/teste` (e nem isso foi gravado daqui) · câmera (leitura por câmera nas telas Separar/Bipar) · trava no servidor de "um motorista, uma ambulância" · paginação para milhares de pacotes · tempo real entre aparelhos.
+
+
+## Atualização (versão CORRIGIDO)
+Criação de ambulância por zona com erros visíveis, diagnóstico de conexão, cadastro de motorista/vínculo de usuário e motorista restrito à própria bipagem (interface + regras). Firebase real: **ainda não conectado** (apiKey vazia). Detalhes em `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md`.
