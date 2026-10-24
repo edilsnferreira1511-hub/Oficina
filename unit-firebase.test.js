@@ -191,6 +191,10 @@ atest('motorista: operação encerrada bloqueia bipagem (serviço e regras)', as
   const x = await m2.svc.scan(op2, 'E-1', m2.who); ok(x.status !== 'ok', 'não deve gravar'); 
   await denied(m2.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then(() => tx.update(U + 'operations/OP-0001', { checked: { 'E-1': { at: 2 } } }))), 'encerrada');
 });
+atest('admin_sistema (mesmo com bases preenchidas por engano) carrega só os cadastros, sem ler operações/pacotes', async () => {
+  const w = world(); w._admin.setDoc(U + 'users/uid-sys@t.com', { name: 'Sys', email: 'sys@t.com', role: 'admin_sistema', xptIds: ['x1'], active: true, driverId: null });
+  const s = await device(w, 'sys@t.com'); ok(s.D, 'carregou'); ok(s.D.xpts.length >= 2 && s.D.drivers.length > 0); eq(s.D.packages.length, 0); eq(s.D.operations.length, 0);
+});
 atest('cadastro de motorista e vínculo de usuário: só quem pode, create-only, nunca o próprio perfil', async () => {
   const w = world(), s = await device(w, 'sys@t.com'), d = await device(w, 'desp@t.com');
   ok(!(await SV.registerDriver(d.fb, d.user, { id: 'm20', name: 'X', xptId: 'x1' })).ok, 'despacho não cadastra');

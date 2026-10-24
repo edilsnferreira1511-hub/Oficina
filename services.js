@@ -292,7 +292,13 @@
     });
   }
 
+  function tag(where, p) { return p.catch(function (e) { if (e && typeof e === 'object') e.cxptWhere = where; throw e; }); }
   function loadAll(fb, user) {
+    if (user.role === 'admin_sistema') { // administrador do sistema: só cadastros (bases, regiões, motoristas, configurações); nunca pacotes/operações
+      var L = function (col) { return tag(col, fb.db.list(ENV + '/' + col, [])); };
+      return Promise.all([L('xpts'), L('regions'), L('drivers'), tag('settings/main', fb.db.get(path('settings', 'main')))])
+        .then(function (r) { return { xpts: r[0], regions: r[1], drivers: r[2], packages: [], operations: [], settings: r[3].exists ? r[3].data : {} }; });
+    }
     var global = GLOBAL_ROLES.indexOf(user.role) >= 0 && user.role !== 'admin_sistema';
     var ids = user.xptIds.slice();
     function byXpt(col) {
@@ -305,7 +311,7 @@
     // motorista: nada de listas gerais (regiões, motoristas, pacotes): só o próprio cadastro de motorista e as próprias operações
     var regions = isDriver ? Promise.resolve([]) : byXpt('regions');
     var drivers = isDriver ? (user.driverId ? fb.db.get(path('drivers', user.driverId)).then(function (s) { return s.exists ? [{ id: user.driverId, data: s.data }] : []; }) : Promise.resolve([])) : byXpt('drivers');
-    return Promise.all([xpts, regions, drivers, isDriver || user.role === 'admin_sistema' ? Promise.resolve([]) : byXpt('packages'), ops, fb.db.get(path('settings', 'main'))])
+    return Promise.all([tag('xpts', xpts), tag('regions', regions), tag('drivers', drivers), isDriver ? Promise.resolve([]) : tag('packages', byXpt('packages')), tag('operations', ops), tag('settings/main', fb.db.get(path('settings', 'main')))])
       .then(function (r) { return { xpts: r[0], regions: r[1], drivers: r[2], packages: r[3], operations: r[4], settings: r[5].exists ? r[5].data : {} }; });
   }
   function docs(list) { return list.map(function (x) { return Object.assign({ id: x.id }, x.data); }); }

@@ -58,3 +58,6 @@ Cobertura dos 23 itens pedidos: criação (zona desenhada/finalizada, dentro/for
 
 ## 7. O que depende de você
 1. (feito) `apiKey`; 2. conferir Auth e-mail/senha e domínio autorizado; 3. criar o 1º `admin_sistema` e o documento `users/{uid}`; 4. publicar/mesclar `firestore.rules`; 5. usar *Configuração inicial* (dados de teste, motoristas, vínculo de usuários); 6. testar com 2 aparelhos e o Simulador de regras do Console. Passo a passo em `FIREBASE.md`.
+
+## 8. Primeiro acesso real (relato do usuário)
+Com a `apiKey`, o login real funcionou e o perfil foi lido, mas a carga inicial foi recusada pelas regras ("Não foi possível carregar"). Causa provável: o administrador do sistema tentava ler operações/pacotes por base, o que as regras não permitem a esse perfil. Correção: o `admin_sistema` agora carrega só cadastros (bases, regiões, motoristas, configurações), e a mensagem de erro informa em qual coleção a leitura foi recusada. Se persistir, confira `role`, `active: true` (booleano) e `xptIds` do seu documento `env/teste/users/{UID}` e se as regras foram publicadas.

@@ -92,7 +92,7 @@
         }).catch(function (e) {
           started = false;
           var f = NS.services.failure(e);
-          blockedScreen(fb, 'Não foi possível carregar', f.message + (f.reason === 'sem_permissao' ? ' (as regras do Firestore recusaram a leitura; confira se as regras foram publicadas e se o seu usuário tem as bases corretas).' : ''));
+          blockedScreen(fb, 'Não foi possível carregar', f.message + (e && e.cxptWhere ? ' [leitura recusada em: env/teste/' + e.cxptWhere + ']' : '') + (f.reason === 'sem_permissao' ? ' (as regras do Firestore recusaram a leitura; confira se as regras foram publicadas e se o seu usuário tem as bases corretas).' : ''));
         });
       });
     });
