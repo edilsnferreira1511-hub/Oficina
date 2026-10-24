@@ -1,6 +1,6 @@
 # Correções: criação de ambulância por zona, Firebase e acesso do motorista
 
-Versão: `COOPMETRO-XPT-TESTE-FIREBASE-CORRIGIDO`. Tudo abaixo foi testado **contra o backend SIMULADO** (`fake-firebase.js`) e no navegador (Chromium). **Nada foi executado contra o Firebase real**: a `apiKey` está vazia (não foi informada e não foi inventada) e este ambiente não tem acesso de rede ao projeto.
+Versão: `COOPMETRO-XPT-TESTE-FIREBASE-CORRIGIDO`. Tudo abaixo foi testado **contra o backend SIMULADO** (`fake-firebase.js`) e no navegador (Chromium). **Nada foi executado contra o Firebase real**: este ambiente não tem acesso de rede ao projeto Firebase (a `apiKey` foi informada depois, na versão final).
 
 ## 1. Causa investigada da falha "desenhei a zona e não consegui criar a ambulância"
 Reproduzi o fluxo no navegador com toque real (celular). **Não encontrei um erro funcional** que impedisse a criação quando há pacotes elegíveis, motorista livre e permissão. Encontrei causas de UX e de dados que, somadas, produzem exatamente o sintoma:
@@ -21,7 +21,7 @@ Reproduzi o fluxo no navegador com toque real (celular). **Não encontrei um err
 | Item | Estado |
 |---|---|
 | SDK modular 10.14.1, inicialização, Auth e-mail/senha, Firestore em `env/teste/` | **Implementado** (`firebase-adapter.js`) |
-| `apiKey` em `firebase-config.js` | **VAZIA — depende de você**. Console Firebase → ⚙ Configurações do projeto → *Seus apps* → app web "Coopmetro" → *Configuração do SDK* → copie `apiKey` e cole em `firebase-config.js`. |
+| `apiKey` em `firebase-config.js` | **Preenchida** com o valor que você enviou do Console (também `appId` e `measurementId` atualizados). |
 | Auth e-mail/senha ativado e domínio autorizado | **Não verificável daqui**. O login mostra mensagem específica se faltar (`operation-not-allowed`, `unauthorized-domain`, `invalid-api-key`…). |
 | Regras publicadas | **Não publiquei nada.** Revise e publique `firestore.rules` (mescle com regras existentes). Não executei em Emulator. |
 | Primeiro admin_sistema | Criar no Console (ver `FIREBASE.md`). |
@@ -57,4 +57,4 @@ unit 52 · unit-fluxo 30 · unit-firebase 22 · rules-lint 12 (análise estátic
 Cobertura dos 23 itens pedidos: criação (zona desenhada/finalizada, dentro/fora, sem coordenadas, pacotes em operação ativa, criar com motorista+responsável, persistir, QR correto, falha de gravação sem falso sucesso — `e2e-fluxo`, `e2e-firebase`, `unit-fluxo`, `unit-firebase`); motorista (abre a própria, negado em outra, sem painel, sem criar, sem sair/encerrar, sem ler pacotes, encerrada bloqueia, repetido não duplica — `e2e-firebase`, `unit-firebase`, `rules-lint`); Firebase (login+perfil, leitura/escrita, persistência após recarregar, recuperação em outro aparelho, rejeição de escrita não autorizada — **simulados**). Itens "Firebase real" ficam **pendentes** até você configurar a `apiKey`.
 
 ## 7. O que depende de você
-1. Colar a `apiKey`; 2. conferir Auth e-mail/senha e domínio autorizado; 3. criar o 1º `admin_sistema` e o documento `users/{uid}`; 4. publicar/mesclar `firestore.rules`; 5. usar *Configuração inicial* (dados de teste, motoristas, vínculo de usuários); 6. testar com 2 aparelhos e o Simulador de regras do Console. Passo a passo em `FIREBASE.md`.
+1. (feito) `apiKey`; 2. conferir Auth e-mail/senha e domínio autorizado; 3. criar o 1º `admin_sistema` e o documento `users/{uid}`; 4. publicar/mesclar `firestore.rules`; 5. usar *Configuração inicial* (dados de teste, motoristas, vínculo de usuários); 6. testar com 2 aparelhos e o Simulador de regras do Console. Passo a passo em `FIREBASE.md`.

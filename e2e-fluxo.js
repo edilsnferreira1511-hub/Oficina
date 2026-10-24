@@ -28,6 +28,7 @@ function serve() {
 async function main(browser, base) {
   // celular emulado: 390 px, toque, escala 3 (para a imagem do QR ter módulos nítidos)
   const ctx = await browser.newContext({ viewport: { width: 390, height: 844 }, hasTouch: true, isMobile: true, deviceScaleFactor: 3 });
+  await ctx.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x&&x.config)x.config.apiKey='';v=x;}});})();"); // testes de DEMONSTRAÇÃO: ignora a apiKey real do firebase-config.js
   const tileReqs = [], external = [], errors = [];
   await ctx.route(TILE_HOST + '**', (r) => { tileReqs.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG }); });
   const page = await ctx.newPage();
@@ -506,6 +507,7 @@ async function main(browser, base) {
 
   // ===== 4 (indisponível): file:// não envia Referer → o provedor recusaria; o componente explica em vez de mostrar mapa quebrado
   const ctx2 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx2.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x&&x.config)x.config.apiKey='';v=x;}});})();"); // testes de DEMONSTRAÇÃO: ignora a apiKey real do firebase-config.js
   const pf = await ctx2.newPage();
   await pf.goto('file://' + path.join(ROOT, 'index.html') + '#/entry'); await pf.waitForSelector('#main[data-render]');
   await pf.fill('#code-in', 'flx-900'); await pf.press('#code-in', 'Enter');
@@ -517,6 +519,7 @@ async function main(browser, base) {
 
   // ===== 4: ladrilhos que falham (provedor recusa/sem rede) → estado de erro, sem mapa quebrado
   const ctx3 = await browser.newContext({ viewport: { width: 390, height: 844 } });
+  await ctx3.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x&&x.config)x.config.apiKey='';v=x;}});})();"); // testes de DEMONSTRAÇÃO: ignora a apiKey real do firebase-config.js
   await ctx3.route(TILE_HOST + '**', (r) => r.abort());
   const pe = await ctx3.newPage();
   await pe.goto(base + '#/entry'); await pe.waitForSelector('#main[data-render]');

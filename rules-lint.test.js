@@ -72,13 +72,13 @@ t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhum
   ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config', 'ver_global'].forEach((a) => ok(!P.can('motorista', a), a));
   ok(P.can('despacho', 'entrada') && P.can('despacho', 'conferir') && !P.can('despacho', 'operacao'));
 });
-t('firebase-config não contém segredos e apiKey não foi inventada', () => {
+t('firebase-config: apiKey do app web informada pelo dono (não é segredo), sem chaves privadas', () => {
   const cfg = fs.readFileSync(path.join(__dirname, 'firebase-config.js'), 'utf8');
-  ok(/apiKey: '',/.test(cfg), 'apiKey deve estar vazia até o dono informar'); ok(!/AIza[0-9A-Za-z_-]{20,}/.test(cfg)); ok(!/private_key|service_account|BEGIN PRIVATE/i.test(cfg));
-  ok(/projectId: 'coopmetro-xpt'/.test(cfg) && /830962789514/.test(cfg) && /1:830962789514:web:cdafd6639ac98bdd115173/.test(cfg));
+  ok(/apiKey: 'AIza[0-9A-Za-z_-]{35}'/.test(cfg), 'apiKey do Console');  ok(!/private_key|service_account|BEGIN PRIVATE/i.test(cfg));
+  ok(/projectId: 'coopmetro-xpt'/.test(cfg) && /830962789514/.test(cfg) && /1:830962789514:web:6d52394cc08f9a72115173/.test(cfg));
 });
 t('nenhum arquivo do projeto contém chave privada, token ou senha embutida', () => {
-  fs.readdirSync(__dirname).filter((f) => /\.(js|html|md|rules|css)$/.test(f) && !/\.test\.js$|^e2e|^fake-|^unit/.test(f)).forEach((f) => {
+  fs.readdirSync(__dirname).filter((f) => /\.(js|html|md|rules|css)$/.test(f) && !/\.test\.js$|^e2e|^fake-|^unit|^firebase-config/.test(f)).forEach((f) => {
     const s = fs.readFileSync(path.join(__dirname, f), 'utf8');
     ok(!/BEGIN (RSA )?PRIVATE KEY/.test(s), f); ok(!/AIza[0-9A-Za-z_-]{30,}/.test(s), f + ' (apiKey)');
   });

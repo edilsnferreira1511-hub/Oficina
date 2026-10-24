@@ -22,4 +22,4 @@ Deploy, Hosting, plano/cobrança, Cloud Functions, migrações/limpezas, uso do 
 
 
 ## Atualização (versão CORRIGIDO)
-Criação de ambulância por zona com erros visíveis, diagnóstico de conexão, cadastro de motorista/vínculo de usuário e motorista restrito à própria bipagem (interface + regras). Firebase real: **ainda não conectado** (apiKey vazia). Detalhes em `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md`.
+Criação de ambulância por zona com erros visíveis, diagnóstico de conexão, cadastro de motorista/vínculo de usuário e motorista restrito à própria bipagem (interface + regras). Firebase real: apiKey preenchida; **conexão ainda não verificada** (faltam passos no Console). Detalhes em `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md`.

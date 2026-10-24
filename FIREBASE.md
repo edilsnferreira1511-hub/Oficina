@@ -4,7 +4,7 @@ Projeto: `coopmetro-xpt` · Firestore `(default)` em `southamerica-east1` · app
 Dados de teste ficam **só** em `env/teste/...` (isolamento por caminho; nada fora dele é lido/escrito pelo app e as regras negam o resto). Não foi feita nenhuma migração, limpeza ou exclusão. Sem Cloud Functions, sem cobrança, sem mudança de plano.
 
 ## Ações suas (o que eu não podia fazer)
-1. **Colar a `apiKey`** em `firebase-config.js` (Console → Configurações do projeto → Seus apps → "Coopmetro" → Configuração do SDK). Não foi informada e **não foi inventada**. Ela identifica o app e não é segredo; a proteção é Auth + regras. Não coloque senhas, contas de serviço nem tokens no código.
+1. **(Já colada)** `apiKey` em `firebase-config.js` (Console → Configurações do projeto → Seus apps → "Coopmetro" → Configuração do SDK). Não foi informada e **não foi inventada**. Ela identifica o app e não é segredo; a proteção é Auth + regras. Não coloque senhas, contas de serviço nem tokens no código.
 2. **Autenticação**: confirme que *Authentication → Sign-in method → E-mail/senha* está ativo e que o domínio onde você abrir o sistema está em *Authentication → Settings → Authorized domains* (`localhost` e `coopmetro-xpt.firebaseapp.com` já costumam estar).
 3. **Criar o 1º administrador** (sem senha embutida no código):
    a. Console → Authentication → Users → *Add user* (e-mail + senha forte escolhidos por você). Copie o **UID**.

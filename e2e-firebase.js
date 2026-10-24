@@ -267,6 +267,7 @@ async function main(browser, base) {
   // ===== sem apiKey (padrão entregue): modo demonstração intacto, sem login e sem rede
   {
     const c3 = await browser.newContext({ viewport: { width: 800, height: 800 } });
+    await c3.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x&&x.config)x.config.apiKey='';v=x;}});})();"); // testes de DEMONSTRAÇÃO: ignora a apiKey real do firebase-config.js
     const p = await c3.newPage(); const ext = [];
     p.on('request', (r) => { const u = r.url(); if (!/^(data:|blob:)/.test(u) && !u.startsWith(new URL(base).origin + '/')) ext.push(u); });
     await p.goto(base); await p.waitForSelector('#main[data-render]');

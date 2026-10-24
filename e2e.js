@@ -30,6 +30,7 @@ function serve() {
 async function suite(browser, label, base) {
   console.log('== ' + label + ' ==');
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 900 } });
+  await ctx.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x&&x.config)x.config.apiKey='';v=x;}});})();"); // testes de DEMONSTRAÇÃO: ignora a apiKey real do firebase-config.js
   const page = await ctx.newPage();
   const errors = [], external = [], failed = [], tileReqs = [];
   await ctx.route(TILE_HOST + '**', (r) => { tileReqs.push(r.request().url()); return r.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG }); });
