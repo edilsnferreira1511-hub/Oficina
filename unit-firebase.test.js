@@ -195,6 +195,46 @@ atest('admin_sistema (mesmo com bases preenchidas por engano) carrega só os cad
   const w = world(); w._admin.setDoc(U + 'users/uid-sys@t.com', { name: 'Sys', email: 'sys@t.com', role: 'admin_sistema', xptIds: ['x1'], active: true, driverId: null });
   const s = await device(w, 'sys@t.com'); ok(s.D, 'carregou'); ok(s.D.xpts.length >= 2 && s.D.drivers.length > 0); eq(s.D.packages.length, 0); eq(s.D.operations.length, 0);
 });
+atest('admin_sistema: edita e exclui usuários, cria/edita base; ninguém mais; nunca o próprio', async () => {
+  const w = world(), s = await device(w, 'sys@t.com'), d = await device(w, 'desp@t.com');
+  const uid = 'uid-coord2@t.com';
+  ok((await SV.updateUser(s.fb, s.user, uid, { name: 'Coord Dois', role: 'supervisor', xptIds: ['x2', 'x1'], active: true })).ok);
+  let u = w._admin.getDoc(U + 'users/' + uid); eq(u.role, 'supervisor'); eq(u.xptIds, ['x2', 'x1']); eq(u.name, 'Coord Dois');
+  ok((await SV.updateUser(s.fb, s.user, uid, { name: 'Coord Dois', role: 'supervisor', xptIds: ['x2'], active: false })).ok); eq(w._admin.getDoc(U + 'users/' + uid).active, false);
+  ok(!(await SV.updateUser(s.fb, s.user, s.user.uid, { name: 'x', role: 'admin_sistema', xptIds: [] })).ok, 'não edita o próprio');
+  ok(!(await SV.updateUser(s.fb, s.user, uid, { name: 'x', role: 'inexistente', xptIds: ['x1'] })).ok, 'perfil inválido');
+  ok(!(await SV.updateUser(d.fb, d.user, uid, { name: 'x', role: 'despacho', xptIds: ['x1'] })).ok, 'despacho não edita');
+  await denied(d.fb.db.runTransaction((tx) => tx.get(U + 'users/' + uid).then(() => tx.delete(U + 'users/' + uid))), 'despacho excluindo');
+  ok(!(await SV.deleteUser(s.fb, s.user, s.user.uid)).ok, 'não exclui o próprio');
+  ok((await SV.deleteUser(s.fb, s.user, uid)).ok); ok(!w._admin.getDoc(U + 'users/' + uid), 'perfil removido'); ok(!(await SV.deleteUser(s.fb, s.user, uid)).ok);
+  ok(w._admin.getDoc(U + 'xpts/x1'), 'bases intactas');
+  const nx = await SV.saveXpt(s.fb, s.user, { id: 'x9', name: 'Base Nova' }); ok(nx.ok && nx.created); eq(w._admin.getDoc(U + 'xpts/x9').name, 'Base Nova');
+  const ed = await SV.saveXpt(s.fb, s.user, { id: 'x9', name: 'Base Renomeada', active: false }); ok(ed.ok && !ed.created); eq(w._admin.getDoc(U + 'xpts/x9').active, false);
+  ok(!(await SV.saveXpt(d.fb, d.user, { id: 'x8', name: 'Y' })).ok); ok(!w._admin.getDoc(U + 'xpts/x8'));
+  const us = await SV.listUsers(s.fb, s.user); ok(us.length >= 8 && us.every((x) => x.uid)); eq((await SV.listUsers(d.fb, d.user)).length, 0);
+});
+atest('admin_sistema tem acesso a todas as telas e lê os dados de todas as bases', async () => {
+  const w = world(), pk = await device(w, 'desp@t.com'); await pk.svc.registerEntries('x1', [item('ADM-1')], pk.who);
+  const s = await device(w, 'sys@t.com'); ok(s.D.packages.some((p) => p.code === 'ADM-1'), 'lê pacotes'); ok(s.D.xpts.length >= 2);
+  ['entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config', 'ver_global'].forEach((a) => ok(NS.permissions.can('admin_sistema', a), a));
+  const r = await s.svc.registerEntries('x2', [item('ADM-2')], s.who); eq(r.created.length, 1, 'admin registra entrada em qualquer base');
+});
+atest('matriz de permissões editável: salva no Firestore, aplicada pelas REGRAS e pela interface; só admin_sistema grava', async () => {
+  const w = world(), P = NS.permissions, s = await device(w, 'sys@t.com');
+  const dd = await device(w, 'desp@t.com'); await dd.svc.registerEntries('x1', [item('PM-1')], dd.who);
+  ok(!(await SV.savePermissions(dd.fb, dd.user, P.toDoc())).ok, 'despacho não grava a matriz');
+  await denied(dd.fb.db.runTransaction((tx) => tx.get(U + 'settings/permissions').then(() => tx.set(U + 'settings/permissions', { operacao: ['despacho'] }))), 'despacho gravando matriz');
+  const doc = P.toDoc(); doc.operacao = ['supervisor', 'despacho']; // coord_base perde "criar ambulância"; despacho ganha
+  const sv = await SV.savePermissions(s.fb, s.user, doc); ok(sv.ok); eq(w._admin.getDoc(U + 'settings/permissions').operacao, ['supervisor', 'despacho']);
+  const c = await device(w, 'coord@t.com'); ok(!P.can('coord_base', 'operacao'), 'interface aplica');
+  const bad = await c.svc.createAmbulance('x1', { driverId: 'm6', name: 'N', responsible: 'R', packageIds: ['pk-PM-1'] }, c.who); ok(!bad.ok, 'coord_base sem a permissão: recusado');
+  const d2 = await device(w, 'desp@t.com'); ok(P.can('despacho', 'operacao'));
+  const good = await d2.svc.createAmbulance('x1', { driverId: 'm6', name: 'N', responsible: 'R', packageIds: ['pk-PM-1'] }, d2.who); ok(good.ok, JSON.stringify(good)); eq(w._admin.getDoc(U + 'operations/OP-0001').xptId, 'x1');
+  // as REGRAS também recusam (cliente adulterado): coord_base grava operação direto
+  await denied(c.fb.db.runTransaction((tx) => tx.get(U + 'counters/operations').then(() => tx.update(U + 'counters/operations', { n: 2 }))), 'regras: coord_base sem a ação');
+  ok(!(await SV.savePermissions(s.fb, s.user, Object.assign(P.toDoc(), { ver_base: [] }))).ok, 'ninguém ver a base');
+  P.setOverrides(null);
+});
 atest('cadastro de motorista e vínculo de usuário: só quem pode, create-only, nunca o próprio perfil', async () => {
   const w = world(), s = await device(w, 'sys@t.com'), d = await device(w, 'desp@t.com');
   ok(!(await SV.registerDriver(d.fb, d.user, { id: 'm20', name: 'X', xptId: 'x1' })).ok, 'despacho não cadastra');

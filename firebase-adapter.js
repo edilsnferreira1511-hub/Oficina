@@ -36,6 +36,7 @@
               get: function (p) { return t.get(ref(p)).then(snap); },
               set: function (p, d) { t.set(ref(p), d); },
               update: function (p, d) { t.update(ref(p), d); },
+              delete: function (p) { t.delete(ref(p)); },
             };
             return fn(tx);
           });

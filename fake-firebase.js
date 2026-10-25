@@ -9,7 +9,7 @@
     VER_BASE: ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho'],
     ENTRADA: ['despacho'], CONFERIR: ['supervisor', 'coord_base', 'despacho'], OPERACAO: ['administrador', 'supervisor', 'coord_base'],
     CORRECAO: ['administrador', 'supervisor', 'coord_base'], SAIDA: ['supervisor', 'coord_base'], ENCERRAR: ['administrador', 'supervisor'],
-    DEVOLUCAO: ['supervisor', 'coord_base'], USUARIOS: ['admin_sistema'], CONFIG: ['admin_sistema', 'administrador'], GLOBAL: ['administrador', 'coord_geral'],
+    DEVOLUCAO: ['supervisor', 'coord_base'], USUARIOS: ['admin_sistema'], CONFIG: ['admin_sistema', 'administrador'], GLOBAL: ['administrador', 'coord_geral', 'admin_sistema'],
   };
   function err(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
   function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
@@ -20,7 +20,7 @@
     var S = opts.state || { docs: {}, accounts: [], resets: [], seq: 0 }, session = null; // opts.state: banco compartilhado entre vários "aparelhos"
     if (storage && !opts.state) { try { var raw = storage.getItem(KEY); if (raw) S = JSON.parse(raw); } catch (_) { /* ignore */ } }
     if (storage) { try { var rs = storage.getItem(KEY + '-session'); if (rs) session = JSON.parse(rs); } catch (_) { /* ignore */ } }
-    var listeners = [], stats = { txRuns: 0, conflicts: 0 }, forceFail = false;
+    var listeners = [], stats = { txRuns: 0, conflicts: 0 }, forceFail = false, DEL = { __deleted: true };
     function save() { if (storage) { try { storage.setItem(KEY, JSON.stringify(S)); if (session) storage.setItem(KEY + '-session', JSON.stringify(session)); else storage.removeItem(KEY + '-session'); } catch (_) { /* ignore */ } } }
     function sync() { // várias abas/aparelhos de teste compartilham o mesmo "servidor" (armazenamento do navegador de teste)
       if (!storage || opts.state) return;
@@ -32,7 +32,17 @@
     // ----- modelo das regras (espelha firestore.rules)
     function active() { var d = mydata(); return !!(session && d && d.active === true); }
     function role() { return mydata().role; }
-    function inR(list) { return active() && list.indexOf(role()) >= 0; }
+    var ACT = { VER_BASE: 'ver_base', ENTRADA: 'entrada', CONFERIR: 'conferir', OPERACAO: 'operacao', CORRECAO: 'correcao', SAIDA: 'confirmar_saida', ENCERRAR: 'encerrar', DEVOLUCAO: 'devolucao', CONFIG: 'config' };
+    function permsDoc() { var d = S.docs['env/teste/settings/permissions']; return d ? d.data : null; }
+    // lista de perfis de uma ação: documento de permissões (se existir) ou padrão; admin_sistema sempre tem tudo; motorista nunca vem da matriz
+    function inR(list) {
+      if (!active()) return false;
+      if (list === ROLES.USUARIOS || list === ROLES.GLOBAL) return list.indexOf(role()) >= 0;
+      if (role() === 'admin_sistema') return true; if (role() === 'motorista') return false;
+      var name = Object.keys(ROLES).filter(function (k) { return ROLES[k] === list; })[0], pd = permsDoc();
+      if (pd && ACT[name]) { var l = pd[ACT[name]]; return Array.isArray(l) && l.indexOf(role()) >= 0; }
+      return list.indexOf(role()) >= 0;
+    }
     function hasBase(x) { return active() && (ROLES.GLOBAL.indexOf(role()) >= 0 || (mydata().xptIds || []).indexOf(x) >= 0); }
     function seg(p) { return p.split('/'); }
     function isDriver() { var d = mydata(); return active() && role() === 'motorista' && typeof d.driverId === 'string'; }
@@ -49,7 +59,8 @@
       if (!session) return false;
       if (col === 'users') {
         if (kind === 'get') return session.uid === id || inR(ROLES.USUARIOS);
-        if (kind === 'create' || kind === 'update') return inR(ROLES.USUARIOS) && session.uid !== id;
+        if (kind === 'list') return inR(ROLES.USUARIOS);
+        if (kind === 'create' || kind === 'update' || kind === 'delete') return inR(ROLES.USUARIOS) && session.uid !== id;
         return false;
       }
       if (col === 'xpts') { if (kind === 'get') return hasBase(id) || inR(ROLES.USUARIOS); if (kind === 'list') return inR(ROLES.GLOBAL) || inR(ROLES.USUARIOS); if (kind === 'create' || kind === 'update') return inR(ROLES.CONFIG) || inR(ROLES.USUARIOS); return false; }
@@ -58,7 +69,7 @@
         if (kind === 'create' || kind === 'update') return inR(ROLES.CONFIG);
         return false;
       }
-      if (col === 'settings') { if (kind === 'get') return active(); if (kind === 'create' || kind === 'update') return inR(ROLES.CONFIG); return false; }
+      if (col === 'settings') { if (kind === 'get') return active(); if (kind === 'create' || kind === 'update') return id === 'permissions' ? inR(ROLES.USUARIOS) : inR(ROLES.CONFIG); return false; }
       if (col === 'codes') {
         if (kind === 'get') return inR(ROLES.ENTRADA);
         if (kind === 'create') return inR(ROLES.ENTRADA) && Object.keys(after).every(function (k) { return k === 'createdAt'; });
@@ -152,7 +163,8 @@
               });
             },
             set: function (path, data) { wrote = true; writes[path] = clone(data); },
-            update: function (path, data) { wrote = true; var cur = writes[path] || (S.docs[path] && S.docs[path].data); if (!cur) throw err('not-found'); writes[path] = Object.assign({}, clone(cur), clone(data)); },
+            delete: function (path) { wrote = true; writes[path] = DEL; },
+            update: function (path, data) { wrote = true; var cur = writes[path] || (S.docs[path] && S.docs[path].data); if (!cur || cur === DEL) throw err('not-found'); writes[path] = Object.assign({}, clone(cur), clone(data)); },
           };
           return Promise.resolve(fn(tx)).then(function (result) {
             return Promise.resolve().then(function () {
@@ -165,15 +177,15 @@
               if ((opts.failCommit && opts.failCommit()) || forceFail) throw err('unavailable', 'Network down');
               // limites do Firestore real: 500 gravações por transação; 20 acessos a documentos distintos pelas regras (get/exists/existsAfter)
               if (paths.length > 500) throw err('invalid-argument', 'maximum 500 writes allowed per request');
-              var access = {}; paths.forEach(function (p) { var q = seg(p); if (q[2] === 'packages' && !S.docs[p]) access['codes/' + writes[p].code] = 1; if (q[2] === 'operations' && !S.docs[p]) access['counters/operations'] = 1; if (q[2] === 'events' && writes[p].opId && isDriver()) access['operations/' + writes[p].opId] = 1; });
-              if (1 + Object.keys(access).length > 20) throw err('permission-denied', 'Too many document access calls in rules (limit 20)');
+              var access = {}; paths.forEach(function (p) { var q = seg(p); if (writes[p] !== DEL && q[2] === 'packages' && !S.docs[p]) access['codes/' + writes[p].code] = 1; if (writes[p] !== DEL && q[2] === 'operations' && !S.docs[p]) access['counters/operations'] = 1; if (writes[p] !== DEL && q[2] === 'events' && writes[p].opId && isDriver()) access['operations/' + writes[p].opId] = 1; });
+              if (2 + Object.keys(access).length > 20) /* 1 perfil do usuário + 1 documento de permissões + distintos */ throw err('permission-denied', 'Too many document access calls in rules (limit 20)');
               var after = {}; paths.forEach(function (p) { after[p] = writes[p]; });
               paths.forEach(function (p) {
-                var ex = S.docs[p], kind = ex ? 'update' : 'create';
+                var ex = S.docs[p], kind = writes[p] === DEL ? 'delete' : ex ? 'update' : 'create';
                 var allDocs = Object.assign({}, after); Object.keys(S.docs).forEach(function (k) { if (!allDocs[k]) allDocs[k] = S.docs[k].data; });
-                if (!allowed(kind, p, ex ? clone(ex.data) : null, writes[p], allDocs)) throw err('permission-denied', 'Missing or insufficient permissions (' + kind + ' ' + p + ').');
+                if (!allowed(kind, p, ex ? clone(ex.data) : null, writes[p] === DEL ? null : writes[p], allDocs)) throw err('permission-denied', 'Missing or insufficient permissions (' + kind + ' ' + p + ').');
               });
-              paths.forEach(function (p) { S.docs[p] = { data: writes[p], v: (S.docs[p] ? S.docs[p].v : 0) + 1 }; });
+              paths.forEach(function (p) { if (writes[p] === DEL) delete S.docs[p]; else S.docs[p] = { data: writes[p], v: (S.docs[p] ? S.docs[p].v : 0) + 1 }; });
               save();
               return result;
             });

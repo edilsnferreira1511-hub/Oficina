@@ -40,7 +40,7 @@ Rótulos: sem `apiKey` = modo **demonstração** (dados em memória); com `apiKe
 | Confirmar saída | – | – | – | ✓ | ✓ | – | – |
 | Encerrar operação | – | ✓ | – | ✓ | – | – | – |
 | Devolução / correção | – | corr. | – | ✓ | ✓ | – | – |
-| Usuários/bases | ✓ | – | – | – | – | – | – |
+| Usuários/bases (criar, editar, excluir acesso) | ✓ | – | – | – | – | – | – |
 | Configurações / motoristas | ✓ | ✓ | – | – | – | – | – |
 Ninguém altera o próprio perfil. O motorista **precisa** ter `driverId` e `xptIds` (a base) no seu documento `users/{uid}`.
 
@@ -61,3 +61,10 @@ Cobertura dos 23 itens pedidos: criação (zona desenhada/finalizada, dentro/for
 
 ## 8. Primeiro acesso real (relato do usuário)
 Com a `apiKey`, o login real funcionou e o perfil foi lido, mas a carga inicial foi recusada pelas regras ("Não foi possível carregar"). Causa provável: o administrador do sistema tentava ler operações/pacotes por base, o que as regras não permitem a esse perfil. Correção: o `admin_sistema` agora carrega só cadastros (bases, regiões, motoristas, configurações), e a mensagem de erro informa em qual coleção a leitura foi recusada. Se persistir, confira `role`, `active: true` (booleano) e `xptIds` do seu documento `env/teste/users/{UID}` e se as regras foram publicadas.
+
+## 9. Administrador do sistema (atualização)
+- `admin_sistema` agora tem **acesso a todas as telas** (entrada, mapa, ambulâncias, separar, saída, encerrar, motoristas, bases, relatórios), vê todas as bases e é a única conta que administra usuários e bases. Linha fixa: não pode ser editada nem tirar acesso dele mesmo.
+- **Configuração inicial** (só admin_sistema): *Bases* (criar/editar nome e ativa), *Usuários* (listar, **editar** nome/perfil/bases/ativo/driverId, **excluir o acesso**), *Vincular usuário*, *Cadastrar motorista*, *Diagnóstico*, *Dados iniciais* e **Permissões por perfil** (matriz editável).
+- Excluir usuário remove o **perfil** (`env/teste/users/{uid}`): a pessoa perde o acesso. O login em Authentication permanece (apague no Console se quiser). Ninguém exclui/edita o próprio perfil. Registros históricos nunca são apagados.
+- **Matriz editável**: salva em `env/teste/settings/permissions` e **aplicada pelas regras do Firestore** (não só na tela). Só admin_sistema grava. Editáveis: ver base, entrada, conferir, criar ambulância, corrigir, confirmar saída, encerrar, devolução, configurações — para administrador, coord_geral, supervisor, coord_base e despacho. Fixos: motorista (só a própria bipagem), visão global e administração de usuários. Sem o documento valem os padrões.
+- **Regras mudaram: publique de novo o `firestore.rules`.** Testado só no backend simulado + análise estática (rules-lint); não executado no Emulator nem no Firebase real.

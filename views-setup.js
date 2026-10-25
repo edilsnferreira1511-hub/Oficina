@@ -39,6 +39,74 @@
       NS.services.linkUser(root.CXPT_FB, c.user, { uid: uid.i.value, name: nm.i.value, email: em.i.value, role: role.value, xptIds: xs.i.value.split(',').map(function (s) { return s.trim(); }), driverId: dr.i.value }).then(function (r) { msg.textContent = r.ok ? 'Perfil criado. A pessoa já pode entrar.' : r.message; });
     } }, 'Vincular usuário'), msg));
   }
+  function done(c) { return c.svc.refresh().then(function () { c.rerender(); }, function () { c.rerender(); }); }
+  var PLABEL = {}; NS.permissions.PROFILES.forEach(function (p) { PLABEL[p.id] = p.label; });
+  /** Bases (XPT): criar nova ou editar nome/ativa. A base de origem de um pacote nunca muda; aqui só se cadastra/renomeia. */
+  function basesCard(c) {
+    var id = input('xpt-new-id', 'Identificador (letras/números)', 'x3'), nm = input('xpt-new-name', 'Nome da base', 'XPT Gama');
+    var act = el('input', { type: 'checkbox', id: 'xpt-new-active', checked: true }), msg = el('p', { class: 'form-msg', id: 'xpt-new-msg', role: 'status' });
+    var list = el('ul', { class: 'why-list', id: 'xpt-list' }, c.D.xpts.map(function (x) {
+      return el('li', null, x.name + ' (' + x.id + ')' + (x.active ? '' : ' — desativada') + ' ', el('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'xpt-edit-' + x.id, onclick: function () { id.i.value = x.id; nm.i.value = x.name; act.checked = !!x.active; nm.i.focus(); } }, 'Editar'));
+    }));
+    return ui.card('Bases (XPT / galpões)', el('div', null, list, id.f, nm.f, el('label', { class: 'check' }, act, ' Ativa'), el('button', { type: 'button', class: 'btn btn--primary', id: 'xpt-save-btn', onclick: function () {
+      msg.textContent = 'Gravando…';
+      NS.services.saveXpt(root.CXPT_FB, c.user, { id: id.i.value, name: nm.i.value, active: act.checked }).then(function (r) { if (!r.ok) { msg.textContent = r.message; return; } return done(c); });
+    } }, 'Salvar base (cria ou edita)'), msg));
+  }
+  /** Usuários: listar, editar (perfil, bases, ativo, nome, driverId) e excluir o PERFIL. Nunca o próprio. */
+  function usersCard(c) {
+    var box = el('div', { id: 'usr-list', 'aria-live': 'polite' }, el('p', { class: 'hint', text: 'Carregando usuários…' })), msg = el('p', { class: 'form-msg', id: 'usr-list-msg', role: 'status' });
+    function edit(u) {
+      var nm = input('ue-name', 'Nome'), xs = input('ue-xpts', 'Bases (ids separados por vírgula)'), dr = input('ue-driver', 'driverId (só para motorista)');
+      nm.i.value = u.name || ''; xs.i.value = (u.xptIds || []).join(','); dr.i.value = u.driverId || '';
+      var role = el('select', { id: 'ue-role' }, NS.permissions.PROFILES.map(function (p) { return el('option', { value: p.id, text: p.label, selected: p.id === u.role }); }));
+      var act = el('input', { type: 'checkbox', id: 'ue-active', checked: u.active === true }), em = el('p', { class: 'form-msg', id: 'ue-msg', role: 'alert' });
+      ui.modal('Editar usuário', el('div', null, el('p', { class: 'hint', text: (u.email || '') + ' · UID ' + u.uid }), nm.f, ui.field('Perfil', role), xs.f, dr.f, el('label', { class: 'check' }, act, ' Ativo (pode entrar)'), em), [
+        { label: 'Cancelar', onClick: function (close) { close(); } },
+        { label: 'Salvar', cls: 'btn--primary', id: 'ue-save', onClick: function (close) {
+          em.textContent = 'Gravando…';
+          NS.services.updateUser(root.CXPT_FB, c.user, u.uid, { name: nm.i.value, role: role.value, xptIds: xs.i.value.split(','), driverId: dr.i.value, active: act.checked }).then(function (r) { if (!r.ok) { em.textContent = r.message; return; } close(); load(); });
+        } },
+      ], { id: 'user-edit-modal' });
+    }
+    function load() {
+      NS.services.listUsers(root.CXPT_FB, c.user).then(function (us) {
+        us.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
+        box.replaceChildren(us.length ? el('ul', { class: 'why-list' }, us.map(function (u) {
+          var me = u.uid === c.user.uid;
+          return el('li', { id: 'usr-row-' + u.uid }, (u.name || '(sem nome)') + ' · ' + (u.email || '') + ' · ' + (PLABEL[u.role] || u.role) + ' · bases: ' + ((u.xptIds || []).join(', ') || '—') + (u.driverId ? ' · motorista ' + u.driverId : '') + (u.active === true ? '' : ' · DESATIVADO') + (me ? ' (você)' : '') + ' ',
+            me ? null : el('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'usr-edit-' + u.uid, onclick: function () { edit(u); } }, 'Editar'), ' ',
+            me ? null : el('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'usr-del-' + u.uid, onclick: function () {
+              ui.confirmModal('Excluir o acesso de ' + (u.name || u.email) + '?', 'O perfil é removido e a pessoa não consegue mais usar o sistema. O login em Authentication continua no Console do Firebase (apague lá se quiser). Os registros já feitos por ela são mantidos.', 'Excluir acesso', function () {
+                NS.services.deleteUser(root.CXPT_FB, c.user, u.uid).then(function (r) { msg.textContent = r.ok ? 'Acesso excluído.' : r.message; if (r.ok) load(); });
+              });
+            } }, 'Excluir'));
+        })) : ui.empty('Nenhum usuário cadastrado.'));
+      }, function (e) { box.replaceChildren(el('p', { class: 'form-msg', text: 'Não foi possível listar: ' + ((e && (e.code || e.message)) || 'erro') })); });
+    }
+    load();
+    return ui.card('Usuários cadastrados (editar / excluir acesso)', el('div', null, box, msg));
+  }
+  /** Matriz de permissões editável: salva em env/teste/settings/permissions e é aplicada pelas REGRAS do Firestore. */
+  var permNotice = '';
+  function permsCard(c) {
+    var P = NS.permissions, msg = el('p', { class: 'form-msg', id: 'perm-msg', role: 'status', text: permNotice }), boxes = {}; permNotice = '';
+    var head = el('tr', null, el('th', { text: 'Ação' }), P.EDITABLE_PROFILES.map(function (p) { return el('th', { text: PLABEL[p] }); }), el('th', { text: 'Admin. do sistema' }), el('th', { text: 'Motorista' }));
+    var rows = P.EDITABLE.map(function (a) {
+      var lab = P.ACTIONS.filter(function (x) { return x.id === a; })[0].label;
+      return el('tr', null, el('td', { text: lab }), P.EDITABLE_PROFILES.map(function (p) {
+        var cb = el('input', { type: 'checkbox', id: 'perm-' + a + '-' + p, checked: P.can(p, a), 'aria-label': lab + ' — ' + PLABEL[p] }); boxes[a + '|' + p] = cb; return el('td', null, cb);
+      }), el('td', { text: 'Sim (fixo)' }), el('td', { text: '—' }));
+    });
+    return ui.card('Permissões por perfil (editar)', el('div', null,
+      ui.callout('info', 'Vale para o servidor também.', 'A matriz fica salva no Firestore e as regras de segurança passam a usá-la. Fixos: o administrador do sistema tem tudo; o motorista só bipa a própria ambulância; só o administrador do sistema administra usuários e bases.'),
+      el('div', { class: 'table-wrap' }, el('table', { id: 'perm-table', class: 'table' }, el('thead', null, head), el('tbody', null, rows))),
+      el('button', { type: 'button', class: 'btn btn--primary', id: 'perm-save', onclick: function () {
+        var doc = {}; P.EDITABLE.forEach(function (a) { doc[a] = P.EDITABLE_PROFILES.filter(function (p) { return boxes[a + '|' + p].checked; }); });
+        msg.textContent = 'Gravando…';
+        NS.services.savePermissions(root.CXPT_FB, c.user, doc).then(function (r) { if (!r.ok) { msg.textContent = r.message; return; } P.setOverrides(r.doc); permNotice = 'Permissões salvas e aplicadas.'; c.rerender(); });
+      } }, 'Salvar permissões'), msg));
+  }
   V.setup = function (c) {
     var g = H.guard(c, 'usuarios'); if (g) return g;
     if (c.svc.mode !== 'remoto') return H.page([ui.callout('info', 'Disponível só com o Firebase configurado.', 'Preencha a apiKey em firebase-config.js e entre com o administrador.')]);
@@ -52,7 +120,7 @@
         msg.textContent = 'Gravando…';
         NS.services.seedTest(root.CXPT_FB, c.user, seed).then(function (r) { msg.textContent = r.ok ? r.created + ' documento(s) criado(s); ' + r.existing + ' já existiam e foram mantidos.' : r.message; });
       } }, 'Criar dados iniciais de teste'), msg)),
-      diagCard(c), driverCard(c), userCard(c, seed),
+      diagCard(c), basesCard(c), usersCard(c), userCard(c, seed), driverCard(c), permsCard(c),
       H.demoNote(),
     ]);
   };

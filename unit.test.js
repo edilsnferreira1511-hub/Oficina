@@ -264,8 +264,16 @@ test('paginação limita linhas', () => {
 });
 test('permissões: matriz proposta, motorista restrito, ninguém com tudo', () => {
   const P = NS.permissions; eq(P.PROFILES.length, 7); eq(P.can('motorista', 'entrada'), false); eq(P.can('despacho', 'entrada'), true);
-  eq(P.can('despacho', 'usuarios'), false); eq(P.can('admin_sistema', 'entrada'), false);
+  eq(P.can('despacho', 'usuarios'), false);
+  ['ver_global', 'ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config'].forEach(a => eq(P.can('admin_sistema', a), true, 'admin_sistema ' + a));
+  eq(P.can('admin_sistema', 'conferir_propria'), false); eq(P.can('motorista', 'usuarios'), false);
   P.PROFILES.forEach(p => eq(P.ACTIONS.every(a => P.can(p.id, a.id)), false));
+  // matriz editável: aplica, nunca mexe em admin_sistema/motorista, e volta ao padrão
+  P.setOverrides({ entrada: ['despacho', 'supervisor'], operacao: ['despacho'], motorista: ['x'] });
+  eq(P.can('supervisor', 'entrada'), true); eq(P.can('despacho', 'operacao'), true); eq(P.can('coord_base', 'operacao'), false);
+  eq(P.can('admin_sistema', 'operacao'), true); eq(P.can('motorista', 'entrada'), false); eq(P.can('motorista', 'operacao'), false);
+  eq(JSON.stringify(P.toDoc().entrada), JSON.stringify(['supervisor', 'despacho']));
+  P.setOverrides(null); eq(P.can('supervisor', 'entrada'), false); eq(P.can('coord_base', 'operacao'), true); eq(P.can('despacho', 'operacao'), false);
 });
 test('auditoria só acrescenta e é imutável', () => {
   const a = NS.audit.createAudit(() => NOW); const e = a.log('x', 'x1', 'd'); eq(a.count(), 1); eq(Object.isFrozen(e), true); eq(typeof a.remove, 'undefined');

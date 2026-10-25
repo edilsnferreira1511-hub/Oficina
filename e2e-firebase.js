@@ -248,6 +248,32 @@ async function main(browser, base) {
   await page.fill('#usr-new-uid', 'uid-sys@t.com'); await page.click('#usr-new-btn'); await page.waitForFunction(() => /próprio perfil/.test(document.getElementById('usr-new-msg').textContent));
   check('vínculo: não altera perfil existente nem o próprio', (await doc(U + 'users/uid-sys@t.com')).role === 'admin_sistema');
 
+  // ===== admin_sistema: todas as telas, editar/excluir usuário, criar base, matriz de permissões
+  const sysNav = (await page.locator('#nav a').allInnerTexts()).join('|');
+  check('admin_sistema: menu com todas as telas (Mapa, Operações, Pacotes, Entrada, Separar, Saída, Motoristas, XPT, Configuração)', ['Mapa', 'Operações', 'Pacotes', 'Entrada', 'Separar', 'Saída', 'Motoristas', 'XPT', 'Configuração'].every((t) => sysNav.indexOf(t) >= 0), sysNav);
+  for (const r of ['entry', 'map', 'exit', 'sort', 'packages', 'ops', 'alerts', 'reports', 'drivers', 'xpts', 'help']) { await go(r); check('admin_sistema abre #/' + r + ' sem "perfil sem acesso"', !/sem acesso|não possui esta permissão/i.test(await txt('main'))); }
+  await go('setup');
+  await page.fill('#xpt-new-id', 'x9'); await page.fill('#xpt-new-name', 'XPT Nova Base'); await page.click('#xpt-save-btn');
+  await page.waitForSelector('#xpt-edit-x9');
+  check('admin_sistema cria base (gravada em env/teste/xpts) e ela aparece na lista', (await doc(U + 'xpts/x9')).name === 'XPT Nova Base' && /XPT Nova Base/.test(await txt('#xpt-list')));
+  await page.waitForSelector('#usr-edit-uid-novo');
+  check('lista de usuários mostra perfis cadastrados (sem editar/excluir o próprio)', (await page.locator('#usr-edit-uid-sys\\@t\\.com').count()) === 0 && /Novo Mot/.test(await txt('#usr-list')));
+  await page.click('#usr-edit-uid-novo'); await page.fill('#ue-name', 'Motorista Renomeado'); await page.selectOption('#ue-role', 'despacho'); await page.fill('#ue-xpts', 'x1,x9'); await page.click('#ue-save');
+  await page.waitForFunction(() => /Motorista Renomeado/.test(document.getElementById('usr-list').textContent));
+  const ed = await doc(U + 'users/uid-novo'); check('admin_sistema edita usuário: nome, perfil e bases gravados', ed.name === 'Motorista Renomeado' && ed.role === 'despacho' && ed.xptIds.join() === 'x1,x9' && ed.driverId === null);
+  await page.click('#usr-del-uid-novo'); await page.click('.modal-back .btn--primary');
+  await page.waitForFunction(() => /Acesso excluído/.test(document.getElementById('usr-list-msg').textContent));
+  check('admin_sistema exclui o acesso: perfil removido do Firestore', !(await doc(U + 'users/uid-novo')) && !!(await doc(U + 'users/uid-desp@t.com')));
+  // matriz: tira "criar ambulância" do coord_base e dá ao despacho
+  await page.check('#perm-operacao-despacho'); await page.uncheck('#perm-operacao-coord_base'); await page.click('#perm-save');
+  await page.waitForFunction(() => /salvas e aplicadas/.test(document.getElementById('perm-msg').textContent));
+  const pd = await doc(U + 'settings/permissions');
+  check('matriz de permissões gravada no Firestore (e o admin continua com tudo)', pd.operacao.includes('despacho') && !pd.operacao.includes('coord_base') && pd.operacao.includes('supervisor'));
+  await logout(); await login('coord@t.com'); await go('map');
+  check('coord_base sem "criar ambulância": a tela bloqueia (matriz aplicada)', (await page.locator('#amb-create').count()) === 0 && /não pode criar/i.test(await txt('main')));
+  await page.evaluate(() => window.CXPT_FB._admin.setDoc('env/teste/settings/permissions', Object.assign({}, window.CXPT_FB._admin.getDoc('env/teste/settings/permissions'), { operacao: ['administrador', 'supervisor', 'coord_base'] })));
+  await logout(); await login('sys@t.com');
+
   // ===== sessão expira
   await page.evaluate(() => window.CXPT_FB._admin.expireSession());
   await page.waitForSelector('#login-form', { timeout: 10000 });

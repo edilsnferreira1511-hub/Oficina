@@ -7,8 +7,8 @@ rules_version = '2';
 //     Se o seu projeto já usa outras coleções com regras próprias, MESCLE em vez de substituir (senão elas passam a ser negadas).
 //  2. Valide no Console (Firestore → Regras → "Simulador de regras") ou no Emulator Suite. Estas regras NÃO foram executadas
 //     contra o Emulator no ambiente de desenvolvimento (sem acesso); só passaram por análise estática (rules-lint.test.js).
-//  3. A matriz de perfis espelha permissions.js (proposta D-06, ainda NÃO aprovada). Se a matriz mudar, mude aqui também
-//     (rules-lint.test.js compara os dois e falha se divergirem).
+//  3. A matriz de perfis tem PADRÕES iguais a permissions.js (rules-lint.test.js compara) e pode ser EDITADA pelo admin_sistema na tela
+//     Configuração inicial; a edição fica em env/teste/settings/permissions e estas regras passam a usá-la. admin_sistema tem tudo (fixo).
 //
 // O que as regras garantem: login obrigatório; usuário ativo cadastrado em env/teste/users/{uid}; acesso só às bases do usuário
 // (perfis globais veem todas); ninguém altera o próprio perfil; código e XPT de origem imutáveis; histórico só cresce; eventos só
@@ -23,20 +23,24 @@ service cloud.firestore {
     function hasUser() { return signedIn() && exists(/databases/$(database)/documents/env/teste/users/$(request.auth.uid)); }
     function active() { return hasUser() && userDoc().data.active == true; }
     function role() { return userDoc().data.role; }
-    function isGlobal() { return active() && role() in ['administrador', 'coord_geral']; }
-    function hasBase(x) { return active() && (role() in ['administrador', 'coord_geral'] || x in userDoc().data.xptIds); }
+    function isGlobal() { return active() && role() in ['administrador', 'coord_geral', 'admin_sistema']; }
+    function hasBase(x) { return active() && (role() in ['administrador', 'coord_geral', 'admin_sistema'] || x in userDoc().data.xptIds); }
 
-    // ---------- ações (espelham permissions.js)
-    function canVerBase()  { return active() && role() in ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho']; }
-    function canEntrada()  { return active() && role() in ['despacho']; }
-    function canConferir() { return active() && role() in ['supervisor', 'coord_base', 'despacho']; }
-    function canOperacao() { return active() && role() in ['administrador', 'supervisor', 'coord_base']; }
-    function canCorrecao() { return active() && role() in ['administrador', 'supervisor', 'coord_base']; }
-    function canSaida()    { return active() && role() in ['supervisor', 'coord_base']; }
-    function canEncerrar() { return active() && role() in ['administrador', 'supervisor']; }
-    function canDevolucao() { return active() && role() in ['supervisor', 'coord_base']; }
-    function canUsuarios() { return active() && role() in ['admin_sistema']; }
-    function canConfig()   { return active() && role() in ['admin_sistema', 'administrador']; }
+    // ---------- ações: a matriz de perfis é EDITÁVEL pelo admin_sistema em env/teste/settings/permissions ({acao: [perfis]}).
+    // Sem esse documento valem os padrões abaixo (iguais a permissions.js). admin_sistema sempre tem tudo (linha fixa).
+    // motorista e a linha do admin_sistema nunca vêm da matriz.
+    function permDoc() { return /databases/$(database)/documents/env/teste/settings/permissions; }
+    function perm(a, def) { return active() && (role() == 'admin_sistema' || (role() != 'motorista' && (exists(permDoc()) ? role() in get(permDoc()).data[a] : role() in def))); }
+    function canVerBase()  { return perm('ver_base', ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho']); }
+    function canEntrada()  { return perm('entrada', ['despacho']); }
+    function canConferir() { return perm('conferir', ['supervisor', 'coord_base', 'despacho']); }
+    function canOperacao() { return perm('operacao', ['administrador', 'supervisor', 'coord_base']); }
+    function canCorrecao() { return perm('correcao', ['administrador', 'supervisor', 'coord_base']); }
+    function canSaida()    { return perm('confirmar_saida', ['supervisor', 'coord_base']); }
+    function canEncerrar() { return perm('encerrar', ['administrador', 'supervisor']); }
+    function canDevolucao() { return perm('devolucao', ['supervisor', 'coord_base']); }
+    function canUsuarios() { return active() && role() == 'admin_sistema'; }
+    function canConfig()   { return perm('config', ['administrador']); }
     // motorista: só enxerga e confere a operação cujo driverId é o dele (userDoc.driverId); o QR nunca autentica nem autoriza
     function isDriver() { return active() && role() == 'motorista' && userDoc().data.driverId is string; }
     function ownOp(op) { return isDriver() && op.driverId == userDoc().data.driverId; }
@@ -48,8 +52,7 @@ service cloud.firestore {
     match /env/teste/users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || canUsuarios());
       allow list: if canUsuarios();
-      allow create, update: if canUsuarios() && request.auth.uid != uid;   // nunca o próprio perfil
-      allow delete: if false;
+      allow create, update, delete: if canUsuarios() && request.auth.uid != uid;   // admin_sistema cria/edita/exclui perfis, nunca o próprio
     }
 
     // XPTs, regiões, motoristas e configurações: leitura só da própria base; escrita só administração.
@@ -72,7 +75,7 @@ service cloud.firestore {
     }
     match /env/teste/settings/{id} {
       allow get: if active();
-      allow create, update: if canConfig();
+      allow create, update: if (id == 'permissions' ? canUsuarios() : canConfig());   // só o admin_sistema altera a matriz de permissões
       allow delete: if false;
     }
 

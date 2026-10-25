@@ -10,10 +10,15 @@ let pass = 0, fail = 0;
 function t(name, fn) { try { fn(); pass++; } catch (e) { fail++; console.log('  ✗ ' + name + '\n    ' + e.message); } }
 function ok(c, m) { if (!c) throw new Error(m || 'falhou'); }
 const setEq = (a, b) => JSON.stringify(a.slice().sort()) === JSON.stringify(b.slice().sort());
-function roles(fn) {
-  const m = new RegExp('function ' + fn + '\\(\\)\\s*\\{[^}]*role\\(\\) in \\[([^\\]]*)\\]').exec(code);
-  ok(m, 'função ' + fn + ' não encontrada'); return m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+function roles(fn) { // perfis PADRÃO da função (sem o documento de permissões); admin_sistema (sempre tem tudo) é omitido, exceto em USUARIOS
+  let m = new RegExp('function ' + fn + '\\(\\)\\s*\\{\\s*return perm\\(\'[a-z_]+\', \\[([^\\]]*)\\]\\)').exec(code);
+  if (m) return m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+  m = new RegExp('function ' + fn + '\\(\\)\\s*\\{[^}]*role\\(\\) in \\[([^\\]]*)\\]').exec(code);
+  if (m) return m[1].split(',').map((s) => s.trim().replace(/'/g, '')).filter(Boolean);
+  m = new RegExp('function ' + fn + '\\(\\)\\s*\\{[^}]*role\\(\\) == .admin_sistema.').exec(code);
+  ok(m, 'função ' + fn + ' não encontrada'); return ['admin_sistema'];
 }
+const noSys = (l) => l.filter((x) => x !== 'admin_sistema');
 const P = NS.permissions;
 const rolesWith = (action) => P.PROFILES.map((p) => p.id).filter((id) => P.can(id, action));
 
@@ -34,7 +39,8 @@ t('todos os caminhos liberados ficam sob env/teste', () => {
 });
 t('nada pode ser apagado: todo delete é "if false"', () => {
   const dels = code.match(/allow (?:[a-z, ]*)delete[^;]*;/g) || []; ok(dels.length >= 8, 'poucos delete: ' + dels.length);
-  dels.forEach((d) => ok(/if false;/.test(d), d));
+  const live = dels.filter((d) => !/if false;/.test(d)); ok(live.length === 1 && /canUsuarios\(\) && request\.auth\.uid != uid/.test(live[0]), 'só o admin_sistema exclui perfis (nunca o próprio): ' + live.join(' | '));
+  dels.filter((d) => /if false;/.test(d)).forEach((d) => ok(/if false;/.test(d), d)); ok(dels.length >= 8);
 });
 t('eventos só podem ser criados (update/delete = false) e com o uid do autor', () => {
   const blk = /match \/env\/teste\/events\/\{eventId\} \{([\s\S]*?)\n    \}/.exec(code); ok(blk);
@@ -48,13 +54,15 @@ t('usuários: sem auto-edição e sem delete; código e XPT de origem imutáveis
 });
 t('matriz de perfis das regras == permissions.js (proposta D-06)', () => {
   const map = { canVerBase: 'ver_base', canEntrada: 'entrada', canConferir: 'conferir', canOperacao: 'operacao', canCorrecao: 'correcao', canSaida: 'confirmar_saida', canEncerrar: 'encerrar', canDevolucao: 'devolucao', canUsuarios: 'usuarios', canConfig: 'config' };
-  Object.keys(map).forEach((fn) => ok(setEq(roles(fn), rolesWith(map[fn])), fn + ': regras=' + roles(fn) + ' permissions.js=' + rolesWith(map[fn])));
+  Object.keys(map).forEach((fn) => { const a = noSys(roles(fn)), b = noSys(rolesWith(map[fn])); ok(setEq(a, b), fn + ': regras=' + a + ' permissions.js=' + b); });
+  ok(rolesWith('usuarios').join() === 'admin_sistema' && roles('canUsuarios').join() === 'admin_sistema');
+  P.EDITABLE.forEach((a) => ok(setEq(noSys(rolesWith(a)), P.defaultsFor(a).filter((x) => x !== 'admin_sistema')), 'defaultsFor ' + a));
   const g = /function isGlobal\(\)[^}]*\[([^\]]*)\]/.exec(code)[1].split(',').map((s) => s.trim().replace(/'/g, ''));
   ok(setEq(g, rolesWith('ver_global')), 'global');
 });
 t('modelo de regras usado nos testes == regras', () => {
   const R = FAKE.ROLES, map = { canVerBase: 'VER_BASE', canEntrada: 'ENTRADA', canConferir: 'CONFERIR', canOperacao: 'OPERACAO', canCorrecao: 'CORRECAO', canSaida: 'SAIDA', canEncerrar: 'ENCERRAR', canDevolucao: 'DEVOLUCAO', canUsuarios: 'USUARIOS', canConfig: 'CONFIG' };
-  Object.keys(map).forEach((fn) => ok(setEq(roles(fn), R[map[fn]]), fn));
+  Object.keys(map).forEach((fn) => ok(setEq(noSys(roles(fn)), noSys(R[map[fn]])), fn));
 });
 t('motorista: regras de acesso exclusivo à PRÓPRIA operação', () => {
   ok(/function isDriver\(\)[^}]*role\(\) == 'motorista'/.test(code), 'isDriver'); ok(/function ownOp\(op\)[^}]*op\.driverId == userDoc\(\)\.data\.driverId/.test(code), 'ownOp compara driverId do servidor');
@@ -71,6 +79,13 @@ t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhum
   ok(setEq(rolesWith('conferir_propria'), ['motorista']));
   ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config', 'ver_global'].forEach((a) => ok(!P.can('motorista', a), a));
   ok(P.can('despacho', 'entrada') && P.can('despacho', 'conferir') && !P.can('despacho', 'operacao'));
+});
+t('matriz editável: documento de permissões só pelo admin_sistema; motorista nunca vem da matriz', () => {
+  ok(/function perm\(a, def\)[^}]*role\(\) == 'admin_sistema'[^}]*role\(\) != 'motorista'[^}]*exists\(permDoc\(\)\)[^}]*get\(permDoc\(\)\)\.data\[a\]/.test(code), 'perm()');
+  ok(/id == 'permissions' \? canUsuarios\(\) : canConfig\(\)/.test(code), 'só admin_sistema grava a matriz');
+  ok(/match \/env\/teste\/users\/\{uid\} \{[\s\S]*?allow create, update, delete: if canUsuarios\(\) && request\.auth\.uid != uid/.test(code), 'usuários: admin_sistema sem tocar no próprio');
+  ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'config'].forEach((a) => ok(new RegExp("perm\\('" + a + "'").test(code), a));
+  ok(/EDITABLE/.test(fs.readFileSync(path.join(__dirname, 'permissions.js'), 'utf8')));
 });
 t('firebase-config: apiKey do app web informada pelo dono (não é segredo), sem chaves privadas', () => {
   const cfg = fs.readFileSync(path.join(__dirname, 'firebase-config.js'), 'utf8');

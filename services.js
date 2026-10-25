@@ -294,12 +294,7 @@
 
   function tag(where, p) { return p.catch(function (e) { if (e && typeof e === 'object') e.cxptWhere = where; throw e; }); }
   function loadAll(fb, user) {
-    if (user.role === 'admin_sistema') { // administrador do sistema: só cadastros (bases, regiões, motoristas, configurações); nunca pacotes/operações
-      var L = function (col) { return tag(col, fb.db.list(ENV + '/' + col, [])); };
-      return Promise.all([L('xpts'), L('regions'), L('drivers'), tag('settings/main', fb.db.get(path('settings', 'main')))])
-        .then(function (r) { return { xpts: r[0], regions: r[1], drivers: r[2], packages: [], operations: [], settings: r[3].exists ? r[3].data : {} }; });
-    }
-    var global = GLOBAL_ROLES.indexOf(user.role) >= 0 && user.role !== 'admin_sistema';
+    var global = GLOBAL_ROLES.indexOf(user.role) >= 0; // inclui admin_sistema (acesso a todas as telas)
     var ids = user.xptIds.slice();
     function byXpt(col) {
       if (global) return fb.db.list(ENV + '/' + col, []);
@@ -311,8 +306,8 @@
     // motorista: nada de listas gerais (regiões, motoristas, pacotes): só o próprio cadastro de motorista e as próprias operações
     var regions = isDriver ? Promise.resolve([]) : byXpt('regions');
     var drivers = isDriver ? (user.driverId ? fb.db.get(path('drivers', user.driverId)).then(function (s) { return s.exists ? [{ id: user.driverId, data: s.data }] : []; }) : Promise.resolve([])) : byXpt('drivers');
-    return Promise.all([tag('xpts', xpts), tag('regions', regions), tag('drivers', drivers), isDriver ? Promise.resolve([]) : tag('packages', byXpt('packages')), tag('operations', ops), tag('settings/main', fb.db.get(path('settings', 'main')))])
-      .then(function (r) { return { xpts: r[0], regions: r[1], drivers: r[2], packages: r[3], operations: r[4], settings: r[5].exists ? r[5].data : {} }; });
+    return Promise.all([tag('xpts', xpts), tag('regions', regions), tag('drivers', drivers), isDriver ? Promise.resolve([]) : tag('packages', byXpt('packages')), tag('operations', ops), tag('settings/main', fb.db.get(path('settings', 'main'))), tag('settings/permissions', fb.db.get(path('settings', 'permissions')))])
+      .then(function (r) { return { xpts: r[0], regions: r[1], drivers: r[2], packages: r[3], operations: r[4], settings: r[5].exists ? r[5].data : {}, permissions: r[6].exists ? r[6].data : null }; });
   }
   function docs(list) { return list.map(function (x) { return Object.assign({ id: x.id }, x.data); }); }
   function applyLoaded(D, data) {
@@ -322,6 +317,7 @@
     var keep = {}; D.operations.forEach(function (o) { keep[o.id] = o; });
     D.operations.length = 0;
     docs(data.operations).forEach(function (o) { var cur = keep[o.id]; if (cur) { Object.keys(cur).forEach(function (k) { delete cur[k]; }); Object.assign(cur, o); D.operations.push(cur); } else D.operations.push(o); });
+    NS.permissions.setOverrides(data.permissions || null); // matriz editada pelo admin_sistema (as regras do servidor aplicam a mesma)
     var s = data.settings || {};
     D.sizes = Array.isArray(s.sizes) && s.sizes.length ? s.sizes : DT.SIZES.map(function (x) { return Object.assign({}, x); });
     D.reasons = Array.isArray(s.reasons) && s.reasons.length ? s.reasons : DT.REASONS.map(function (x) { return Object.assign({}, x); });
@@ -380,6 +376,59 @@
     }).catch(failure);
   }
 
-  NS.services = { registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
+  // ---------- administração (somente admin_sistema): usuários, bases, matriz de permissões. Tudo validado também pelas regras.
+  function adminOnly(user) { return user && user.role === 'admin_sistema' ? null : { ok: false, message: 'Somente o administrador do sistema pode fazer isto.' }; }
+  function listUsers(fb, user) {
+    return adminOnly(user) ? Promise.resolve([]) : fb.db.list(ENV + '/users', []).then(function (l) { return l.map(function (x) { return Object.assign({ uid: x.id }, x.data); }); });
+  }
+  /** Edita um perfil existente (nome, perfil, bases, ativo, driverId). Nunca o próprio. */
+  function updateUser(fb, user, uid, f) {
+    var no = adminOnly(user); if (no) return Promise.resolve(no);
+    if (!uid || uid === user.uid) return Promise.resolve({ ok: false, message: 'Você não pode alterar o seu próprio perfil.' });
+    var role = String(f.role || ''); if (!NS.permissions.PROFILES.some(function (p) { return p.id === role; })) return Promise.resolve({ ok: false, message: 'Perfil inválido.' });
+    var name = String(f.name || '').trim(); if (!name) return Promise.resolve({ ok: false, message: 'Informe o nome.' });
+    var xptIds = (f.xptIds || []).map(function (x) { return String(x).trim(); }).filter(Boolean);
+    var isGlobal = GLOBAL_ROLES.indexOf(role) >= 0;
+    if (!isGlobal && !xptIds.length) return Promise.resolve({ ok: false, message: 'Informe ao menos uma base para este perfil.' });
+    if (role === 'motorista' && !String(f.driverId || '').trim()) return Promise.resolve({ ok: false, message: 'Motorista precisa de um driverId.' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('users', uid)).then(function (s) {
+        if (!s.exists) return { ok: false, message: 'Usuário não encontrado.' };
+        tx.update(path('users', uid), { name: name, role: role, xptIds: xptIds, active: f.active !== false, driverId: role === 'motorista' ? String(f.driverId).trim() : null }); return { ok: true };
+      });
+    }).catch(failure);
+  }
+  /** Remove o PERFIL (acesso ao sistema). O login em Authentication continua existindo: apague no Console se quiser. Nunca o próprio. */
+  function deleteUser(fb, user, uid) {
+    var no = adminOnly(user); if (no) return Promise.resolve(no);
+    if (!uid || uid === user.uid) return Promise.resolve({ ok: false, message: 'Você não pode excluir o seu próprio perfil.' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('users', uid)).then(function (s) { if (!s.exists) return { ok: false, message: 'Usuário não encontrado.' }; tx.delete(path('users', uid)); return { ok: true }; });
+    }).catch(failure);
+  }
+  /** Cria uma base (XPT) nova; se o id já existir, só edita nome/ativa (nunca recria). */
+  function saveXpt(fb, user, x) {
+    var no = adminOnly(user); if (no) return Promise.resolve(no);
+    var id = String((x && x.id) || '').trim().replace(/[^A-Za-z0-9_-]/g, ''), name = String((x && x.name) || '').trim();
+    if (!id || !name) return Promise.resolve({ ok: false, message: 'Informe identificador (letras/números) e nome da base.' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('xpts', id)).then(function (s) {
+        if (s.exists) { tx.update(path('xpts', id), { name: name, active: x.active !== false }); return { ok: true, created: false }; }
+        tx.set(path('xpts', id), { name: name, active: x.active !== false, note: 'Criada pelo administrador do sistema' }); return { ok: true, created: true };
+      });
+    }).catch(failure);
+  }
+  /** Grava a matriz de permissões (somente ações/perfis editáveis). As regras do Firestore passam a usá-la. */
+  function savePermissions(fb, user, doc) {
+    var no = adminOnly(user); if (no) return Promise.resolve(no);
+    var P = NS.permissions, out = {};
+    P.EDITABLE.forEach(function (a) { out[a] = (doc && Array.isArray(doc[a]) ? doc[a] : []).filter(function (r) { return P.EDITABLE_PROFILES.indexOf(r) >= 0; }); });
+    if (!out.ver_base.length) return Promise.resolve({ ok: false, message: 'Pelo menos um perfil precisa ver os dados da base.' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('settings', 'permissions')).then(function () { tx.set(path('settings', 'permissions'), out); return { ok: true, doc: out }; });
+    }).catch(failure);
+  }
+
+  NS.services = { listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.services;
 })(typeof window !== 'undefined' ? window : globalThis);
