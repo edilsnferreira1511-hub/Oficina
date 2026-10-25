@@ -194,3 +194,12 @@ input[readonly] { background: var(--surface2); }
 .big-result--wrong { border: 8px solid var(--gcolor); }
 .big-icon { font-size: 56px; line-height: 1; font-weight: 800; } .big-line1 { font-size: 24px; font-weight: 800; } .big-line2 { font-size: 22px; } .big-line3 { font-size: 15px; opacity: .95; }
 .gmap--draw .pin { pointer-events: none; } /* durante o desenho, tocar sobre um pacote marca o ponto da área (não alterna a seleção) */
+
+/* Mapa: modo informação e filtro de pacotes */
+.map-tools { display: flex; flex-direction: column; gap: 8px; margin: 10px 0; padding: 10px 12px; border: 1px solid var(--border, #d6dbd4); border-radius: 10px; background: var(--surface-2, rgba(0,0,0,.03)); }
+.map-tools .check { display: flex; align-items: center; gap: 8px; font-weight: 600; }
+.map-tools .check input { width: 22px; height: 22px; }
+.map-filter { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
+.map-filter select, .map-filter input[type=number] { min-height: 40px; padding: 4px 8px; }
+.map-filter input[type=number] { width: 72px; }
+.map-tools .dl { margin: 4px 0 0; }

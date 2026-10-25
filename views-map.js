@@ -9,8 +9,16 @@
   V.map = function (c) {
     var g = H.guard(c, 'ver_base'); if (g) return g;
     var D = c.D, store = c.store, group = store.group(c.xptId);
-    var points = store.mapPoints(c.xptId); // somente desta XPT (rascunho + pacotes confirmados); seleção já reconciliada
-    var selectable = store.selectable(points);
+    var allPoints = store.mapPoints(c.xptId); // somente desta XPT (rascunho + pacotes confirmados); seleção já reconciliada
+    // Filtro e informações do pacote (ferramentas do mapa): só a VISUALIZAÇÃO e a seleção por zona/círculo respeitam o filtro
+    var DAYMS = 86400000, view = { info: false, filter: 'todos', days: (D.settings && D.settings.stayLimitDays) || 4 };
+    function ageDays(p) { return typeof p.entryAt === 'number' && p.entryAt > 0 ? Math.max(0, Math.floor((c.nowMs - p.entryAt) / DAYMS)) : null; }
+    function visible(p) {
+      if (view.filter === 'todos') return true;
+      if (view.filter === 'antigos') { var a = ageDays(p); return a !== null && a >= view.days; }
+      return p.size === view.filter.replace(/^tam:/, '');
+    }
+    var points = allPoints.filter(visible), selectable = store.selectable(points);
     var af = ambForm[c.xptId] || (ambForm[c.xptId] = { name: '', responsible: '', driverId: '' });
     var zst = { poly: [], closed: false, drawing: false, fromZone: false, circle: null, circClosed: false, circDrawing: false };
     var av = NS.map.availability(root.CXPT_MAP), ctl = null, destroyed = false, focusId = null, notice = '';
@@ -22,7 +30,26 @@
 
     function pts() { return points; }
     function pointById(id) { return points.filter(function (p) { return p.id === id; })[0]; }
+    var infoBox = el('div', { id: 'pin-info', role: 'status', 'aria-live': 'polite' }), infoId = null, fcount = el('p', { class: 'hint', id: 'filter-count', role: 'status' });
+    function drawInfo() {
+      var q = infoId && pointById(infoId);
+      infoBox.replaceChildren(!view.info ? null : q ? el('dl', { class: 'dl', id: 'pin-info-dl', 'data-code': q.code }, [
+        ['ID (código)', q.code], ['Tamanho', H.sizeLabel(D, q.size)],
+        ['Data de entrada', q.entryAt ? ui.fmtDateTime(q.entryAt) + (ageDays(q) !== null ? ' · ' + ageDays(q) + ' dia(s) no galpão' : '') : 'ainda não confirmada (rascunho de entrada)'],
+        ['Situação', q.opName ? 'Em ambulância ' + q.opName : q.eligible ? 'Disponível' : q.why],
+      ].map(function (r) { return [el('dt', { text: r[0] }), el('dd', { text: r[1] })]; }).reduce(function (a, b) { return a.concat(b); }, []))
+        : el('p', { class: 'hint', id: 'pin-info-empty', text: 'Toque em um pacote do mapa para ver o ID, o tamanho e a data de entrada.' }));
+      fcount.textContent = view.filter === 'todos' ? '' : 'Mostrando ' + points.length + ' de ' + allPoints.length + ' pacote(s) com coordenadas (filtro ativo).';
+    }
+    function applyFilter() {
+      points = allPoints.filter(visible); selectable = store.selectable(points);
+      var elig = allPoints.filter(function (e) { return e.eligible; });
+      group.ids().filter(function (id) { return !points.some(function (q) { return q.id === id; }); }).forEach(function (id) { group.toggle(id, elig); }); // o que o filtro esconde sai da seleção
+      if (focusId && !pointById(focusId)) focusId = null; if (infoId && !pointById(infoId)) infoId = null;
+      redraw(); if (ctl && points.length) ctl.fit(points);
+    }
     function toggle(id) {
+      if (view.info) { infoId = id; focusId = id; redraw(); return; } // modo informação: só mostra os dados; não altera a seleção
       var pt = pointById(id);
       if (pt && !pt.eligible) { live.textContent = pt.code + ': ' + pt.why; redraw(); return; }
       var r = group.toggle(id, selectable);
@@ -251,13 +278,24 @@
     }
     function redraw() {
       if (destroyed) return;
-      drawList(); drawGroup(); toolsPanel(); drawDetail(); drawNoCoord();
+      drawList(); drawGroup(); toolsPanel(); drawDetail(); drawNoCoord(); drawInfo();
       if (ctl) ctl.setMarkers(markers());
     }
 
     var xsel = ui.select('xpt', D.xpts.filter(function (x) { return x.active && (H.can(c, 'ver_global') || x.id === c.xptId); }).map(function (x) { return { id: x.id, label: x.name }; }), c.xptId);
     xsel.id = 'map-xpt'; xsel.addEventListener('change', function () { c.setXpt(xsel.value); });
 
+    function mapTools() {
+      var chk = el('input', { type: 'checkbox', id: 'info-mode', checked: view.info, onchange: function () { view.info = chk.checked; if (!view.info) infoId = null; redraw(); ui.announce(view.info ? 'Modo informação ligado: toque em um pacote.' : 'Modo informação desligado.'); } });
+      var fs = el('select', { id: 'pin-filter', 'aria-label': 'Filtrar pacotes no mapa', onchange: function () { view.filter = fs.value; days.hidden = view.filter !== 'antigos'; applyFilter(); } },
+        [el('option', { value: 'todos', text: 'Todos os pacotes' })].concat(D.sizes.map(function (s) { return el('option', { value: 'tam:' + s.id, text: 'Só ' + s.label }); })).concat([el('option', { value: 'antigos', text: 'Só os mais antigos' })]));
+      fs.value = view.filter;
+      var di = el('input', { type: 'number', id: 'pin-days', min: '0', max: '365', value: String(view.days), 'aria-label': 'Dias mínimos de galpão', onchange: function () { var n = parseInt(di.value, 10); view.days = isFinite(n) && n >= 0 ? n : view.days; di.value = String(view.days); if (view.filter === 'antigos') applyFilter(); } });
+      var days = el('label', { class: 'inline-days', id: 'pin-days-box', hidden: view.filter !== 'antigos' }, 'com pelo menos ', di, ' dia(s) no galpão');
+      return el('div', { class: 'map-tools', id: 'map-tools' },
+        el('label', { class: 'check' }, chk, ' Ver informações do pacote ao tocar nele'),
+        el('div', { class: 'map-filter' }, el('label', { for: 'pin-filter', text: 'Mostrar no mapa: ' }), fs, days), fcount, infoBox);
+    }
     var mapCard;
     if (av.ok) {
       ctl = NS.map.create(mapHost, {
@@ -270,6 +308,7 @@
         el('ul', { class: 'legend', 'aria-label': 'Legenda' },
           el('li', null, el('span', { class: 'legend-pin legend-pin--marcada' }), 'Ponto marcado'), el('li', null, el('span', { class: 'legend-pin legend-pin--aproximada' }), 'Localização aproximada'),
           el('li', null, el('span', { class: 'legend-pin legend-pin--sel' }), 'Selecionado'), el('li', null, el('span', { class: 'legend-pin legend-pin--in' }), 'Dentro da área'), el('li', null, el('span', { class: 'legend-pin legend-pin--out' }), 'Fora da área'), el('li', null, el('span', { class: 'legend-pin legend-pin--amb' }), 'Cor = pacote já em uma ambulância (nome e cor na descrição do ponto)'), el('li', null, 'Pacotes sem coordenadas: lista abaixo (não aparecem no mapa)')),
+        mapTools(),
         el('div', { class: 'row-actions' }, el('button', { type: 'button', class: 'btn btn--ghost', id: 'fit-map', onclick: function () { if (ctl) ctl.fit(points); } }, 'Ajustar aos pontos'))));
     } else {
       mapCard = ui.card('Mapa', el('div', { id: 'map-unavailable', class: 'unavailable' },

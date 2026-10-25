@@ -27,7 +27,7 @@
         return D.packages.filter(function (p) { return p.xptId === xptId && NS.geo.hasCoords(p.location); }).map(function (p) {
           var why = NS.ambulance.ineligible(D, xptId, p), op = NS.ambulance.activeOpOf(D, p.id), col = op ? NS.ambulance.colorOf(op) : null;
           return { id: p.id, code: p.code, xptId: p.xptId, kind: p.location.kind, lat: p.location.lat, lng: p.location.lng, regionId: p.location.regionId,
-            size: p.size, reasonId: p.reasonId, source: 'pacote', state: p.state, eligible: !why, why: why,
+            size: p.size, reasonId: p.reasonId, entryAt: p.entryAt, source: 'pacote', state: p.state, eligible: !why, why: why,
             opId: op ? op.id : null, opName: op ? (op.name || op.id) : null, color: col ? col.hex : null, colorName: col ? col.name : null };
         });
       },

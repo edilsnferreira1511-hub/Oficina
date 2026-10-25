@@ -250,6 +250,34 @@ async function main(browser, base) {
   await page.click('#zone-clear');
   await page.click('#fit-map');
 
+  // ===== 7a. Modo informação e filtro do mapa
+  await page.click('#fit-map');
+  const pinOf = (code) => page.locator('#regions-map .pin[aria-label^="Pacote ' + code + '"]');
+  const nPins = () => page.locator('#regions-map .pin').count();
+  const pinsAll = await nPins();
+  check('7a. caixinha "ver informações" e filtro presentes ao lado do mapa', (await page.locator('#info-mode').isVisible()) && (await page.locator('#pin-filter').isVisible()) && (await page.locator('#pin-filter option').count()) >= 5);
+  await page.check('#info-mode'); await pinOf('FLX-003').evaluate((e) => e.click());
+  const info = await txt('#pin-info');
+  check('7a. modo informação: tocar no pacote mostra ID, tamanho e data de entrada', /FLX-003/.test(info) && /Grande/.test(info) && /\d{2}\/\d{2}\/\d{4}|\d{1,2}[\/.]\d{1,2}/.test(info) && /Data de entrada/.test(info), info);
+  check('7a. modo informação NÃO seleciona o pacote', (await page.getAttribute('#sel-count', 'data-count')) === '0');
+  await pinOf('FLX-001').evaluate((e) => e.click());
+  check('7a. tocar em outro pacote troca as informações', /FLX-001/.test(await txt('#pin-info')) && /Médio/.test(await txt('#pin-info')));
+  await page.uncheck('#info-mode'); await pinOf('FLX-001').evaluate((e) => e.click());
+  check('7a. com a caixinha desligada, tocar volta a selecionar', (await page.getAttribute('#sel-count', 'data-count')) === '1' && (await page.locator('#pin-info-dl').count()) === 0);
+  await page.click('#clear-sel');
+  await page.selectOption('#pin-filter', 'tam:G');
+  check('7a. filtro "Só Grande / volumoso": o mapa mostra só os pacotes grandes', (await nPins()) === 1 && (await pinOf('FLX-003').count()) === 1 && (await pinOf('FLX-001').count()) === 0 && /Mostrando 1 de/.test(await txt('#filter-count')));
+  check('7a. filtro: a lista de pontos acompanha o mapa', (await page.locator('#points-list tbody tr, #points-list [data-code]').count()) >= 1 && !/FLX-001/.test(await txt('#points-list')));
+  await page.selectOption('#pin-filter', 'antigos');
+  check('7a. "Só os mais antigos" pede os dias; recém-entrados (0 dia) ficam ocultos com mínimo de 4 dias', await page.locator('#pin-days').isVisible() && (await nPins()) === 0);
+  await page.fill('#pin-days', '0'); await page.dispatchEvent('#pin-days', 'change');
+  check('7a. mínimo 0 dia: todos os confirmados aparecem de novo', (await nPins()) === pinsAll);
+  await page.selectOption('#pin-filter', 'todos');
+  check('7a. "Todos": volta a mostrar tudo', (await nPins()) === pinsAll && (await txt('#filter-count')) === '');
+  await page.selectOption('#pin-filter', 'tam:G'); await page.click('#select-all');
+  check('7a. "Selecionar todos" só pega o que o filtro mostra', (await page.getAttribute('#sel-count', 'data-count')) === '1');
+  await page.click('#clear-sel'); await page.selectOption('#pin-filter', 'todos');
+
   // ===== 7b. Círculo (centro + raio) — estrutura do modelo Rota Certa
   await page.locator('#regions-map .gmap').evaluate((e) => e.scrollIntoView({ block: 'center' }));
   const pinPx = async () => D(() => Array.from(document.querySelectorAll('#regions-map .pin')).map((p) => ({ code: p.getAttribute('aria-label').match(/FLX-\d+/)[0], x: parseFloat(p.style.left), y: parseFloat(p.style.top) })));
