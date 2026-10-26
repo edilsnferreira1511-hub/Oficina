@@ -203,3 +203,5 @@ input[readonly] { background: var(--surface2); }
 .map-filter select, .map-filter input[type=number] { min-height: 40px; padding: 4px 8px; }
 .map-filter input[type=number] { width: 72px; }
 .map-tools .dl { margin: 4px 0 0; }
+
+.demo-banner[hidden] { display: none; }

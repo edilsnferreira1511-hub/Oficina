@@ -9,7 +9,7 @@
   <meta http-equiv="Content-Security-Policy" content="default-src 'none'; script-src 'self' https://www.gstatic.com; style-src 'self'; img-src 'self' data: https://tile.openstreetmap.org; font-src 'self'; connect-src https://*.googleapis.com https://*.firebaseio.com; base-uri 'none'; form-action 'none'">
   <meta name="referrer" content="strict-origin-when-cross-origin">
   <meta name="color-scheme" content="light dark">
-  <title>COOPMETRO XPT · Demonstração</title>
+  <title>COOPMETRO XPT</title>
   <link rel="stylesheet" href="styles.css">
 </head>
 <body>
@@ -36,17 +36,17 @@
   </svg>
 
   <a class="skip-link" href="#main">Pular para o conteúdo</a>
-  <div class="demo-banner" role="note"><strong>AMBIENTE DE DEMONSTRAÇÃO</strong><span>dados fictícios, sem gravação no sistema real</span></div>
+  <div class="demo-banner" role="note" hidden><strong>AMBIENTE DE DEMONSTRAÇÃO</strong><span>dados fictícios, sem gravação no sistema real</span></div>
 
   <div id="auth-root" class="auth-root" hidden></div>
   <div class="shell">
     <aside class="sidebar" id="sidebar" aria-label="Navegação principal">
       <div class="brand">
         <img src="logo-coopmetro.jpg" alt="COOPMETRO" width="64" height="64" class="brand-logo">
-        <span class="brand-text"><strong>COOPMETRO</strong><span>XPT · protótipo</span></span>
+        <span class="brand-text"><strong>COOPMETRO</strong><span>XPT</span></span>
       </div>
       <nav id="nav" class="nav"></nav>
-      <p class="sidebar-foot">Protótipo local v1. Logotipo enviado pelo proprietário; uso oficial ainda a confirmar.</p>
+      <p class="sidebar-foot" id="sidebar-foot"></p>
     </aside>
     <div class="overlay" id="overlay" hidden></div>
     <div class="content">

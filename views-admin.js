@@ -11,9 +11,10 @@
   }
   function csvBtn(name, headers, rows) {
     return el('button', { type: 'button', class: 'btn btn--ghost btn--sm', 'data-csv': name, onclick: function () {
-      download('demonstracao-' + name + '.csv', R.toCsv(headers.concat(['origem']), rows.map(function (r) { return r.concat(['DADOS FICTICIOS DE DEMONSTRACAO']); })));
-      ui.announce('CSV de demonstração gerado localmente com dados fictícios.');
-    } }, 'Exportar CSV (demonstração)');
+      var live = NS.mode === 'remoto';
+      download((live ? '' : 'demonstracao-') + name + '.csv', R.toCsv(live ? headers : headers.concat(['origem']), live ? rows : rows.map(function (r) { return r.concat(['DADOS FICTICIOS DE DEMONSTRACAO']); })));
+      ui.announce(live ? 'CSV gerado.' : 'CSV de demonstração gerado localmente com dados fictícios.');
+    } }, NS.mode === 'remoto' ? 'Exportar CSV' : 'Exportar CSV (demonstração)');
   }
 
   V.reports = function (c) {
@@ -36,7 +37,7 @@
     var pair = function (a, b) { return function (r) { return [a, b]; }; };
     function t2(h1, h2, rows) { return ui.table([{ label: h1, render: function (r) { return r[0]; } }, { label: h2, render: function (r) { return r[1]; } }], rows, { label: h1 }); }
     return H.page([
-      ui.callout('warn', 'Relatórios demonstrativos.', 'Calculados sobre dados fictícios desta sessão. A exportação gera um CSV local de demonstração — não são dados reais.'),
+      H.live() ? null : ui.callout('warn', 'Relatórios demonstrativos.', 'Calculados sobre dados fictícios desta sessão. A exportação gera um CSV local de demonstração — não são dados reais.'),
       rep('entradas-por-dia', 'Entradas por dia (14 dias, UTC)', ['dia', 'entradas'], days.map(function (d) { return [d.label, String(d.value)]; }), ui.columns(days, 'Entradas por dia')),
       rep('pacotes-por-xpt', global ? 'Pacotes por XPT' : 'Pacotes da sua XPT', ['xpt', 'pacotes'], byXpt, t2('XPT', 'Pacotes', byXpt)),
       rep('estoque-por-estado', 'Estoque por estado', ['estado', 'pacotes'], stRows, t2('Estado', 'Pacotes', stRows)),
@@ -51,17 +52,28 @@
     ]);
   };
 
+  /** Uso real: cadastra motorista na base selecionada (só cria; nunca sobrescreve). O login do motorista é vinculado em Configuração inicial. */
+  function driverForm(c) {
+    if (!(NS.permissions.can(c.profile, 'config') || c.profile === 'admin_sistema')) return el('p', { class: 'hint', text: 'Peça ao administrador para cadastrar novos motoristas.' });
+    var id = el('input', { type: 'text', id: 'dv-id', placeholder: 'ex.: m10', autocomplete: 'off' }), nm = el('input', { type: 'text', id: 'dv-name', autocomplete: 'off' }), idn = el('input', { type: 'text', id: 'dv-ident', autocomplete: 'off' });
+    var msg = el('p', { class: 'form-msg', id: 'dv-msg', role: 'status' });
+    return ui.card('Cadastrar motorista nesta base', el('div', null, ui.field('Identificador (letras/números)', id), ui.field('Nome', nm), ui.field('Matrícula/placa (opcional)', idn),
+      el('button', { type: 'button', class: 'btn btn--primary', id: 'dv-btn', onclick: function () {
+        msg.textContent = 'Gravando…';
+        NS.services.registerDriver(root.CXPT_FB, c.user, { id: id.value, name: nm.value, ident: idn.value, xptId: c.xptId }).then(function (r) { if (!r.ok) { msg.textContent = r.message; return; } c.svc.refresh().then(function () { c.rerender(); }); });
+      } }, 'Cadastrar motorista'), msg, el('p', { class: 'hint', text: 'Para o motorista entrar no sistema, vincule o login dele em Configuração inicial → Vincular usuário.' })));
+  }
   V.drivers = function (c) {
     var g = H.guard(c, 'ver_base'); if (g) return g;
     var D = c.D, rows = D.drivers.filter(function (d) { return d.xptId === c.xptId; });
     return H.page([
-      ui.callout('info', 'Motoristas e agregados fictícios.', 'Não há contas, senhas nem autenticação nesta versão. O acesso do motorista às operações será feito no backend, com permissões.'),
+      H.live() ? null : ui.callout('info', 'Motoristas e agregados fictícios.', 'Não há contas, senhas nem autenticação nesta versão. O acesso do motorista às operações será feito no backend, com permissões.'),
       ui.card('Motoristas — ' + c.xpt.name, rows.length ? ui.table([
-        { label: 'Nome (fictício)', key: 'name' }, { label: 'Identificação demonstrativa', render: function (d) { return el('span', { class: 'mono', text: d.ident }); } },
+        { label: H.live() ? 'Nome' : 'Nome (fictício)', key: 'name' }, { label: H.live() ? 'Identificação' : 'Identificação demonstrativa', render: function (d) { return el('span', { class: 'mono', text: d.ident }); } },
         { label: 'Operações atribuídas', render: function (d) { return String(NS.operations.opsOf(D, c.xptId).filter(function (o) { return o.driverId === d.id; }).length); } },
-        { label: 'Estado (demo)', render: function (d) { return ui.badge(d.state, d.state === 'ativo' ? 'ok' : 'neutral'); } },
+        { label: H.live() ? 'Estado' : 'Estado (demo)', render: function (d) { return ui.badge(d.state, d.state === 'ativo' ? 'ok' : 'neutral'); } },
       ], rows, { label: 'Motoristas' }) : ui.empty('Nenhum motorista nesta XPT.')),
-      el('div', { class: 'row-actions' }, ui.blocked('Cadastrar motorista', 'criação de contas exige autenticação e permissões no backend.')),
+      H.live() ? driverForm(c) : el('div', { class: 'row-actions' }, ui.blocked('Cadastrar motorista', 'criação de contas exige autenticação e permissões no backend.')),
       H.demoNote(),
     ]);
   };
@@ -73,20 +85,20 @@
     var m = NS.permissions.matrix();
     var audit = c.store.audit.list(c.xptId).slice(-10).reverse();
     return H.page([
-      ui.callout('info', 'Bases fictícias.', 'A XPT de origem de um pacote é permanente: não há transferência silenciosa entre bases.'),
+      H.live() ? null : ui.callout('info', 'Bases fictícias.', 'A XPT de origem de um pacote é permanente: não há transferência silenciosa entre bases.'),
       ui.card('XPT / Galpões', ui.table([
         { label: 'Nome', key: 'name' }, { label: 'Identificador', render: function (x) { return el('span', { class: 'mono', text: x.id }); } },
         { label: 'Estado', render: function (x) { return ui.badge(x.active ? 'Ativa' : 'Desativada', x.active ? 'ok' : 'neutral'); } },
         { label: 'Em estoque', render: function (x) { return String(D.packages.filter(function (p) { return p.xptId === x.id && p.state === 'em_estoque'; }).length); } },
         { label: 'No galpão', render: function (x) { return String(D.packages.filter(function (p) { return p.xptId === x.id && P.inWarehouse(p); }).length); } },
       ], xs, { label: 'XPTs' })),
-      el('div', { class: 'row-actions' }, ui.blocked('Criar base / usuário', 'administração real exige backend, autenticação e auditoria.'), ui.blocked('Transferir pacote entre XPTs', 'a primeira fase não prevê transferência; a origem é permanente.')),
-      ui.card('Matriz de permissões PROPOSTA (não aprovada)', el('div', null,
-        ui.callout('warn', NS.permissions.DISCLAIMER),
+      H.live() ? (c.profile === 'admin_sistema' ? el('div', { class: 'row-actions' }, el('a', { class: 'btn btn--primary', href: '#/setup', id: 'xpt-go-setup' }, 'Criar ou editar bases e usuários')) : null) : el('div', { class: 'row-actions' }, ui.blocked('Criar base / usuário', 'administração real exige backend, autenticação e auditoria.'), ui.blocked('Transferir pacote entre XPTs', 'a primeira fase não prevê transferência; a origem é permanente.')),
+      ui.card(H.live() ? 'Matriz de permissões' : 'Matriz de permissões PROPOSTA (não aprovada)', el('div', null,
+        H.live() ? null : ui.callout('warn', NS.permissions.DISCLAIMER),
         ui.table([{ label: 'Perfil', render: function (r) { return r.profile.label; } }].concat(NS.permissions.ACTIONS.map(function (a, i) {
           return { label: a.label, render: function (r) { return r.perms[i] ? 'Sim' : '—'; } };
         })), m, { label: 'Matriz de permissões' }))),
-      ui.card('Auditoria demonstrativa (últimas ações desta sessão)', audit.length ? ui.table([
+      H.live() ? null : ui.card('Auditoria demonstrativa (últimas ações desta sessão)', audit.length ? ui.table([
         { label: 'Quando', render: function (e) { return ui.fmtDateTime(e.at); } }, { label: 'Ação', key: 'type' }, { label: 'Detalhe', key: 'detail' }], audit, { label: 'Auditoria' }) : ui.empty('Sem ações registradas nesta sessão.')),
       H.demoNote(),
     ]);
@@ -96,27 +108,29 @@
     var D = c.D;
     function sec(t, items) { return ui.card(t, el('ul', { class: 'help-list' }, items.map(function (i) { return el('li', { text: i }); }))); }
     var canCfg = H.can(c, 'config');
-    var nr = el('input', { type: 'text', id: 'new-reason', maxlength: '40', placeholder: 'Novo motivo (demonstração)' });
+    var nr = el('input', { type: 'text', id: 'new-reason', maxlength: '40', placeholder: H.live() ? 'Novo motivo' : 'Novo motivo (demonstração)' });
     var rmsg = el('small', { class: 'hint', id: 'reason-msg', role: 'status' });
     var form = el('form', { class: 'inline-form', onsubmit: function (e) {
       e.preventDefault();
       var label = nr.value.trim();
       if (!label) { rmsg.textContent = 'Informe o nome do motivo.'; return; }
       if (D.reasons.some(function (r) { return r.label.toLowerCase() === label.toLowerCase(); })) { rmsg.textContent = 'Motivo já existe.'; return; }
-      D.reasons.push({ id: 'r_custom_' + (D.reasons.length + 1), label: label });
+      var rid = 'r_custom_' + (D.reasons.length + 1);
+      if (H.live()) { rmsg.textContent = 'Gravando…'; NS.services.saveSettings(root.CXPT_FB, c.user, { reasons: D.reasons.concat([{ id: rid, label: label }]) }).then(function (r) { if (!r.ok) { rmsg.textContent = r.message; return; } D.reasons.push({ id: rid, label: label }); c.rerender(); }); return; }
+      D.reasons.push({ id: rid, label: label });
       c.store.audit.log('config_motivo_demo', c.xptId, label); c.store.changed();
-    } }, ui.field('Adicionar motivo', nr), el('button', { type: 'submit', class: 'btn btn--ghost', id: 'add-reason' }, 'Adicionar (somente em memória)'), rmsg);
+    } }, ui.field('Adicionar motivo', nr), el('button', { type: 'submit', class: 'btn btn--ghost', id: 'add-reason' }, (H.live() ? 'Adicionar motivo' : 'Adicionar (somente em memória)')), rmsg);
     return H.page([
-      ui.callout('warn', 'Tudo aqui é demonstração.', 'Os dados são fictícios e ficam só em memória: ao recarregar a página, rascunhos e alterações são perdidos.'),
-      sec('Como receber pacotes', ['Abra "Entrada de Pacotes" e leia o código com um leitor USB/Bluetooth (ele digita e envia Enter) ou digite manualmente.', 'Escolha tamanho e motivo; depois informe a localização do destino de entrega.', 'Use "Adicionar ao rascunho". A entrada real está bloqueada até existir backend.']),
+      H.live() ? null : ui.callout('warn', 'Tudo aqui é demonstração.', 'Os dados são fictícios e ficam só em memória: ao recarregar a página, rascunhos e alterações são perdidos.'),
+      sec('Como receber pacotes', ['Abra "Entrada de Pacotes" e leia o código com um leitor USB/Bluetooth (ele digita e envia Enter) ou digite manualmente.', 'Escolha tamanho e motivo; depois informe a localização do destino de entrega.', (H.live() ? 'Use "Adicionar ao rascunho" e depois "Confirmar entrada": o pacote só vale depois que o servidor confirmar a gravação.' : 'Use "Adicionar ao rascunho". A entrada real está bloqueada até existir backend.')]),
       sec('Como marcar a localização', ['A localização é o destino de entrega, não o lugar no galpão.', 'Com mapa disponível, toque no mapa para marcar; sem mapa, use Aproximada, Desconhecida ou Pendente.', 'Cada pacote tem a sua própria localização; ela nunca é copiada do pacote anterior.']),
-      sec('Como conferir pacotes', ['Em "Saída e Conferência", escolha a operação e leia os códigos.', 'Leituras repetidas não contam de novo; códigos de outra operação ou inexistentes são sinalizados.', 'A confirmação da saída está bloqueada.']),
-      sec('Alertas e isolamento', ['Alertas são calculados ao abrir a tela. O limite padrão é de 4 dias e pode ser alterado na demonstração.', 'Cada XPT só enxerga os próprios pacotes, rascunhos e seleções. Códigos duplicados em outra base são sinalizados sem mostrar nenhum dado dela.']),
-      sec('O que ainda não pode ser feito', ['Login real, gravação, backend, leitura por câmera, mapa geográfico real, rotas, geocodificação e relatórios financeiros.', 'Criar ou confirmar operações, expedir ou devolver pacotes.']),
-      ui.card('Configurações demonstrativas (sem persistência)', el('div', null,
+      sec('Como conferir pacotes', ['Em "Saída e Conferência", escolha a operação e leia os códigos.', 'Leituras repetidas não contam de novo; códigos de outra operação ou inexistentes são sinalizados.', (H.live() ? 'A saída só é confirmada por perfil autorizado e vale apenas para os pacotes conferidos.' : 'A confirmação da saída está bloqueada.')]),
+      sec('Alertas e isolamento', ['Alertas são calculados ao abrir a tela. O limite padrão é de 4 dias e pode ser alterado por quem tem permissão.', 'Cada XPT só enxerga os próprios pacotes, rascunhos e seleções. Códigos duplicados em outra base são sinalizados sem mostrar nenhum dado dela.']),
+      sec('O que ainda não existe', H.live() ? ['Leitura por câmera, rotas, geocodificação automática de endereços e relatórios financeiros.'] : ['Login real, gravação, backend, leitura por câmera, mapa geográfico real, rotas, geocodificação e relatórios financeiros.', 'Criar ou confirmar operações, expedir ou devolver pacotes.']),
+      ui.card(H.live() ? 'Configurações' : 'Configurações demonstrativas (sem persistência)', el('div', null,
         el('p', { class: 'hint', text: 'Limite de dias de alerta atual: ' + NS.alerts.limitOf(D) + '. Altere em Alertas e devoluções.' }),
         el('ul', { class: 'help-list', id: 'reasons-list' }, D.reasons.map(function (r) { return el('li', { text: r.label }); })),
-        canCfg ? form : ui.callout('info', 'Seu perfil não pode editar motivos (simulação).', 'Troque para Administrador ou Administrador do sistema no seletor de perfil demonstrativo.'))),
+        canCfg ? form : ui.callout('info', 'Seu perfil não pode editar motivos.', H.live() ? 'Peça ao administrador.' : 'Troque para Administrador ou Administrador do sistema no seletor de perfil demonstrativo.'))),
       H.demoNote(),
     ]);
   };

@@ -1,5 +1,5 @@
 /* COOPMETRO XPT — autenticação real (e-mail e senha do Firebase Auth), carregamento do perfil e bloqueio das telas internas.
- * O perfil e as bases vêm do documento protegido env/teste/users/{uid} (criado/alterado só pelo administrador no Console
+ * O perfil e as bases vêm do documento protegido env/producao/users/{uid} (criado/alterado só pelo administrador no Console
  * ou por quem as regras autorizarem). A pessoa NUNCA escolhe o próprio perfil. */
 (function (root) {
   'use strict';
@@ -47,7 +47,7 @@
         fb.auth.sendReset(email.value.trim()).then(function () { msg.textContent = 'Se este e-mail tiver cadastro, enviamos um link para redefinir a senha.'; },
           function (err) { msg.textContent = /network/.test((err && err.code) || '') ? 'Sem conexão com a internet.' : 'Se este e-mail tiver cadastro, enviamos um link para redefinir a senha.'; });
       } }, 'Esqueci a senha'), msg);
-    showAuth(card('COOPMETRO XPT — Entrar', [el('p', { class: 'hint', text: 'Ambiente de teste. Use o usuário criado pelo administrador.' }), form]));
+    showAuth(card('COOPMETRO XPT — Entrar', [el('p', { class: 'hint', text: 'Use o e-mail e a senha criados pelo administrador.' }), form]));
     email.focus();
   }
   function blockedScreen(fb, title, message) {
@@ -92,7 +92,7 @@
         }).catch(function (e) {
           started = false;
           var f = NS.services.failure(e);
-          blockedScreen(fb, 'Não foi possível carregar', f.message + (e && e.cxptWhere ? ' [leitura recusada em: env/teste/' + e.cxptWhere + ']' : '') + (f.reason === 'sem_permissao' ? ' (as regras do Firestore recusaram a leitura; confira se as regras foram publicadas e se o seu usuário tem as bases corretas).' : ''));
+          blockedScreen(fb, 'Não foi possível carregar', f.message + (e && e.cxptWhere ? ' [leitura recusada em: ' + NS.services.ENV + '/' + e.cxptWhere + ']' : '') + (f.reason === 'sem_permissao' ? ' (as regras do Firestore recusaram a leitura; confira se as regras foram publicadas e se o seu usuário tem as bases corretas).' : ''));
         });
       });
     });

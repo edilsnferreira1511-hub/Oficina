@@ -16,7 +16,8 @@
     limit.addEventListener('change', function () {
       var n = Number(limit.value);
       if (!Number.isInteger(n) || n < 1 || n > 60) { lmsg.textContent = 'Informe um número inteiro de 1 a 60.'; limit.value = String(NS.alerts.limitOf(D)); return; }
-      if (!H.can(c, 'config') && !H.can(c, 'correcao')) { lmsg.textContent = 'Seu perfil não pode alterar o limite (simulação).'; limit.value = String(NS.alerts.limitOf(D)); return; }
+      if (!H.can(c, 'config') && !H.can(c, 'correcao')) { lmsg.textContent = H.live() ? 'Seu perfil não pode alterar o limite.' : 'Seu perfil não pode alterar o limite (simulação).'; limit.value = String(NS.alerts.limitOf(D)); return; }
+      if (H.live()) { lmsg.textContent = 'Gravando…'; NS.services.saveSettings(root.CXPT_FB, c.user, { stayLimitDays: n }).then(function (r) { if (!r.ok) { lmsg.textContent = r.message; limit.value = String(NS.alerts.limitOf(D)); return; } D.settings.stayLimitDays = n; c.rerender(); }); return; }
       D.settings.stayLimitDays = n; c.store.audit.log('config_limite_dias_demo', c.xptId, String(n)); c.store.changed();
     });
     function section(id, title, list, extra, hint) {
@@ -28,8 +29,8 @@
           list.length > shown.length ? el('p', { class: 'hint', text: 'Mostrando ' + shown.length + ' de ' + list.length + '.' }) : null] : ui.empty('Nenhum pacote neste alerta.')));
     }
     return H.page([
-      ui.callout('info', 'Alertas calculados ao abrir esta tela, com dados demonstrativos de ' + c.xpt.name + '.', 'Não há processamento em segundo plano nem notificações automáticas.'),
-      ui.card('Filtros e limite', el('div', { class: 'form-grid' }, ui.field('Estado', stateSel), ui.field('Limite de permanência (dias) — demonstração', limit, null, 'Alerta quando o pacote passa de ' + a.limitDays + ' dia(s) no ciclo atual.'), lmsg)),
+      ui.callout('info', H.live() ? 'Alertas calculados ao abrir esta tela, para ' + c.xpt.name + '.' : 'Alertas calculados ao abrir esta tela, com dados demonstrativos de ' + c.xpt.name + '.', 'Não há processamento em segundo plano nem notificações automáticas.'),
+      ui.card('Filtros e limite', el('div', { class: 'form-grid' }, ui.field('Estado', stateSel), ui.field(H.live() ? 'Limite de permanência (dias)' : 'Limite de permanência (dias) — demonstração', limit, null, 'Alerta quando o pacote passa de ' + a.limitDays + ' dia(s) no ciclo atual.'), lmsg)),
       section('stay', 'Permanência acima de ' + a.limitDays + ' dias', a.stay, { label: 'Dias', render: function (p) { return String(P.stayDays(p, c.nowMs)); } }, 'A idade conta a partir da entrada no ciclo atual; sair do galpão encerra o alerta.'),
       a.invalidDate.length ? section('invalid', 'Data de entrada indisponível ou inválida', a.invalidDate, { label: 'Situação', render: function () { return 'Sem alerta (data inválida)'; } }, 'Estes pacotes não geram alerta de permanência para evitar alertas falsos.') : null,
       section('noloc', 'Localização desconhecida', a.noLocation, { label: 'Localização', render: function (p) { return H.locBadge(p.location); } }),

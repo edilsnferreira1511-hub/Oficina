@@ -2,12 +2,12 @@
 
 > **Dois modos, decididos por `firebase-config.js`:**
 > - **`apiKey` vazia (como entregue): MODO DEMONSTRAÇÃO** — dados fictícios só em memória, sem login, sem rede (exceto ladrilhos do mapa).
-> - **`apiKey` preenchida: MODO TESTE FIREBASE** — login real (e-mail/senha), perfil e bases vindos do Firestore, gravação **somente** em `env/teste/` do projeto `coopmetro-xpt`.
+> - **`apiKey` preenchida: MODO TESTE FIREBASE** — login real (e-mail/senha), perfil e bases vindos do Firestore, gravação **somente** em `env/producao/` do projeto `coopmetro-xpt`.
 >
 > **Nada foi publicado, nenhum deploy foi feito, o Hosting e o plano Firebase não foram tocados, nada foi gravado no Firebase real a partir deste ambiente.**
 > **O que depende de você** está em `FIREBASE.md` (seção "Ações suas"): colar a `apiKey`, criar o 1º administrador, publicar/mesclar as regras, abrir por `http(s)`.
 
-> **Leia primeiro:** `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md` (causa da falha de criação, correções, estado real do Firebase, matriz de permissões, motorista via QR e o que depende de você). A `apiKey` já está em `firebase-config.js`: o site abre pedindo login e grava no Firestore (`env/teste`). Falta você fazer no Console: Auth e-mail/senha + domínio da Vercel autorizado, 1º usuário `admin_sistema` e publicar as regras. Esta versão **não foi testada contra o Firebase real**.
+> **Leia primeiro:** `CORRECOES-AMBULANCIA-FIREBASE-MOTORISTA.md` (causa da falha de criação, correções, estado real do Firebase, matriz de permissões, motorista via QR e o que depende de você). A `apiKey` já está em `firebase-config.js`: o site abre pedindo login e grava no Firestore (`env/producao`). Falta você fazer no Console: Auth e-mail/senha + domínio da Vercel autorizado, 1º usuário `admin_sistema` e publicar as regras. Esta versão **não foi testada contra o Firebase real**.
 
 ## Como abrir (IMPORTANTE para o mapa)
 - **Para o mapa aparecer, abra por `http(s)`**, não com duplo clique: o servidor público do OpenStreetMap exige o cabeçalho `Referer`, que o navegador **não envia** para arquivos abertos como `file://`. Nesse caso a tela diz exatamente isso ("mapa indisponível") em vez de desenhar um mapa falso.
@@ -64,6 +64,6 @@ node run-all.js                                  # tudo
 - **Firebase real NÃO foi testado**: o ambiente de desenvolvimento não alcança o Firebase nem o Emulator Suite. Toda a camada Firebase foi testada contra um **backend simulado** (`fake-firebase.js`) e as regras só passaram por **análise estática**. Veja `TESTES.md` ("Simulado × real") e `FIREBASE.md` ("Como validar de verdade").
 - **Mapa real NÃO foi validado aqui** (proxy bloqueia o servidor de ladrilhos); testes usam ladrilhos sintéticos. O OSM público é para uso leve; para produção use provedor próprio (`map-config.js`).
 - Leitura por **câmera não** implementada. Leitor USB/Bluetooth (modo teclado) por digitação/Enter, sem hardware real. Sem Android real.
-- Dados: carga inicial lê todos os pacotes das bases do usuário (adequado para o teste; milhares de pacotes pedem paginação). Atualização entre aparelhos: botão "Atualizar dados" (sem tempo real). Histórico do pacote fica no próprio documento; eventos imutáveis também vão para `env/teste/events`.
+- Dados: carga inicial lê todos os pacotes das bases do usuário (adequado para o teste; milhares de pacotes pedem paginação). Atualização entre aparelhos: botão "Atualizar dados" (sem tempo real). Histórico do pacote fica no próprio documento; eventos imutáveis também vão para `env/producao/events`.
 - Matriz de perfis, estados e regras de devolução continuam **propostas não aprovadas** (`DECISOES-PENDENTES.md`).
 - Sem Cloud Functions (plano Spark): as regras do Firestore + transações são a proteção; um cliente adulterado ainda é contido pelas regras, mas invariantes que as regras não conseguem expressar (ex.: numeração `OP-nnnn` exata) dependem da transação do cliente.

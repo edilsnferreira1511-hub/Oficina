@@ -4,7 +4,7 @@
  *
  * apiKey preenchida (veio do Console Firebase → Configurações do projeto → Seus apps → "Coopmetro" → Configuração do SDK).
  * Se "apiKey" ficar vazia o sistema abre em MODO DEMONSTRAÇÃO (dados fictícios em memória, sem login, sem rede).
- * Com "apiKey" preenchida o sistema exige login real e grava no Firestore, SOMENTE sob o caminho env/teste/. */
+ * Com "apiKey" preenchida o sistema exige login real e grava no Firestore, SOMENTE sob o caminho dataPath (env/producao). */
 window.CXPT_FIREBASE = {
   config: {
     apiKey: 'AIzaSyDgoBTBCZbdIj7hi6-bCbvMtxW-k9weeqg', // informada pelo dono do projeto (Console → Configuração do SDK); identifica o app, não é segredo
@@ -15,5 +15,6 @@ window.CXPT_FIREBASE = {
     appId: '1:830962789514:web:6d52394cc08f9a72115173',
     measurementId: 'G-CKXJZCV6R0', // Analytics NÃO é carregado por este sistema
   },
+  dataPath: 'env/producao', // onde os dados ficam no Firestore (as regras publicadas devem cobrir este caminho)
   sdkVersion: '10.14.1',
 };

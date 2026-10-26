@@ -9,7 +9,9 @@
 (function (root) {
   'use strict';
   var NS = (root.CXPT = root.CXPT || {});
-  var ENV = 'env/teste'; // isolamento: tudo vive sob env/teste/... (nada fora desse caminho é lido nem escrito)
+  // caminho dos dados no Firestore (firebase-config.js → dataPath). Tudo vive sob esse caminho; nada fora dele é lido nem escrito.
+  // Padrão 'env/teste' só para a bateria de testes automatizados; o firebase-config.js entregue usa 'env/producao'.
+  var ENV = (root.CXPT_FIREBASE && root.CXPT_FIREBASE.dataPath) || 'env/teste';
 
   function clean(o) { return JSON.parse(JSON.stringify(o)); } // Firestore não aceita undefined
   function pad(n, w) { n = String(n); while (n.length < w) n = '0' + n; return n; }
@@ -284,7 +286,7 @@
 
   function loadProfile(fb, authUser) {
     return fb.db.get(path('users', authUser.uid)).then(function (s) {
-      if (!s.exists) return { ok: false, reason: 'sem_cadastro', message: 'Seu usuário ainda não foi liberado. Peça ao administrador para criar o seu cadastro em users/' + authUser.uid + '.' };
+      if (!s.exists) return { ok: false, reason: 'sem_cadastro', message: 'Seu usuário ainda não foi liberado. Peça ao administrador para criar o seu cadastro (' + ENV + '/users/' + authUser.uid + ').' };
       var u = s.data || {};
       if (u.active !== true) return { ok: false, reason: 'inativo', message: 'Seu usuário está desativado. Procure o administrador.' };
       if (!NS.permissions.PROFILES.some(function (p) { return p.id === u.role; })) return { ok: false, reason: 'perfil_invalido', message: 'O perfil cadastrado para você não é reconhecido. Procure o administrador.' };
@@ -429,6 +431,18 @@
     }).catch(failure);
   }
 
-  NS.services = { listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
+  /** Grava configurações gerais (limite de dias, motivos, tamanhos) em settings/main. Quem tem 'config'. Mescla com o que já existe. */
+  function saveSettings(fb, user, patch) {
+    if (!NS.permissions.can(user.role, 'config')) return Promise.resolve({ ok: false, message: 'Seu perfil não pode alterar configurações.' });
+    return fb.db.runTransaction(function (tx) {
+      return tx.get(path('settings', 'main')).then(function (s) {
+        var next = Object.assign({}, s.exists ? s.data : {}, clean(patch));
+        if (s.exists) tx.update(path('settings', 'main'), clean(patch)); else tx.set(path('settings', 'main'), next);
+        return { ok: true, data: next };
+      });
+    }).catch(failure);
+  }
+
+  NS.services = { saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.services;
 })(typeof window !== 'undefined' ? window : globalThis);

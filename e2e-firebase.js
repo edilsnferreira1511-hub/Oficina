@@ -43,6 +43,8 @@ async function main(browser, base) {
   const ctx = await browser.newContext({ viewport: { width: 1280, height: 1000 } });
   const external = [], errors = [];
   await ctx.route(TILE_HOST + '**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG }));
+  // o backend simulado modela o caminho env/teste; o firebase-config.js entregue usa env/producao (regras publicadas para esse caminho)
+  await ctx.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x)x.dataPath='env/teste';v=x;}});})();");
   await ctx.addInitScript({ content: fs.readFileSync(path.join(ROOT, 'fake-firebase.js'), 'utf8') });
   await ctx.addInitScript({ content: SEED });
   const page = await ctx.newPage();
@@ -81,7 +83,7 @@ async function main(browser, base) {
 
   await login('desp@t.com');
   check('17. login: perfil carregado do Firestore (nome e perfil), sem seletor de perfil demonstrativo', /Nome desp/.test(await txt('#user-badge')) && /Despacho/.test(await txt('#user-badge')) && (await page.locator('#profile-select').count()) === 0);
-  check('17. banner mostra ambiente de TESTE (não demonstração)', /AMBIENTE DE TESTE/.test(await txt('.demo-banner')));
+  check('17. uso real: sem faixa de teste/demonstração e sem textos de protótipo na tela', (await page.locator('.demo-banner').isHidden()) && !/protótipo|fictício|demonstra/i.test(await page.locator('body').innerText()));
   check('17. só a base liberada aparece', (await page.locator('#xpt-select option').allInnerTexts()).join('|') === 'XPT Teste Alfa');
   check('17. pessoa não escolhe o próprio perfil (nenhum controle de perfil na tela)', (await page.locator('select[aria-label*="Perfil"]').count()) === 0);
 
@@ -235,7 +237,7 @@ async function main(browser, base) {
   await page.waitForFunction(() => document.querySelectorAll('#diag-list li').length >= 6);
   const dg = await page.locator('#diag-list').innerText();
   check('diagnóstico: marca claramente BACKEND SIMULADO (não é o Firebase real) e lê o perfil no servidor', /BACKEND SIMULADO/.test(dg) && /✓ leitura REAL do seu perfil/.test(dg) && /✗ .*BACKEND SIMULADO/.test(dg));
-  check('banner: ambiente de teste com aviso de backend simulado', /BACKEND SIMULADO/.test(await txt('.demo-banner')));
+  
   await page.fill('#drv-new-id', 'm10'); await page.fill('#drv-new-name', 'Motorista Novo'); await page.fill('#drv-new-xpt', 'x1'); await page.click('#drv-new-btn');
   await page.waitForFunction(() => /cadastrado/.test(document.getElementById('drv-new-msg').textContent));
   check('cadastro de motorista gravado em env/teste/drivers', (await doc(U + 'drivers/m10')).name === 'Motorista Novo' && (await doc(U + 'drivers/m10')).state === 'ativo');
@@ -250,7 +252,7 @@ async function main(browser, base) {
 
   // ===== admin_sistema: todas as telas, editar/excluir usuário, criar base, matriz de permissões
   const sysNav = (await page.locator('#nav a').allInnerTexts()).join('|');
-  check('admin_sistema: menu com todas as telas (Mapa, Operações, Pacotes, Entrada, Separar, Saída, Motoristas, XPT, Configuração)', ['Mapa', 'Operações', 'Pacotes', 'Entrada', 'Separar', 'Saída', 'Motoristas', 'XPT', 'Configuração'].every((t) => sysNav.indexOf(t) >= 0), sysNav);
+  check('admin_sistema: menu com todas as telas (Mapa, Operações, Pacotes, Entrada, Separar, Saída, Motoristas, XPT, Configuração)', ['Mapa', 'Operações', 'Pacotes', 'Entrada', 'Separar', 'Saída', 'Motoristas', 'XPT', 'Administração'].every((t) => sysNav.indexOf(t) >= 0), sysNav);
   for (const r of ['entry', 'map', 'exit', 'sort', 'packages', 'ops', 'alerts', 'reports', 'drivers', 'xpts', 'help']) { await go(r); check('admin_sistema abre #/' + r + ' sem "perfil sem acesso"', !/sem acesso|não possui esta permissão/i.test(await txt('main'))); }
   await go('setup');
   await page.fill('#xpt-new-id', 'x9'); await page.fill('#xpt-new-name', 'XPT Nova Base'); await page.click('#xpt-save-btn');
@@ -289,6 +291,34 @@ async function main(browser, base) {
     await p.goto(base); await p.waitForSelector('#blocked-msg', { timeout: 15000 });
     check('Firebase configurado mas SDK inacessível: mensagem clara e telas internas escondidas', /Não foi possível carregar o Firebase/.test(await p.locator('#blocked-msg').innerText()) && (await p.locator('.shell').isHidden()));
     await c2.close();
+  }
+  // ===== PRIMEIRO USO REAL: banco vazio, só o admin_sistema; uma única base, nada fictício
+  {
+    const c4 = await browser.newContext({ viewport: { width: 1000, height: 900 } });
+    await c4.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x)x.dataPath='env/teste';v=x;}});})();");
+    await c4.addInitScript({ content: fs.readFileSync(path.join(ROOT, 'fake-firebase.js'), 'utf8') });
+    await c4.addInitScript({ content: "(function(){var f=window.CXPT_FAKE_FIREBASE.create({storage:window.localStorage});var a=f._admin;if(!a.getDoc('env/teste/users/uid-adm')){a.addAccount('adm@t.com','senha-adm@t.com','uid-adm');a.setDoc('env/teste/users/uid-adm',{name:'Dono',email:'adm@t.com',role:'admin_sistema',xptIds:[],active:true,driverId:null});}window.CXPT_FB=f;window.CXPT_FB_STATE='ready';})();" });
+    const q = await c4.newPage(); const qerr = [];
+    q.on('pageerror', (e) => qerr.push(e.message));
+    await q.goto(base); await q.waitForSelector('#login-form');
+    await q.fill('#login-email', 'adm@t.com'); await q.fill('#login-pass', 'senha-adm@t.com'); await q.click('#login-btn');
+    await q.waitForSelector('#seed-btn', { timeout: 10000 });
+    const body0 = await q.locator('body').innerText();
+    check('uso real: sem faixa de teste, sem "fictício/demonstração/protótipo/ambiente de teste" na tela', (await q.locator('.demo-banner').isHidden()) && !/fictíci|demonstra|protótipo|ambiente de teste/i.test(body0), body0.slice(0, 200));
+    await q.click('#seed-btn'); await q.waitForSelector('#xpt-edit-x1');
+    const fdoc = (p) => q.evaluate((x) => window.CXPT_FB._admin.getDoc(x), p), flist = (c) => q.evaluate((x) => window.CXPT_FB._admin.listDocs(x), c);
+    check('primeiro uso: UMA base criada ("XPT Principal") e nenhum motorista, região ou pacote', (await fdoc('env/teste/xpts/x1')).name === 'XPT Principal' && (await flist('env/teste/xpts')).length === 1 && (await flist('env/teste/drivers')).length === 0 && (await flist('env/teste/regions')).length === 0 && (await flist('env/teste/packages')).length === 0 && (await flist('env/teste/operations')).length === 0);
+    check('primeiro uso: o botão de criar base inicial some depois de criada', (await q.locator('#seed-btn').count()) === 0);
+    await q.fill('#xpt-new-id', 'x1'); await q.fill('#xpt-new-name', 'XPT Anápolis'); await q.click('#xpt-save-btn');
+    await q.waitForFunction(() => /XPT Anápolis/.test(document.getElementById('xpt-list').textContent));
+    check('a base pode ser renomeada depois (mesmo id, sem duplicar)', (await fdoc('env/teste/xpts/x1')).name === 'XPT Anápolis' && (await flist('env/teste/xpts')).length === 1);
+    for (const r of ['overview', 'map', 'entry', 'ops', 'packages', 'sort', 'exit', 'alerts', 'reports', 'drivers', 'xpts', 'help']) {
+      await q.evaluate((x) => { location.hash = '#/' + x; }, r); await q.waitForFunction((x) => document.getElementById('main').dataset.route === x, r);
+      const t = await q.locator('main').innerText();
+      check('uso real: tela #/' + r + ' sem textos de demonstração/fictício/protótipo', !/fictíci|demonstra|protótipo|ambiente de teste|em memória|simulaç/i.test(t), (t.match(/.{0,40}(fictíci|demonstra|protótipo|ambiente de teste|em memória|simulaç).{0,40}/i) || [''])[0]);
+    }
+    check('uso real: sem erros de JavaScript', qerr.length === 0, qerr.join('|'));
+    await c4.close();
   }
   // ===== sem apiKey (padrão entregue): modo demonstração intacto, sem login e sem rede
   {

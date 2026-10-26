@@ -3,14 +3,14 @@ rules_version = '2';
 // COOPMETRO XPT — regras do Firestore (PROPOSTA para REVISÃO; NÃO foram publicadas por este projeto).
 //
 // ANTES DE PUBLICAR:
-//  1. Estas regras cobrem SOMENTE o caminho env/teste/... (dados de TESTE). Qualquer outro caminho continua NEGADO.
+//  1. Estas regras cobrem SOMENTE o caminho env/producao/... (dados de PRODUÇÃO). Qualquer outro caminho continua NEGADO.
 //     Se o seu projeto já usa outras coleções com regras próprias, MESCLE em vez de substituir (senão elas passam a ser negadas).
 //  2. Valide no Console (Firestore → Regras → "Simulador de regras") ou no Emulator Suite. Estas regras NÃO foram executadas
 //     contra o Emulator no ambiente de desenvolvimento (sem acesso); só passaram por análise estática (rules-lint.test.js).
 //  3. A matriz de perfis tem PADRÕES iguais a permissions.js (rules-lint.test.js compara) e pode ser EDITADA pelo admin_sistema na tela
-//     Configuração inicial; a edição fica em env/teste/settings/permissions e estas regras passam a usá-la. admin_sistema tem tudo (fixo).
+//     Configuração inicial; a edição fica em env/producao/settings/permissions e estas regras passam a usá-la. admin_sistema tem tudo (fixo).
 //
-// O que as regras garantem: login obrigatório; usuário ativo cadastrado em env/teste/users/{uid}; acesso só às bases do usuário
+// O que as regras garantem: login obrigatório; usuário ativo cadastrado em env/producao/users/{uid}; acesso só às bases do usuário
 // (perfis globais veem todas); ninguém altera o próprio perfil; código e XPT de origem imutáveis; histórico só cresce; eventos só
 // podem ser criados (nunca editados/apagados); operação encerrada não aceita mais alterações; nada é apagado.
 
@@ -19,17 +19,17 @@ service cloud.firestore {
 
     // ---------- funções auxiliares
     function signedIn() { return request.auth != null; }
-    function userDoc() { return get(/databases/$(database)/documents/env/teste/users/$(request.auth.uid)); }
-    function hasUser() { return signedIn() && exists(/databases/$(database)/documents/env/teste/users/$(request.auth.uid)); }
+    function userDoc() { return get(/databases/$(database)/documents/env/producao/users/$(request.auth.uid)); }
+    function hasUser() { return signedIn() && exists(/databases/$(database)/documents/env/producao/users/$(request.auth.uid)); }
     function active() { return hasUser() && userDoc().data.active == true; }
     function role() { return userDoc().data.role; }
     function isGlobal() { return active() && role() in ['administrador', 'coord_geral', 'admin_sistema']; }
     function hasBase(x) { return active() && (role() in ['administrador', 'coord_geral', 'admin_sistema'] || x in userDoc().data.xptIds); }
 
-    // ---------- ações: a matriz de perfis é EDITÁVEL pelo admin_sistema em env/teste/settings/permissions ({acao: [perfis]}).
+    // ---------- ações: a matriz de perfis é EDITÁVEL pelo admin_sistema em env/producao/settings/permissions ({acao: [perfis]}).
     // Sem esse documento valem os padrões abaixo (iguais a permissions.js). admin_sistema sempre tem tudo (linha fixa).
     // motorista e a linha do admin_sistema nunca vêm da matriz.
-    function permDoc() { return /databases/$(database)/documents/env/teste/settings/permissions; }
+    function permDoc() { return /databases/$(database)/documents/env/producao/settings/permissions; }
     function perm(a, def) { return active() && (role() == 'admin_sistema' || (role() != 'motorista' && (exists(permDoc()) ? role() in get(permDoc()).data[a] : role() in def))); }
     function canVerBase()  { return perm('ver_base', ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho']); }
     function canEntrada()  { return perm('entrada', ['despacho']); }
@@ -46,48 +46,48 @@ service cloud.firestore {
     function ownOp(op) { return isDriver() && op.driverId == userDoc().data.driverId; }
     function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
 
-    // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/teste)
+    // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/producao)
 
     // Usuários: cada pessoa lê só o próprio cadastro; só o administrador do sistema cria/altera. Ninguém apaga.
-    match /env/teste/users/{uid} {
+    match /env/producao/users/{uid} {
       allow get: if signedIn() && (request.auth.uid == uid || canUsuarios());
       allow list: if canUsuarios();
       allow create, update, delete: if canUsuarios() && request.auth.uid != uid;   // admin_sistema cria/edita/exclui perfis, nunca o próprio
     }
 
     // XPTs, regiões, motoristas e configurações: leitura só da própria base; escrita só administração.
-    match /env/teste/xpts/{xptId} {
+    match /env/producao/xpts/{xptId} {
       allow get: if hasBase(xptId) || canUsuarios();
       allow list: if isGlobal() || canUsuarios();
       allow create, update: if canConfig() || canUsuarios();
       allow delete: if false;
     }
-    match /env/teste/regions/{id} {
+    match /env/producao/regions/{id} {
       allow get, list: if canUsuarios() || (canVerBase() && hasBase(resource.data.xptId));
       allow create, update: if canConfig();
       allow delete: if false;
     }
-    match /env/teste/drivers/{id} {
+    match /env/producao/drivers/{id} {
       // motorista lê apenas o próprio cadastro (nunca a lista de motoristas da base)
       allow get, list: if canUsuarios() || (canVerBase() && hasBase(resource.data.xptId)) || (isDriver() && id == userDoc().data.driverId);
       allow create, update: if canConfig();
       allow delete: if false;
     }
-    match /env/teste/settings/{id} {
+    match /env/producao/settings/{id} {
       allow get: if active();
       allow create, update: if (id == 'permissions' ? canUsuarios() : canConfig());   // só o admin_sistema altera a matriz de permissões
       allow delete: if false;
     }
 
     // Índice de códigos: garante que um código nunca vira dois pacotes (nem em bases diferentes). Só existência; sem dados da base.
-    match /env/teste/codes/{code} {
+    match /env/producao/codes/{code} {
       allow get: if canEntrada();
       allow create: if canEntrada() && request.resource.data.keys().hasOnly(['createdAt']);
       allow update, delete: if false;
     }
 
     // Contador de operações (número único e sequencial): só cresce de 1 em 1.
-    match /env/teste/counters/{id} {
+    match /env/producao/counters/{id} {
       allow get: if canOperacao();
       allow create: if canOperacao() && id == 'operations' && request.resource.data.n == 1;
       allow update: if canOperacao() && id == 'operations' && request.resource.data.n == resource.data.n + 1;
@@ -95,12 +95,12 @@ service cloud.firestore {
     }
 
     // Pacotes
-    match /env/teste/packages/{pkgId} {
+    match /env/producao/packages/{pkgId} {
       allow get, list: if canVerBase() && hasBase(resource.data.xptId);
 
       allow create: if canEntrada() && hasBase(request.resource.data.xptId)
         && pkgId == 'pk-' + request.resource.data.code
-        && existsAfter(/databases/$(database)/documents/env/teste/codes/$(request.resource.data.code))
+        && existsAfter(/databases/$(database)/documents/env/producao/codes/$(request.resource.data.code))
         && request.resource.data.state == 'em_estoque'
         && request.resource.data.activeOpId == null
         && request.resource.data.history.size() == 1;
@@ -133,12 +133,12 @@ service cloud.firestore {
     }
 
     // Operações (ambulâncias)
-    match /env/teste/operations/{opId} {
+    match /env/producao/operations/{opId} {
       allow get, list: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data);
 
       allow create: if canOperacao() && hasBase(request.resource.data.xptId)
         && request.resource.data.state == 'em_separacao'
-        && existsAfter(/databases/$(database)/documents/env/teste/counters/operations);
+        && existsAfter(/databases/$(database)/documents/env/producao/counters/operations);
 
       // operação encerrada não aceita mais NADA (bloqueia conferências pelo QR); histórico só cresce; base e id não mudam
       allow update: if resource.data.state != 'encerrada' && hasBase(resource.data.xptId)
@@ -157,9 +157,9 @@ service cloud.firestore {
     }
 
     // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.
-    match /env/teste/events/{eventId} {
+    match /env/producao/events/{eventId} {
       allow create: if (canAnyWrite() || canConferir() || isDriver()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
-        && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/teste/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId));
+        && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId));
       allow get, list: if canVerBase() && resource.data.keys().hasAll(['uid']) && (isGlobal() || resource.data.xptId in userDoc().data.xptIds);
       allow update, delete: if false;
     }

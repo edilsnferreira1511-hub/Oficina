@@ -15,17 +15,17 @@ Reproduzi o fluxo no navegador com toque real (celular). **Não encontrei um err
 - Zona sem pacote elegível: explica o motivo (sem coordenadas / já em operação ativa / rascunho) e **nunca cria operação vazia**.
 - Criar: mostra "Gravando…" e só mostra QR depois da confirmação do servidor. Em erro (validação, permissão, rede, conflito) a **mensagem real aparece junto ao botão**, com "Nada foi criado", e os pacotes continuam livres (testado com falha injetada).
 - Pacotes sem coordenadas ficam fora da seleção geográfica e são contados à parte; pacotes em outra operação ativa são excluídos (travados na transação **e** nas regras).
-- **Configuração inicial** (admin_sistema): *Diagnóstico da conexão*, *Cadastrar motorista* e *Vincular usuário* (create-only: nunca sobrescreve, nunca altera o próprio perfil).
+- **Administração** (admin_sistema): *Diagnóstico da conexão*, *Cadastrar motorista* e *Vincular usuário* (create-only: nunca sobrescreve, nunca altera o próprio perfil).
 
 ## 3. Estado da conexão Firebase
 | Item | Estado |
 |---|---|
-| SDK modular 10.14.1, inicialização, Auth e-mail/senha, Firestore em `env/teste/` | **Implementado** (`firebase-adapter.js`) |
+| SDK modular 10.14.1, inicialização, Auth e-mail/senha, Firestore em `env/producao/` | **Implementado** (`firebase-adapter.js`) |
 | `apiKey` em `firebase-config.js` | **Preenchida** com o valor que você enviou do Console (também `appId` e `measurementId` atualizados). |
 | Auth e-mail/senha ativado e domínio autorizado | **Não verificável daqui**. O login mostra mensagem específica se faltar (`operation-not-allowed`, `unauthorized-domain`, `invalid-api-key`…). |
 | Regras publicadas | **Não publiquei nada.** Revise e publique `firestore.rules` (mescle com regras existentes). Não executei em Emulator. |
 | Primeiro admin_sistema | Criar no Console (ver `FIREBASE.md`). |
-| Teste real de leitura/escrita/persistência/outro aparelho | **Não realizado.** Depois de configurar, abra *Configuração inicial → Diagnóstico*: ele faz leituras reais e rotula **FIREBASE REAL** × **BACKEND SIMULADO**. |
+| Teste real de leitura/escrita/persistência/outro aparelho | **Não realizado.** Depois de configurar, abra *Administração → Diagnóstico*: ele faz leituras reais e rotula **FIREBASE REAL** × **BACKEND SIMULADO**. |
 Rótulos: sem `apiKey` = modo **demonstração** (dados em memória); com `apiKey` = banner "AMBIENTE DE TESTE · FIREBASE REAL"; testes automatizados = "BACKEND SIMULADO (não é o Firebase real)". Nenhum deploy, Hosting, mudança de plano, exclusão ou sobrescrita foi feito.
 
 ## 4. Matriz de permissões (perfis preservados; proposta D-06, não aprovada)
@@ -57,17 +57,24 @@ unit 52 · unit-fluxo 30 · unit-firebase 22 · rules-lint 12 (análise estátic
 Cobertura dos 23 itens pedidos: criação (zona desenhada/finalizada, dentro/fora, sem coordenadas, pacotes em operação ativa, criar com motorista+responsável, persistir, QR correto, falha de gravação sem falso sucesso — `e2e-fluxo`, `e2e-firebase`, `unit-fluxo`, `unit-firebase`); motorista (abre a própria, negado em outra, sem painel, sem criar, sem sair/encerrar, sem ler pacotes, encerrada bloqueia, repetido não duplica — `e2e-firebase`, `unit-firebase`, `rules-lint`); Firebase (login+perfil, leitura/escrita, persistência após recarregar, recuperação em outro aparelho, rejeição de escrita não autorizada — **simulados**). Itens "Firebase real" ficam **pendentes** até você configurar a `apiKey`.
 
 ## 7. O que depende de você
-1. (feito) `apiKey`; 2. conferir Auth e-mail/senha e domínio autorizado; 3. criar o 1º `admin_sistema` e o documento `users/{uid}`; 4. publicar/mesclar `firestore.rules`; 5. usar *Configuração inicial* (dados de teste, motoristas, vínculo de usuários); 6. testar com 2 aparelhos e o Simulador de regras do Console. Passo a passo em `FIREBASE.md`.
+1. (feito) `apiKey`; 2. conferir Auth e-mail/senha e domínio autorizado; 3. criar o 1º `admin_sistema` e o documento `users/{uid}`; 4. publicar/mesclar `firestore.rules`; 5. usar *Administração* (dados de teste, motoristas, vínculo de usuários); 6. testar com 2 aparelhos e o Simulador de regras do Console. Passo a passo em `FIREBASE.md`.
 
 ## 8. Primeiro acesso real (relato do usuário)
-Com a `apiKey`, o login real funcionou e o perfil foi lido, mas a carga inicial foi recusada pelas regras ("Não foi possível carregar"). Causa provável: o administrador do sistema tentava ler operações/pacotes por base, o que as regras não permitem a esse perfil. Correção: o `admin_sistema` agora carrega só cadastros (bases, regiões, motoristas, configurações), e a mensagem de erro informa em qual coleção a leitura foi recusada. Se persistir, confira `role`, `active: true` (booleano) e `xptIds` do seu documento `env/teste/users/{UID}` e se as regras foram publicadas.
+Com a `apiKey`, o login real funcionou e o perfil foi lido, mas a carga inicial foi recusada pelas regras ("Não foi possível carregar"). Causa provável: o administrador do sistema tentava ler operações/pacotes por base, o que as regras não permitem a esse perfil. Correção: o `admin_sistema` agora carrega só cadastros (bases, regiões, motoristas, configurações), e a mensagem de erro informa em qual coleção a leitura foi recusada. Se persistir, confira `role`, `active: true` (booleano) e `xptIds` do seu documento `env/producao/users/{UID}` e se as regras foram publicadas.
 
 ## 9. Administrador do sistema (atualização)
 - `admin_sistema` agora tem **acesso a todas as telas** (entrada, mapa, ambulâncias, separar, saída, encerrar, motoristas, bases, relatórios), vê todas as bases e é a única conta que administra usuários e bases. Linha fixa: não pode ser editada nem tirar acesso dele mesmo.
-- **Configuração inicial** (só admin_sistema): *Bases* (criar/editar nome e ativa), *Usuários* (listar, **editar** nome/perfil/bases/ativo/driverId, **excluir o acesso**), *Vincular usuário*, *Cadastrar motorista*, *Diagnóstico*, *Dados iniciais* e **Permissões por perfil** (matriz editável).
-- Excluir usuário remove o **perfil** (`env/teste/users/{uid}`): a pessoa perde o acesso. O login em Authentication permanece (apague no Console se quiser). Ninguém exclui/edita o próprio perfil. Registros históricos nunca são apagados.
-- **Matriz editável**: salva em `env/teste/settings/permissions` e **aplicada pelas regras do Firestore** (não só na tela). Só admin_sistema grava. Editáveis: ver base, entrada, conferir, criar ambulância, corrigir, confirmar saída, encerrar, devolução, configurações — para administrador, coord_geral, supervisor, coord_base e despacho. Fixos: motorista (só a própria bipagem), visão global e administração de usuários. Sem o documento valem os padrões.
+- **Administração** (só admin_sistema): *Bases* (criar/editar nome e ativa), *Usuários* (listar, **editar** nome/perfil/bases/ativo/driverId, **excluir o acesso**), *Vincular usuário*, *Cadastrar motorista*, *Diagnóstico*, *Dados iniciais* e **Permissões por perfil** (matriz editável).
+- Excluir usuário remove o **perfil** (`env/producao/users/{uid}`): a pessoa perde o acesso. O login em Authentication permanece (apague no Console se quiser). Ninguém exclui/edita o próprio perfil. Registros históricos nunca são apagados.
+- **Matriz editável**: salva em `env/producao/settings/permissions` e **aplicada pelas regras do Firestore** (não só na tela). Só admin_sistema grava. Editáveis: ver base, entrada, conferir, criar ambulância, corrigir, confirmar saída, encerrar, devolução, configurações — para administrador, coord_geral, supervisor, coord_base e despacho. Fixos: motorista (só a própria bipagem), visão global e administração de usuários. Sem o documento valem os padrões.
 - **Regras mudaram: publique de novo o `firestore.rules`.** Testado só no backend simulado + análise estática (rules-lint); não executado no Emulator nem no Firebase real.
 
 ## 10. Mapa: informações do pacote e filtro (atualização)
 Abaixo do mapa (Mapa e Regiões): caixinha **"Ver informações do pacote ao tocar nele"** — ao tocar num pacote mostra ID (código), tamanho e data de entrada (com dias no galpão); nesse modo o toque não seleciona. **"Mostrar no mapa"**: Todos / Só Pequeno / Só Médio / Só Grande-volumoso / Só os mais antigos (com mínimo de dias, padrão = limite de permanência). Os pacotes fora do filtro somem do mapa e da lista, saem da seleção e não entram em "Selecionar todos" nem em zona/círculo. Testes: `e2e-fluxo` (bloco 7a). Rascunhos de entrada ainda não têm data de entrada (aparecem como "ainda não confirmada" e não passam no filtro de antigos).
+
+## 11. Versão para uso real (atualização)
+- Dados em **`env/producao`** (`dataPath` em `firebase-config.js`); os dados de teste em `env/teste` ficam intactos e sem uso. As regras novas cobrem só `env/producao`.
+- Sem faixa "ambiente de teste/demonstração", sem textos "fictício", "protótipo", "em memória" nas telas do uso real. O **modo demonstração** (sem `apiKey`) continua existindo só quando a chave está vazia.
+- Começa **zerado**: a tela *Administração* oferece "Criar base inicial" — cria **uma** base ("XPT Principal", renomeável) e as configurações padrão. Nenhum motorista, região, pacote ou ambulância fictícios.
+- Motoristas, limite de dias e motivos agora gravam no Firestore (antes eram só em memória); a tela *Motoristas* tem cadastro real.
+- **Primeiro acesso:** criar o seu usuário no Authentication (pode ser o mesmo) e o documento `env/producao/users/{UID}` (`role: admin_sistema`, `active: true`, `xptIds: []`, `name`, `email`, `driverId: null`) e publicar as regras novas.

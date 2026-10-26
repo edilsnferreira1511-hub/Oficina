@@ -1,5 +1,5 @@
-/* COOPMETRO XPT — "Configuração inicial" (somente administrador do sistema, somente ambiente de teste).
- * Cria XPTs, regiões, motoristas e configurações de TESTE em env/teste/ apenas quando ainda não existem.
+/* COOPMETRO XPT — "Administração" (somente administrador do sistema): bases, usuários, motoristas, permissões e diagnóstico.
+ * Cria a base inicial e as configurações apenas quando ainda não existem.
  * Nunca sobrescreve, nunca apaga. Usuários e perfis NÃO são criados aqui: são criados no Console do Firebase (ver docs). */
 (function (root) {
   'use strict';
@@ -16,8 +16,8 @@
       row(fb && fb.kind === 'real', fb && fb.kind === 'real' ? 'FIREBASE REAL (SDK oficial)' : 'BACKEND SIMULADO — não é o Firebase real');
       row(!!c.user, 'login ativo: ' + (c.user ? c.user.email + ' · perfil ' + c.user.role : 'nenhum'));
       if (!fb) return;
-      fb.db.get('env/teste/users/' + c.user.uid).then(function (s) { row(s.exists, 'leitura REAL do seu perfil no Firestore (env/teste/users/…)'); return fb.db.get('env/teste/settings/main'); })
-        .then(function (s) { row(s.exists, s.exists ? 'configurações encontradas (env/teste/settings/main)' : 'configurações ainda não criadas: use "Criar dados iniciais de teste" abaixo'); },
+      fb.db.get(NS.services.ENV + '/users/' + c.user.uid).then(function (s) { row(s.exists, 'leitura REAL do seu perfil no Firestore (' + NS.services.ENV + '/users/…)'); return fb.db.get(NS.services.ENV + '/settings/main'); })
+        .then(function (s) { row(s.exists, s.exists ? 'configurações encontradas (' + NS.services.ENV + '/settings/main)' : 'configurações ainda não criadas (crie a base inicial acima)'); },
           function (e) { row(false, 'leitura recusada/falhou: ' + ((e && (e.code || e.message)) || 'erro') + (/permission/.test((e && e.code) || '') ? ' — publique as regras de firestore.rules' : '')); });
     }
     run();
@@ -87,7 +87,7 @@
     load();
     return ui.card('Usuários cadastrados (editar / excluir acesso)', el('div', null, box, msg));
   }
-  /** Matriz de permissões editável: salva em env/teste/settings/permissions e é aplicada pelas REGRAS do Firestore. */
+  /** Matriz de permissões editável: salva em settings/permissions e é aplicada pelas REGRAS do Firestore. */
   var permNotice = '';
   function permsCard(c) {
     var P = NS.permissions, msg = el('p', { class: 'form-msg', id: 'perm-msg', role: 'status', text: permNotice }), boxes = {}; permNotice = '';
@@ -111,17 +111,16 @@
     var g = H.guard(c, 'usuarios'); if (g) return g;
     if (c.svc.mode !== 'remoto') return H.page([ui.callout('info', 'Disponível só com o Firebase configurado.', 'Preencha a apiKey em firebase-config.js e entre com o administrador.')]);
     var msg = el('p', { class: 'form-msg', id: 'seed-msg', role: 'status' });
-    var demo = NS.data.createDemoData(Date.now());
-    var seed = { xpts: demo.xpts.map(function (x) { return { id: x.id, name: x.name.replace('Demo', 'Teste'), active: x.active, note: 'Base de teste' }; }),
-      regions: demo.regions, drivers: demo.drivers, settings: { stayLimitDays: 4, sizes: demo.sizes, reasons: demo.reasons } };
+    // Uso real: uma única base inicial (renomeie depois em "Bases"), sem motoristas, regiões ou pacotes fictícios.
+    var seed = { xpts: [{ id: 'x1', name: 'XPT Principal', active: true, note: 'Base inicial' }], regions: [], drivers: [], settings: { stayLimitDays: 4, sizes: NS.data.SIZES, reasons: NS.data.REASONS } };
+    var hasBase = c.D.xpts.length > 0;
     return H.page([
-      ui.callout('info', 'Dados iniciais de TESTE (env/teste).', 'Cria somente o que ainda não existe: ' + seed.xpts.length + ' XPTs, ' + seed.regions.length + ' regiões, ' + seed.drivers.length + ' motoristas e as configurações. Nada é sobrescrito nem apagado.'),
-      ui.card('Criar dados iniciais', el('div', null, el('button', { type: 'button', class: 'btn btn--primary', id: 'seed-btn', onclick: function () {
+      hasBase ? null : ui.callout('info', 'Comece criando a base inicial.', 'Cria a base "XPT Principal" e as configurações padrão (tamanhos e motivos). Depois renomeie a base no card "Bases". Nada além disso é criado: sem motoristas, regiões ou pacotes.'),
+      hasBase ? null : ui.card('Criar base inicial', el('div', null, el('button', { type: 'button', class: 'btn btn--primary', id: 'seed-btn', onclick: function () {
         msg.textContent = 'Gravando…';
-        NS.services.seedTest(root.CXPT_FB, c.user, seed).then(function (r) { msg.textContent = r.ok ? r.created + ' documento(s) criado(s); ' + r.existing + ' já existiam e foram mantidos.' : r.message; });
-      } }, 'Criar dados iniciais de teste'), msg)),
+        NS.services.seedTest(root.CXPT_FB, c.user, seed).then(function (r) { if (!r.ok) { msg.textContent = r.message; return; } return done(c); });
+      } }, 'Criar base inicial'), msg)),
       diagCard(c), basesCard(c), usersCard(c), userCard(c, seed), driverCard(c), permsCard(c),
-      H.demoNote(),
     ]);
   };
 })(typeof window !== 'undefined' ? window : globalThis);

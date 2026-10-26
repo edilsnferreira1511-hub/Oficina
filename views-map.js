@@ -84,7 +84,7 @@
           { label: 'Coordenadas', render: function (p) { return el('span', { class: 'mono small', text: G.formatLatLng(p.lat, p.lng) }); } },
           { label: 'Detalhes', cls: 'actions', render: function (p) { return el('button', { type: 'button', class: 'btn btn--ghost btn--sm', 'data-act': 'detail', 'aria-label': 'Ver detalhes de ' + p.code, onclick: function () { focusId = p.id; redraw(); } }, 'Ver'); } },
         ], points, { label: 'Pontos georreferenciados', rowAttrs: function (p) { return { 'data-code': p.code, 'data-source': p.source, class: group.has(p.id) ? 'row--sel' : null }; } })
-          : ui.empty('Nenhum pacote com coordenadas nesta XPT.', 'Os pacotes demonstrativos não têm coordenadas. Marque a casa do cliente na tela Entrada de Pacotes; depois de confirmar a entrada a localização fica salva e aparece aqui.'));
+          : ui.empty('Nenhum pacote com coordenadas nesta XPT.', (H.live() ? '' : 'Os pacotes demonstrativos não têm coordenadas. ') + 'Marque a casa do cliente na tela Entrada de Pacotes; depois de confirmar a entrada a localização fica salva e aparece aqui.'));
     }
     function drawGroup() {
       var ids = group.ids(), sel = ids.map(pointById).filter(Boolean), byReg = G.groupByRegion(sel);
@@ -259,7 +259,7 @@
       var demoNo = saved.filter(function (p) { return /^DEMO-/.test(p.code); }).length;
       var mine = saved.filter(function (p) { return !/^DEMO-/.test(p.code); }); // confirmados nesta sessão (não demonstrativos)
       nocoord.replaceChildren(
-        el('p', { id: 'nocoord-demo', class: 'hint', text: demoNo + ' pacote(s) demonstrativo(s) desta XPT não têm coordenadas e não entram em grupos geográficos.' }),
+        H.live() ? null : el('p', { id: 'nocoord-demo', class: 'hint', text: demoNo + ' pacote(s) demonstrativo(s) desta XPT não têm coordenadas e não entram em grupos geográficos.' }),
         mine.length ? el('div', { id: 'nocoord-saved' }, el('h3', { text: 'Pacotes confirmados sem coordenadas (' + mine.length + ')' }), ui.table([
           { label: 'Código', render: function (p) { return el('span', { class: 'mono', text: p.code }); } }, { label: 'Tamanho', render: function (p) { return H.sizeLabel(D, p.size); } },
           { label: 'Motivo', render: function (p) { return H.reasonLabel(D, p.reasonId); } }, { label: 'Localização', render: function (p) { return H.locBadge(p.location); } },
@@ -320,7 +320,7 @@
       mapCard, ui.card('Ferramentas de seleção', tools),
       ui.card('Criar ambulância', ambBox),
       el('div', { class: 'grid2' }, ui.card('Detalhes do ponto', detail), ui.card('Seleção', panel)),
-      ui.card('Pontos com coordenadas', list), ui.card('Pacotes sem coordenadas', nocoord), drawRegions(), H.demoNote(),
+      ui.card('Pontos com coordenadas', list), ui.card('Pacotes sem coordenadas', nocoord), H.live() ? null : drawRegions(), H.demoNote(),
     ]);
     redraw();
     return { node: node, destroy: function () { destroyed = true; if (ctl) ctl.destroy(); } };

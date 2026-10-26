@@ -15,7 +15,8 @@
   H.locBadge = function (loc) { return ui.badge(NS.geo.LOC_LABEL[loc.kind] || loc.kind, TONE_LOC[loc.kind] || 'neutral'); };
   H.pkgsOf = function (c) { return c.D.packages.filter(function (p) { return p.xptId === c.xptId; }); };
   H.link = function (p) { return el('a', { href: '#/package/' + encodeURIComponent(p.id), class: 'code-link', text: p.code }); };
-  H.demoNote = function (t) { return NS.mode === 'remoto' ? el('p', { class: 'demo-note', text: 'Ambiente de TESTE: dados reais do Firestore em env/teste.' }) : el('p', { class: 'demo-note', text: t || 'Dados fictícios de demonstração, mantidos só em memória.' }); };
+  H.live = function () { return NS.mode === 'remoto'; }; // uso real: sem avisos de demonstração/teste
+  H.demoNote = function (t) { return NS.mode === 'remoto' ? null : el('p', { class: 'demo-note', text: t || 'Dados fictícios de demonstração, mantidos só em memória.' }); };
   H.page = function (kids) { return el('div', { class: 'page' }, kids); };
   H.can = function (c, a) { return NS.permissions.can(c.profile, a); };
   /** Perfil sem permissão → aviso (apenas interface; a segurança real será no backend). */
@@ -23,7 +24,7 @@
     var list = Array.isArray(actions) ? actions : [actions];
     if (list.some(function (a) { return NS.permissions.can(c.profile, a); })) return null;
     var pr = NS.permissions.PROFILES.filter(function (p) { return p.id === c.profile; })[0];
-    return H.page([ui.callout('warn', 'Perfil sem acesso a esta tela (simulação).', 'O perfil "' + pr.label + '" não possui esta permissão na matriz proposta. ' + NS.permissions.DISCLAIMER)]);
+    return H.page([H.live() ? ui.callout('warn', 'Seu perfil não tem acesso a esta tela.', 'O perfil "' + pr.label + '" não possui esta permissão. Fale com o administrador do sistema se precisar dela.') : ui.callout('warn', 'Perfil sem acesso a esta tela (simulação).', 'O perfil "' + pr.label + '" não possui esta permissão na matriz proposta. ' + NS.permissions.DISCLAIMER)]);
   };
   H.limit = function (c) { return NS.alerts.limitOf(c.D); };
 
@@ -42,7 +43,7 @@
     });
     var statesRows = D.states.map(function (s) { return { label: s.label, value: cnt[s.id] || 0, tone: s.tone === 'danger' ? 'danger' : s.tone === 'warn' ? 'warn' : 'ok' }; });
     return H.page([
-      ui.callout('info', 'Indicadores calculados a partir dos dados demonstrativos da ' + c.xpt.name + '.', 'Não são números reais.'),
+      H.live() ? null : ui.callout('info', 'Indicadores calculados a partir dos dados demonstrativos da ' + c.xpt.name + '.', 'Não são números reais.'),
       el('div', { class: 'kpis' }, [
         ui.kpi('Pacotes em estoque', cnt.em_estoque || 0, 'ok'),
         ui.kpi('Recebidos (últimos 7 dias)', recebidos, 'info'),
@@ -51,7 +52,7 @@
         ui.kpi('Com divergência', cnt.divergente || 0, 'danger'),
         ui.kpi('Aguardando devolução', cnt.aguardando_devolucao || 0, 'warn'),
         ui.kpi('Antigos no galpão (> ' + al.limitDays + ' dias)', al.stay.length, 'warn'),
-        ui.kpi('Operações demonstrativas', opsAnd, 'neutral'),
+        ui.kpi(H.live() ? 'Ambulâncias' : 'Operações demonstrativas', opsAnd, 'neutral'),
       ]),
       el('div', { class: 'grid2' }, [
         ui.card('Entradas por dia (últimos 7 dias, UTC)', ui.columns(days, 'Entradas por dia')),
@@ -130,8 +131,8 @@
     info.appendChild(el('dd', null, H.locBadge(loc), loc.lat !== null ? el('span', { class: 'mono', text: ' ' + NS.geo.formatLatLng(loc.lat, loc.lng) }) : null, loc.regionId ? el('span', { text: ' · ' + H.regionLabel(D, loc.regionId) }) : null));
     var hist = ui.table([
       { label: 'Data/hora', render: function (e) { return ui.fmtDateTime(e.at); } }, { label: 'Evento', render: function (e) { return e.type; } },
-      { label: 'De → Para', render: function (e) { return (e.from || '—') + ' → ' + (e.to || '—'); } }, { label: 'Operador (demo)', key: 'operator' }, { label: 'Observação', key: 'note' },
-    ], p.history.slice().sort(function (a, b) { return a.at - b.at; }), { label: 'Histórico demonstrativo' });
+      { label: 'De → Para', render: function (e) { return (e.from || '—') + ' → ' + (e.to || '—'); } }, { label: H.live() ? 'Operador' : 'Operador (demo)', key: 'operator' }, { label: 'Observação', key: 'note' },
+    ], p.history.slice().sort(function (a, b) { return a.at - b.at; }), { label: H.live() ? 'Histórico' : 'Histórico demonstrativo' });
     // Painel de transição DEMONSTRATIVA
     var next = P.TRANSITIONS[p.state] || [];
     var panel;
@@ -155,8 +156,8 @@
       el('a', { class: 'btn btn--ghost', href: '#/packages' }, '← Voltar à listagem'),
       flag === 'atencao' ? ui.callout('warn', 'Atenção: 3º retorno.', 'Acompanhe este pacote.') : null,
       flag === 'avaliar_devolucao' ? ui.callout('danger', '4º retorno ou mais: sugerida avaliação para devolução ao remetente.', 'A decisão é humana; nada é feito automaticamente (D-05).') : null,
-      ui.card('Dados do pacote', info), ui.card('Transição demonstrativa', el('div', null, ui.callout('info', 'Apenas demonstração em memória.', 'Não representa movimentação real; saída definitiva exige confirmação no backend.'), panel)),
-      ui.card('Histórico de eventos (demonstrativo)', hist), H.demoNote(),
+      ui.card('Dados do pacote', info), H.live() ? null : ui.card('Transição demonstrativa', el('div', null, ui.callout('info', 'Apenas demonstração em memória.', 'Não representa movimentação real; saída definitiva exige confirmação no backend.'), panel)),
+      ui.card(H.live() ? 'Histórico de eventos' : 'Histórico de eventos (demonstrativo)', hist), H.demoNote(),
     ]);
   };
 })(typeof window !== 'undefined' ? window : globalThis);

@@ -38,7 +38,7 @@
     despacho: { ver_base: 1, entrada: 1, conferir: 1 },
     motorista: { minhas_ops: 1, conferir_propria: 1 },
   };
-  // Ações que o administrador do sistema pode conceder/retirar por perfil (salvas em env/teste/settings/permissions e APLICADAS pelas regras).
+  // Ações que o administrador do sistema pode conceder/retirar por perfil (salvas em env/producao/settings/permissions e APLICADAS pelas regras).
   // Fixas (não editáveis): linha do admin_sistema e do motorista; ver_global, usuarios, minhas_ops, conferir_propria.
   var EDITABLE = ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'config'];
   var EDITABLE_PROFILES = ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho'];

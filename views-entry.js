@@ -23,7 +23,7 @@
     var locBox = el('div', { class: 'loc-box', id: 'loc-box' });
     var mapHost = el('div', { class: 'map-host', id: 'entry-map' });
     var locInfo = el('div', { class: 'loc-info', id: 'loc-info' });
-    var addBtn = el('button', { type: 'submit', class: 'btn btn--primary', id: 'add-btn' }, 'Adicionar ao rascunho (demonstração)');
+    var addBtn = el('button', { type: 'submit', class: 'btn btn--primary', id: 'add-btn' }, (H.live() ? 'Adicionar ao rascunho' : 'Adicionar ao rascunho (demonstração)'));
     var cancelBtn = el('button', { type: 'button', class: 'btn btn--ghost', id: 'cancel-edit', hidden: true, onclick: resetForm }, 'Cancelar edição');
     var listBox = el('div', { id: 'draft-list' });
 
@@ -85,7 +85,7 @@
     function resetForm() {
       S = { lat: null, lng: null, editId: null, confirmed: false };
       codeIn.value = ''; codeIn.readOnly = false; sizeSel.value = ''; reasonSel.value = ''; noteIn.value = '';
-      addBtn.textContent = 'Adicionar ao rascunho (demonstração)'; cancelBtn.hidden = true;
+      addBtn.textContent = (H.live() ? 'Adicionar ao rascunho' : 'Adicionar ao rascunho (demonstração)'); cancelBtn.hidden = true;
       fieldErrors({}); drawLoc(); drawMarker(); refreshGate(); codeIn.focus();
     }
     function precheck() {
@@ -123,7 +123,7 @@
         return;
       }
       c.store.audit.log(S.editId ? 'rascunho_item_alterado' : 'rascunho_item_adicionado', c.xptId, r.item.code);
-      msg.textContent = (S.editId ? 'Item atualizado' : 'Item adicionado') + ' no rascunho local (demonstração; nada foi registrado).';
+      msg.textContent = (S.editId ? 'Item atualizado' : 'Item adicionado') + (H.live() ? ' no rascunho (ainda não foi registrado: confirme a entrada).' : ' no rascunho local (demonstração; nada foi registrado).');
       ui.announce(msg.textContent);
       resetForm(); drawList(); c.store.changed('entry');
     }
@@ -150,7 +150,7 @@
     }
     function confirmEntry() {
       var items = draft.list(); if (!items.length) return;
-      var body = el('div', null, el('p', { text: 'Vai registrar ' + items.length + ' pacote(s) de ' + c.xpt.name + ' ' + (c.svc.mode === 'demo' ? 'na MEMÓRIA desta demonstração. Nada é gravado em servidor e tudo se perde ao recarregar a página.' : 'no servidor (Firestore, ambiente de teste). O pacote só aparece como registrado depois que o servidor confirmar a gravação.') }),
+      var body = el('div', null, el('p', { text: 'Vai registrar ' + items.length + ' pacote(s) de ' + c.xpt.name + ' ' + (c.svc.mode === 'demo' ? 'na MEMÓRIA desta demonstração. Nada é gravado em servidor e tudo se perde ao recarregar a página.' : 'no servidor (Firestore). O pacote só aparece como registrado depois que o servidor confirmar a gravação.') }),
         el('ul', { class: 'plain' }, items.map(function (i) { return el('li', { text: i.code + ' · ' + H.sizeLabel(D, i.size) + ' · ' + G.LOC_LABEL[i.location.kind] }); })));
       ui.modal('Confirmar entrada dos pacotes?', body, [
         { label: 'Cancelar', onClick: function (close) { close(); } },
@@ -206,7 +206,7 @@
       fieldWrap, gateHint, existBox, locBox, mapHost, mapBoxMsg, locInfo, el('div', { class: 'row-actions' }, addBtn, cancelBtn), msg, errBox);
     drawLoc(); drawList(); refreshGate();
     var node = H.page([
-      (c.svc.mode === 'demo' ? ui.callout('warn', 'Registro demonstrativo, só em memória.', 'Não há backend: pacotes confirmados aqui existem apenas nesta página e somem ao recarregar. O rascunho vale só para ' + c.xpt.name + '.') : ui.callout('info', 'Os pacotes confirmados são gravados no servidor (ambiente de teste).', 'O rascunho abaixo é só local e vale para ' + c.xpt.name + ' até você confirmar a entrada.')),
+      (c.svc.mode === 'demo' ? ui.callout('warn', 'Registro demonstrativo, só em memória.', 'Não há backend: pacotes confirmados aqui existem apenas nesta página e somem ao recarregar. O rascunho vale só para ' + c.xpt.name + '.') : ui.callout('info', 'Os pacotes confirmados são gravados no servidor.', 'O rascunho abaixo é só local e vale para ' + c.xpt.name + ' até você confirmar a entrada.')),
       ui.card('Novo pacote', form), ui.card('Rascunho local desta XPT', listBox), H.demoNote(),
     ]);
     setTimeout(function () { if (!destroyed && !(document.activeElement && document.activeElement.tagName === 'SELECT')) codeIn.focus({ preventScroll: true }); }, 0);

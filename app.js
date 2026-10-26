@@ -15,7 +15,7 @@
     { id: 'reports', label: 'Relatórios', icon: 'chart', title: 'Relatórios' },
     { id: 'drivers', label: 'Motoristas', icon: 'user', title: 'Motoristas e agregados' },
     { id: 'xpts', label: 'XPT / Galpões', icon: 'building', title: 'Administração de XPTs' },
-    { id: 'setup', label: 'Configuração inicial', icon: 'help', title: 'Configuração inicial (teste)', nav: false },
+    { id: 'setup', label: 'Administração', icon: 'help', title: 'Administração do sistema', nav: false },
     { id: 'help', label: 'Ajuda', icon: 'help', title: 'Ajuda e configurações' },
     { id: 'package', label: 'Pacote', icon: 'box', title: 'Detalhes do pacote', nav: false },
     { id: 'operation', label: 'Operação', icon: 'truck', title: 'Detalhes da operação', nav: false },
@@ -75,7 +75,9 @@
     function renderTop() {
       var route = ROUTES.filter(function (r) { return r.id === state.route; })[0];
       var alerts = NS.alerts.total(NS.alerts.compute(D, state.xptId, store.nowMs()));
-      var banner = document.querySelector('.demo-banner'); if (banner && remote) banner.replaceChildren(el('strong', { text: 'AMBIENTE DE TESTE' + (root.CXPT_FB && root.CXPT_FB.kind === 'simulado' ? ' · BACKEND SIMULADO (não é o Firebase real)' : ' · FIREBASE REAL') }), el('span', { text: 'dados em env/teste · projeto ' + ((root.CXPT_FIREBASE && root.CXPT_FIREBASE.config.projectId) || '') }));
+      var banner = document.querySelector('.demo-banner'); if (banner) banner.hidden = !!remote; // uso real: sem faixa de demonstração/teste
+      document.documentElement.style.setProperty('--banner-h', remote ? '0px' : '36px');
+      var foot = document.getElementById('sidebar-foot'); if (foot) foot.textContent = remote ? '' : 'Protótipo local v1. Logotipo enviado pelo proprietário; uso oficial ainda a confirmar.';
       var xsel = el('select', { id: 'xpt-select', 'aria-label': 'XPT selecionada', onchange: function (e) { setXpt(e.target.value); } },
         D.xpts.map(function (x) { return el('option', { value: x.id, selected: x.id === state.xptId, disabled: x.active === false }, x.name + (x.active === false ? ' (desativada)' : '')); }));
       var psel = remote ? el('span', { id: 'user-badge', class: 'user-badge' }, user.name + ' · ' + (NS.permissions.PROFILES.filter(function (p) { return p.id === user.role; })[0] || {}).label) : el('select', { id: 'profile-select', 'aria-label': 'Perfil demonstrativo (sem proteção real)', title: NS.permissions.DISCLAIMER, onchange: function (e) { state.profile = e.target.value; render(); } },
@@ -117,7 +119,7 @@
       catch (e) { node = ui.callout('danger', 'Erro ao montar a tela.', String(e && e.message || e)); if (root.console) console.error(e); }
       main.replaceChildren(node);
       renders++; main.dataset.render = String(renders); main.dataset.route = state.route; main.dataset.xpt = state.xptId;
-      document.title = (ROUTES.filter(function (r) { return r.id === state.route; })[0].title) + ' · COOPMETRO XPT (' + (remote ? 'teste' : 'demonstração') + ')';
+      document.title = (ROUTES.filter(function (r) { return r.id === state.route; })[0].title) + ' · COOPMETRO XPT' + (remote ? '' : ' (demonstração)');
     }
     store.on(function (src) { if (src === 'entry') { renderTop(); return; } render(); });
     overlay.addEventListener('click', closeMenu);

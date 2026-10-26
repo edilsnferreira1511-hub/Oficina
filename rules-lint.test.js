@@ -31,11 +31,11 @@ t('nenhuma regra aberta (if true, curinga global, allow sem condição)', () => 
   const allows = code.match(/allow [^;]*;/g) || []; ok(allows.length > 10);
   allows.forEach((a) => ok(/if\s/.test(a), 'allow sem condição: ' + a));
 });
-t('todos os caminhos liberados ficam sob env/teste', () => {
+t('todos os caminhos liberados ficam sob env/producao', () => {
   const ms = code.match(/match\s+\/[^\s{]*[^\s]*/g).filter((m) => !/databases/.test(m));
   const paths = (code.match(/match\s+(\/env\/[^\s{]+)/g) || []);
-  ok(paths.length >= 9); paths.forEach((p) => ok(/\/env\/teste\//.test(p), p));
-  ok(ms.every((m) => /env\/teste/.test(m) || /\{database\}/.test(m) || /databases/.test(m)), ms.join(' | '));
+  ok(paths.length >= 9); paths.forEach((p) => ok(/\/env\/producao\//.test(p), p));
+  ok(ms.every((m) => /env\/producao/.test(m) || /\{database\}/.test(m) || /databases/.test(m)), ms.join(' | '));
 });
 t('nada pode ser apagado: todo delete é "if false"', () => {
   const dels = code.match(/allow (?:[a-z, ]*)delete[^;]*;/g) || []; ok(dels.length >= 8, 'poucos delete: ' + dels.length);
@@ -43,7 +43,7 @@ t('nada pode ser apagado: todo delete é "if false"', () => {
   dels.filter((d) => /if false;/.test(d)).forEach((d) => ok(/if false;/.test(d), d)); ok(dels.length >= 8);
 });
 t('eventos só podem ser criados (update/delete = false) e com o uid do autor', () => {
-  const blk = /match \/env\/teste\/events\/\{eventId\} \{([\s\S]*?)\n    \}/.exec(code); ok(blk);
+  const blk = /match \/env\/producao\/events\/\{eventId\} \{([\s\S]*?)\n    \}/.exec(code); ok(blk);
   ok(/allow update, delete: if false;/.test(blk[1])); ok(/request\.resource\.data\.uid == request\.auth\.uid/.test(blk[1]));
 });
 t('usuários: sem auto-edição e sem delete; código e XPT de origem imutáveis; histórico só cresce; operação encerrada trava', () => {
@@ -66,13 +66,13 @@ t('modelo de regras usado nos testes == regras', () => {
 });
 t('motorista: regras de acesso exclusivo à PRÓPRIA operação', () => {
   ok(/function isDriver\(\)[^}]*role\(\) == 'motorista'/.test(code), 'isDriver'); ok(/function ownOp\(op\)[^}]*op\.driverId == userDoc\(\)\.data\.driverId/.test(code), 'ownOp compara driverId do servidor');
-  const ops = /match \/env\/teste\/operations\/\{opId\} \{([\s\S]*?)\n    \}/.exec(code); ok(ops, 'bloco operations');
+  const ops = /match \/env\/producao\/operations\/\{opId\} \{([\s\S]*?)\n    \}/.exec(code); ok(ops, 'bloco operations');
   const create = /allow create:[^;]*;/.exec(ops[1])[0]; ok(!/ownOp|isDriver/.test(create), 'motorista não cria operação');
   ok(/allow get, list:[^;]*ownOp\(resource\.data\)/.test(ops[1]), 'motorista lê só a própria operação');
   const up = /allow update:[\s\S]*?;\n/.exec(ops[1])[0]; ok(/ownOp\(resource\.data\)[^|]*hasOnly\(\['checked', 'history'\]\)/.test(up), 'motorista só altera checked/history'); ok(/hasOnly\(resource\.data\.packageCodes\)/.test(up), 'só códigos da própria operação');
   ok(!/ownOp[^|]*(saida_confirmada|encerrada)/.test(up), 'motorista não confirma saída nem encerra');
-  const pk = /match \/env\/teste\/packages\/\{pkId\} \{([\s\S]*?)\n    \}/.exec(code); if (pk) ok(!/isDriver|ownOp/.test(pk[1]), 'motorista não lê pacotes');
-  ['users', 'xpts', 'regions', 'drivers'].forEach((c) => { const b = new RegExp('match /env/teste/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b, c); if (c !== 'drivers') ok(!/isDriver|ownOp/.test(b[1]), c + ' sem acesso do motorista'); });
+  const pk = /match \/env\/producao\/packages\/\{pkId\} \{([\s\S]*?)\n    \}/.exec(code); if (pk) ok(!/isDriver|ownOp/.test(pk[1]), 'motorista não lê pacotes');
+  ['users', 'xpts', 'regions', 'drivers'].forEach((c) => { const b = new RegExp('match /env/producao/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b, c); if (c !== 'drivers') ok(!/isDriver|ownOp/.test(b[1]), c + ' sem acesso do motorista'); });
   ok(/allow get, list:[^;]*isDriver\(\) && id == userDoc\(\)\.data\.driverId/.test(code), 'motorista só lê o próprio cadastro de motorista');
 });
 t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhuma ação administrativa', () => {
@@ -83,7 +83,7 @@ t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhum
 t('matriz editável: documento de permissões só pelo admin_sistema; motorista nunca vem da matriz', () => {
   ok(/function perm\(a, def\)[^}]*role\(\) == 'admin_sistema'[^}]*role\(\) != 'motorista'[^}]*exists\(permDoc\(\)\)[^}]*get\(permDoc\(\)\)\.data\[a\]/.test(code), 'perm()');
   ok(/id == 'permissions' \? canUsuarios\(\) : canConfig\(\)/.test(code), 'só admin_sistema grava a matriz');
-  ok(/match \/env\/teste\/users\/\{uid\} \{[\s\S]*?allow create, update, delete: if canUsuarios\(\) && request\.auth\.uid != uid/.test(code), 'usuários: admin_sistema sem tocar no próprio');
+  ok(/match \/env\/producao\/users\/\{uid\} \{[\s\S]*?allow create, update, delete: if canUsuarios\(\) && request\.auth\.uid != uid/.test(code), 'usuários: admin_sistema sem tocar no próprio');
   ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'config'].forEach((a) => ok(new RegExp("perm\\('" + a + "'").test(code), a));
   ok(/EDITABLE/.test(fs.readFileSync(path.join(__dirname, 'permissions.js'), 'utf8')));
 });

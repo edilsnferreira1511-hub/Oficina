@@ -182,7 +182,7 @@
     var panel = H.confPanel(c, cur, { onChange: function () { /* o resumo é do próprio painel */ } });
     return {
       node: H.page([
-        NS.mode === 'remoto' ? ui.callout('info', 'Conferência gravada no servidor (ambiente de teste).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos.') : ui.callout('warn', 'Conferência em memória (demonstração).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos. Nada vai para servidor.'),
+        NS.mode === 'remoto' ? ui.callout('info', 'Conferência gravada no servidor.', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos.') : ui.callout('warn', 'Conferência em memória (demonstração).', 'A saída só é registrada ao confirmar, por perfil autorizado, e apenas para os pacotes conferidos. Nada vai para servidor.'),
         ui.card('Operação (' + c.xpt.name + ')', el('div', { class: 'form-grid' }, ui.field('Operação', opSel),
           dl([['Ambulância', H.ambChip(cur)], ['Estado', stateBadge(cur)], ['Responsável', cur.responsible], ['Motorista', driverName(D, cur.driverId)]]))),
         ui.card('Leitura de códigos', panel.node),
@@ -235,7 +235,7 @@
       ui.card('Histórico da operação', (op.history || []).length ? ui.table([
         { label: 'Quando', render: function (h) { return ui.fmtDateTime ? ui.fmtDateTime(h.at) : ui.fmtDate(h.at); } }, { label: 'Evento', key: 'type' },
         { label: 'Operador', key: 'operator' }, { label: 'Detalhe', render: function (h) { return (h.code ? h.code + ' · ' : '') + h.note; } },
-      ], (op.history || []).slice().reverse(), { label: 'Histórico da operação' }) : ui.empty('Sem eventos registrados.', 'Operações demonstrativas iniciais não têm histórico próprio.')),
+      ], (op.history || []).slice().reverse(), { label: 'Histórico da operação' }) : ui.empty('Sem eventos registrados.', NS.mode === 'remoto' ? null : 'Operações demonstrativas iniciais não têm histórico próprio.')),
       H.demoNote(),
     ]);
   };
@@ -249,7 +249,7 @@
     var g = H.guard(c, ['ver_base', 'minhas_ops', 'conferir']); if (g) return g;
     if (any.xptId !== c.xptId) return H.page([ui.callout('warn', 'Esta operação pertence a outra base.', 'Selecione no cabeçalho a base à qual você tem acesso. Nenhum dado da operação é exibido.')]);
     var op = any;
-    if (c.profile === 'motorista' && op.driverId !== c.driverId) return H.page([ui.callout('warn', 'Operação não atribuída a você (simulação).', 'O motorista só enxerga operações atribuídas.')]);
+    if (c.profile === 'motorista' && op.driverId !== c.driverId) return H.page([ui.callout('warn', 'Operação não atribuída a você.', 'O motorista só enxerga operações atribuídas.')]);
     var s0 = A.summary(D, op), pk = A.opPackages(D, op), withCoords = pk.filter(function (p) { return G.hasCoords(p.location); });
     var av = NS.map.availability(root.CXPT_MAP), ctl = null, mapHost = el('div', { class: 'map-host map-host--mini', id: 'sep-map' });
     var panel;
