@@ -21,14 +21,12 @@
     'auth/admin-restricted-operation': 'O acesso por QR Code (login anônimo) não está ativado no Firebase. O administrador deve ativar em Console → Authentication → Sign-in method → Anônimo.',
     'auth/internal-error': 'Erro interno do Firebase Auth. Verifique a apiKey e o domínio autorizado.',
   };
-  var LINK_KEY = 'cxpt-last-link';
-  /** Endereço do QR da ambulância: #/separation/{opId}/{token}. Sem token no endereço, tenta o último QR aberto neste aparelho. */
+  /** Endereço do QR da ambulância: #/separation/{opId}/{token}. Sem o código no endereço NÃO há acesso de motorista (quem abre o site direto vê o login). */
   function parseLink() {
     var h = (root.location && root.location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
-    if (h[0] === 'separation' && h[1] && h[2]) { var l = { opId: decodeURIComponent(h[1]), token: decodeURIComponent(h[2]) }; try { localStorage.setItem(LINK_KEY, JSON.stringify(l)); } catch (_) { /* ignore */ } return l; }
+    if (h[0] === 'separation' && h[1] && h[2]) { return { opId: decodeURIComponent(h[1]), token: decodeURIComponent(h[2]) }; }
     return null;
   }
-  function savedLink() { try { var l = JSON.parse(localStorage.getItem(LINK_KEY) || 'null'); return l && l.opId && l.token ? l : null; } catch (_) { return null; } }
   function authMessage(e) { return AUTH_ERRORS[(e && e.code) || ''] || 'Não foi possível entrar. Tente novamente.'; }
   function anonMessage(e) { var c = (e && e.code) || ''; return c === 'auth/operation-not-allowed' || c === 'auth/admin-restricted-operation' ? AUTH_ERRORS['auth/admin-restricted-operation'] : authMessage(e); }
 
@@ -110,8 +108,8 @@
         if (started) return;
         started = true;
         if (u.isAnonymous) { // sessão do QR: nunca é perfil de equipe
-          var lk = link || savedLink();
-          if (!lk) { started = false; blockedScreen(fb, 'Abra pelo QR Code', 'Para entrar na sua ambulância, leia o QR Code impresso pelo despacho. Quem é da equipe: toque em Sair e entre com e-mail e senha.'); return; }
+          var lk = link;
+          if (!lk) { started = false; fb.auth.signOut().catch(function () { /* ignore */ }); return; } // site aberto sem QR: encerra a sessão anônima e mostra o login normal (equipe)
           loadingScreen('Abrindo a sua ambulância…');
           NS.services.claimAccess(fb, u, lk).then(function (p) {
             if (!p.ok) { started = false; blockedScreen(fb, 'Ambulância indisponível', p.message); return null; }
