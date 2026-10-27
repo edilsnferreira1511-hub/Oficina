@@ -15,6 +15,7 @@
     { id: 'reports', label: 'Relatórios', icon: 'chart', title: 'Relatórios' },
     { id: 'drivers', label: 'Motoristas', icon: 'user', title: 'Motoristas e agregados' },
     { id: 'xpts', label: 'XPT / Galpões', icon: 'building', title: 'Administração de XPTs' },
+    { id: 'backup', label: 'Backup', icon: 'box', title: 'Backup de rotas' },
     { id: 'setup', label: 'Administração', icon: 'help', title: 'Administração do sistema', nav: false },
     { id: 'help', label: 'Ajuda', icon: 'help', title: 'Ajuda e configurações' },
     { id: 'package', label: 'Pacote', icon: 'box', title: 'Detalhes do pacote', nav: false },
@@ -67,7 +68,7 @@
     function closeMenu() { sidebar.classList.remove('open'); overlay.hidden = true; var b = document.getElementById('menu-btn'); if (b) b.setAttribute('aria-expanded', 'false'); }
     function renderNav() {
       if (state.profile === 'motorista') { nav.replaceChildren(el('a', { href: '#/separation', class: 'nav-item active', 'aria-current': 'page', onclick: closeMenu }, ui.icon('truck'), el('span', { text: 'Minha ambulância' }))); return; }
-      nav.replaceChildren.apply(nav, ROUTES.filter(function (r) { return r.nav !== false || (r.id === 'setup' && remote && user.role === 'admin_sistema'); }).map(function (r) {
+      nav.replaceChildren.apply(nav, ROUTES.filter(function (r) { return (r.nav !== false || (r.id === 'setup' && remote && user.role === 'admin_sistema')) && (r.id !== 'backup' || NS.permissions.can(state.profile, 'backup_ver')); }).map(function (r) {
         var active = r.id === state.route || (state.route === 'package' && r.id === 'packages') || ((state.route === 'operation' || state.route === 'separation') && r.id === 'ops');
         return el('a', { href: '#/' + r.id, class: 'nav-item' + (active ? ' active' : ''), 'aria-current': active ? 'page' : null, onclick: closeMenu }, ui.icon(r.icon), el('span', { text: r.label }));
       }));

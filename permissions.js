@@ -27,19 +27,22 @@
     { id: 'config', label: 'Alterar configurações (motivos, limites)' },
     { id: 'minhas_ops', label: 'Ver operações atribuídas a si' },
     { id: 'conferir_propria', label: 'Bipar (conferir) os pacotes da PRÓPRIA ambulância' },
+    { id: 'backup_ver', label: 'Ver a aba Backup (rotas com backup)' },
+    { id: 'backup_criar', label: 'Registrar backup (somente na própria base)' },
   ];
   // true = permitido na PROPOSTA. Nada aprovado (D-06).
   var M = {
-    admin_sistema: { ver_global: 1, ver_base: 1, entrada: 1, conferir: 1, operacao: 1, correcao: 1, confirmar_saida: 1, encerrar: 1, devolucao: 1, usuarios: 1, config: 1 }, // acesso a TODAS as telas; linha fixa (não editável)
+    admin_sistema: { ver_global: 1, ver_base: 1, entrada: 1, conferir: 1, operacao: 1, correcao: 1, confirmar_saida: 1, encerrar: 1, devolucao: 1, usuarios: 1, config: 1, backup_ver: 1, backup_criar: 1 }, // acesso a TODAS as telas; linha fixa (não editável)
     administrador: { ver_global: 1, ver_base: 1, correcao: 1, config: 1, operacao: 1, encerrar: 1 },
-    coord_geral: { ver_global: 1, ver_base: 1 },
-    supervisor: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, encerrar: 1, correcao: 1, devolucao: 1 },
+    coord_geral: { ver_global: 1, ver_base: 1, backup_ver: 1 },
+    supervisor: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, encerrar: 1, correcao: 1, devolucao: 1, backup_ver: 1, backup_criar: 1 },
     coord_base: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, correcao: 1, devolucao: 1 },
     despacho: { ver_base: 1, entrada: 1, conferir: 1 },
     motorista: { minhas_ops: 1, conferir_propria: 1 },
   };
   // Ações que o administrador do sistema pode conceder/retirar por perfil (salvas em env/producao/settings/permissions e APLICADAS pelas regras).
   // Fixas (não editáveis): linha do admin_sistema e do motorista; ver_global, usuarios, minhas_ops, conferir_propria.
+  // backup_ver / backup_criar são FIXAS (supervisor: própria base; coordenador geral: consulta; admin_sistema: tudo) e iguais nas regras do Firestore.
   var EDITABLE = ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'config'];
   var EDITABLE_PROFILES = ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho'];
   var DEFAULTS = {}; Object.keys(M).forEach(function (p) { DEFAULTS[p] = Object.assign({}, M[p]); });

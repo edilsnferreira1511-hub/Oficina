@@ -44,7 +44,7 @@ map-config.js    provedor de mapas (OpenStreetMap) + condições de uso;  map.js
 firebase-config.js  configuração do app web (apiKey VAZIA até você preencher)   firebase-adapter.js  SDK 10.14.1 do Firebase (só carrega com apiKey)
 services.js      TODA gravação (demo em memória ou Firestore em transações) · auth.js  login/logout/recuperar senha/sessão · views-setup.js  dados iniciais de teste (admin)
 firestore.rules  regras de segurança PROPOSTAS (para você revisar/publicar)   fake-firebase.js  backend SIMULADO só para testes
-ui.js  views.js  views-entry.js  views-ops.js  views-map.js  views-amb.js  views-sort.js  views-admin.js  app.js    interface
+ui.js  views.js  views-entry.js  views-ops.js  views-map.js  views-amb.js  views-sort.js  views-backup.js  backup.js  views-admin.js  app.js    interface
 unit.test.js  unit-fluxo.test.js  unit-firebase.test.js  rules-lint.test.js  e2e.js  e2e-fluxo.js  e2e-firebase.js  run-all.js  helpers.js  qr-verificacao.py  tile-simulado.png  tile-simulado-LEIA-ME.txt   testes
 ARQUITETURA-FUNCIONAL.md  DECISOES-PENDENTES.md  TESTES.md  STATUS-DO-PROJETO.md  LEIA-ME.md  FIREBASE.md      documentação
 make-zip.sh      gera o ZIP de entrega

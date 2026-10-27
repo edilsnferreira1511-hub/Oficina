@@ -460,6 +460,36 @@
     }).catch(failure);
   }
 
-  NS.services = { saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, claimAccess: claimAccess, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
+
+  // =====================================================================================================
+  // Aba Backup (rotas que precisaram de backup): env/producao/backups/{id}
+  // =====================================================================================================
+  function bkAllowed(user) { return GLOBAL_ROLES.indexOf(user.role) >= 0; }
+  /** Lista os backups permitidos ao usuário. Supervisor: só as bases dele; coordenador geral/admin_sistema: todas (ou uma base escolhida).
+   *  A consulta nunca pede mais do que o perfil pode ler (as regras também recusam). Filtro de datas e ordenação no aparelho. */
+  function listBackups(fb, user, o) {
+    o = o || {};
+    if (!NS.permissions.can(user.role, 'backup_ver')) return Promise.resolve({ ok: false, message: 'Seu perfil não pode ver os backups.' });
+    var mine = (user.xptIds || []).slice(), global = bkAllowed(user), col = ENV + '/backups', q;
+    if (o.xptId) {
+      if (!global && mine.indexOf(o.xptId) < 0) return Promise.resolve({ ok: false, message: 'Você não tem acesso a esta base.' });
+      q = fb.db.list(col, [['xptId', '==', o.xptId]]);
+    } else if (global) q = fb.db.list(col, []);
+    else q = Promise.all(mine.map(function (id) { return fb.db.list(col, [['xptId', '==', id]]); })).then(function (p) { return [].concat.apply([], p); });
+    return q.then(function (rows) { return { ok: true, items: NS.backup.filterSort(docs(rows), { from: o.from, to: o.to }) }; }, function (e) { var f = failure(e); return { ok: false, message: f.reason === 'sem_permissao' ? 'O servidor recusou a consulta de backups (as regras do Firestore precisam ser publicadas com a coleção backups).' : f.message }; });
+  }
+  /** Grava um backup. A base é a do usuário (nunca digitada); o autor é o UID autenticado; a data é a de Brasília. */
+  function createBackup(fb, user, f, xptId) {
+    if (!NS.permissions.can(user.role, 'backup_criar')) return Promise.resolve({ ok: false, message: 'Seu perfil não pode registrar backups.' });
+    if (!xptId || (!bkAllowed(user) && (user.xptIds || []).indexOf(xptId) < 0)) return Promise.resolve({ ok: false, message: 'Você só pode registrar backup na sua própria base.' });
+    var v = NS.backup.validate(f); if (!v.ok) return Promise.resolve({ ok: false, errors: v.errors, message: 'Preencha todos os campos obrigatórios.' });
+    var doc = NS.backup.build(v, { id: 'bk-' + Date.now() + '-' + rnd(), xptId: xptId, uid: user.uid, nowMs: Date.now() });
+    return fb.db.runTransaction(function (tx) {
+      tx.set(path('backups', doc.id), doc); // sem leitura prévia (ler documento inexistente seria negado pelas regras); id aleatório; regras só aceitam criar, nunca sobrescrever
+      return Promise.resolve({ ok: true, backup: doc });
+    }).then(function (r) { return r; }, function (e) { var fl = failure(e); return { ok: false, message: fl.reason === 'sem_permissao' ? 'O servidor recusou a gravação do backup (confira as regras do Firestore e a sua base).' : fl.message }; });
+  }
+
+  NS.services = { listBackups: listBackups, createBackup: createBackup, saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, claimAccess: claimAccess, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.services;
 })(typeof window !== 'undefined' ? window : globalThis);

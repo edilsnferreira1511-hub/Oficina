@@ -9,7 +9,7 @@
     VER_BASE: ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho'],
     ENTRADA: ['despacho'], CONFERIR: ['supervisor', 'coord_base', 'despacho'], OPERACAO: ['administrador', 'supervisor', 'coord_base'],
     CORRECAO: ['administrador', 'supervisor', 'coord_base'], SAIDA: ['supervisor', 'coord_base'], ENCERRAR: ['administrador', 'supervisor'],
-    DEVOLUCAO: ['supervisor', 'coord_base'], USUARIOS: ['admin_sistema'], CONFIG: ['admin_sistema', 'administrador'], GLOBAL: ['administrador', 'coord_geral', 'admin_sistema'],
+    DEVOLUCAO: ['supervisor', 'coord_base'], USUARIOS: ['admin_sistema'], BACKUP_VER: ['supervisor', 'coord_geral', 'admin_sistema'], BACKUP_CRIAR: ['supervisor', 'admin_sistema'], CONFIG: ['admin_sistema', 'administrador'], GLOBAL: ['administrador', 'coord_geral', 'admin_sistema'],
   };
   function err(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
   function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
@@ -37,7 +37,7 @@
     // lista de perfis de uma ação: documento de permissões (se existir) ou padrão; admin_sistema sempre tem tudo; motorista nunca vem da matriz
     function inR(list) {
       if (!active()) return false;
-      if (list === ROLES.USUARIOS || list === ROLES.GLOBAL) return list.indexOf(role()) >= 0;
+      if (list === ROLES.USUARIOS || list === ROLES.GLOBAL || list === ROLES.BACKUP_VER || list === ROLES.BACKUP_CRIAR) return list.indexOf(role()) >= 0;
       if (role() === 'admin_sistema') return true; if (role() === 'motorista') return false;
       var name = Object.keys(ROLES).filter(function (k) { return ROLES[k] === list; })[0], pd = permsDoc();
       if (pd && ACT[name]) { var l = pd[ACT[name]]; return Array.isArray(l) && l.indexOf(role()) >= 0; }
@@ -67,6 +67,14 @@
         if (kind === 'list') return inR(ROLES.USUARIOS);
         if (kind === 'create' || kind === 'update' || kind === 'delete') return inR(ROLES.USUARIOS) && session.uid !== id;
         return false;
+      }
+      if (col === 'backups') { // espelha firestore.rules: backups de rotas
+        if (kind === 'get' || kind === 'list') return !!before && inR(ROLES.BACKUP_VER) && (ROLES.GLOBAL.indexOf(role()) >= 0 || hasBase(before.xptId));
+        if (kind !== 'create') return false;
+        var L = ['id', 'driverName', 'routeName', 'routeId', 'vehiclePlate', 'vehicleType', 'backupNumber', 'xptId', 'backupDate', 'createdAt', 'createdBy'], str = function (k, n) { return typeof after[k] === 'string' && after[k].length > 0 && after[k].length <= n; };
+        return inR(ROLES.BACKUP_CRIAR) && hasBase(after.xptId) && Object.keys(after).every(function (k) { return L.indexOf(k) >= 0; }) && L.every(function (k) { return k in after; })
+          && after.id === id && after.createdBy === session.uid && ['passeio', 'utilitario', 'vuc'].indexOf(after.vehicleType) >= 0 && ['1', '2'].indexOf(after.backupNumber) >= 0
+          && str('driverName', 80) && str('routeName', 80) && str('routeId', 80) && str('vehiclePlate', 10) && /^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(String(after.backupDate)) && typeof after.createdAt === 'number';
       }
       if (col === 'claims') {
         if (kind === 'get') return session.uid === id;

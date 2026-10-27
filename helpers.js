@@ -1,7 +1,7 @@
 'use strict';
 // Harness mínimo (sem dependências) + carregador dos módulos puros.
 const path = require('path');
-const MODS = ['data', 'geo', 'packages', 'codes', 'alerts', 'reports', 'permissions', 'audit', 'registry', 'ambulance', 'qr', 'operations', 'store'];
+const MODS = ['data', 'geo', 'packages', 'codes', 'alerts', 'reports', 'permissions', 'audit', 'registry', 'ambulance', 'qr', 'operations', 'store', 'backup'];
 MODS.forEach((m) => require(path.join(__dirname, m + '.js')));
 const NS = globalThis.CXPT;
 let pass = 0, fail = 0;

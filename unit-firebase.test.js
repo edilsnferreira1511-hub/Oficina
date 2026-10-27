@@ -246,6 +246,51 @@ atest('QR: operação encerrada bloqueia a bipagem do motorista sem login', asyn
   const x = await m.svc.scan(op, 'C-1', m.who); ok(x.status !== 'ok', 'não deve gravar');
   const m2 = await qrDevice(w, { opId: 'OP-0001', token }); ok(m2.p.ok && m2.D.operations[0].state === 'encerrada', 'ainda consegue ver, mas não bipar');
 });
+
+// ---------- aba Backup
+function addUser(w, email, role, xpts) { w._admin.addAccount(email, 'senha-' + email, 'uid-' + email); w._admin.setDoc(U + 'users/uid-' + email, { name: 'Nome ' + email, email, role, xptIds: xpts, active: true, driverId: null }); }
+const bkForm = (o) => Object.assign({ driverName: 'Maria Souza', routeName: 'Rota Norte', routeId: 'RT-9', vehiclePlate: 'abc1d23', vehicleType: 'utilitario', backupNumber: '2' }, o);
+const rawBk = (id, o) => Object.assign({ id, driverName: 'X', routeName: 'R', routeId: '1', vehiclePlate: 'AAA1A11', vehicleType: 'vuc', backupNumber: '1', xptId: 'x1', backupDate: '2026-10-26', createdAt: 1, createdBy: 'uid-sup@t.com' }, o);
+const setRaw = (d, id, data) => d.fb.db.runTransaction((tx) => { tx.set(U + 'backups/' + id, data); return Promise.resolve(); });
+atest('backup: supervisor registra na própria base, grava no Firestore, base e autor vêm da conta e persiste ao entrar de novo', async () => {
+  const w = world(), s = await device(w, 'sup@t.com');
+  const r = await SV.createBackup(s.fb, s.user, bkForm({ xptId: 'x2', createdBy: 'hack' }), 'x1'); ok(r.ok, JSON.stringify(r));
+  const st = w._admin.getDoc(U + 'backups/' + r.backup.id); ok(st, 'gravado em env/teste/backups'); eq(st.xptId, 'x1', 'base da conta'); eq(st.createdBy, 'uid-sup@t.com'); eq(st.vehiclePlate, 'ABC1D23'); eq(st.backupNumber, '2');
+  ok(/^\d{4}-\d{2}-\d{2}$/.test(st.backupDate) && typeof st.createdAt === 'number'); eq(Object.keys(st).sort(), NS.backup.FIELDS.slice().sort());
+  const again = await device(w, 'sup@t.com'); const l = await SV.listBackups(again.fb, again.user, {}); ok(l.ok); eq(l.items.map((x) => x.id), [r.backup.id], 'persistiu');
+});
+atest('backup: campos vazios, tipo/número inválidos e base de outra pessoa são recusados antes e pelo servidor', async () => {
+  const w = world(), s = await device(w, 'sup@t.com');
+  const e = await SV.createBackup(s.fb, s.user, bkForm({ driverName: '', vehicleType: '' }), 'x1'); ok(!e.ok && e.errors.driverName && e.errors.vehicleType);
+  ok(!(await SV.createBackup(s.fb, s.user, bkForm(), 'x2')).ok, 'serviço: outra base');
+  eq(w._admin.listDocs(U + 'backups').length, 0, 'nada gravado');
+  await denied(setRaw(s, 'bk-a', rawBk('bk-a', { xptId: 'x2' })), 'servidor: base alheia');
+  await denied(setRaw(s, 'bk-b', rawBk('bk-b', { createdBy: 'uid-outro' })), 'autor falso');
+  await denied(setRaw(s, 'bk-c', rawBk('bk-c', { vehicleType: 'caminhao' })), 'tipo inválido'); await denied(setRaw(s, 'bk-d', rawBk('bk-d', { backupNumber: '3' })), 'número inválido');
+  await denied(setRaw(s, 'bk-e', rawBk('bk-e', { driverName: '' })), 'vazio'); await denied(setRaw(s, 'bk-f', Object.assign(rawBk('bk-f'), { extra: 1 })), 'campo extra');
+  await denied(setRaw(s, 'bk-g', rawBk('bk-h')), 'id diferente do documento'); await denied(setRaw(s, 'bk-i', rawBk('bk-i', { backupDate: '26/10/2026' })), 'data fora do formato');
+  await setRaw(s, 'bk-ok', rawBk('bk-ok')); eq(w._admin.listDocs(U + 'backups').length, 1, 'o válido passa');
+  await denied(s.fb.db.runTransaction((tx) => tx.get(U + 'backups/bk-ok').then(() => { tx.update(U + 'backups/bk-ok', { xptId: 'x2' }); })), 'não edita');
+  await denied(s.fb.db.runTransaction((tx) => tx.get(U + 'backups/bk-ok').then(() => { tx.delete(U + 'backups/bk-ok'); })), 'não apaga');
+});
+atest('backup: supervisor só vê a própria base (consulta e tentativa de burlar); coordenador geral vê todas, filtra por base e não registra; outros perfis nada', async () => {
+  const w = world(); addUser(w, 'sup2@t.com', 'supervisor', ['x2']);
+  const s1 = await device(w, 'sup@t.com'), s2 = await device(w, 'sup2@t.com');
+  const a = await SV.createBackup(s1.fb, s1.user, bkForm({ routeId: 'A' }), 'x1'); const b = await SV.createBackup(s2.fb, s2.user, bkForm({ routeId: 'B' }), 'x2'); ok(a.ok && b.ok);
+  eq((await SV.listBackups(s1.fb, s1.user, {})).items.map((x) => x.routeId), ['A']); eq((await SV.listBackups(s2.fb, s2.user, {})).items.map((x) => x.routeId), ['B']);
+  ok(!(await SV.listBackups(s1.fb, s1.user, { xptId: 'x2' })).ok, 'serviço recusa outra base');
+  await denied(s1.fb.db.list(U + 'backups', []), 'consulta sem filtro de base'); await denied(s1.fb.db.list(U + 'backups', [['xptId', '==', 'x2']]), 'consulta da base alheia');
+  await denied(s1.fb.db.get(U + 'backups/' + b.backup.id), 'leitura pontual alheia');
+  const g = await device(w, 'geral@t.com'); const all = await SV.listBackups(g.fb, g.user, {}); ok(all.ok); eq(all.items.map((x) => x.routeId).sort(), ['A', 'B']);
+  eq((await SV.listBackups(g.fb, g.user, { xptId: 'x2' })).items.map((x) => x.routeId), ['B']); eq((await SV.listBackups(g.fb, g.user, { xptId: 'x1' })).items.map((x) => x.routeId), ['A']);
+  ok(!(await SV.createBackup(g.fb, g.user, bkForm(), 'x1')).ok, 'coord. geral não registra (serviço)'); await denied(setRaw(g, 'bk-g1', rawBk('bk-g1', { createdBy: 'uid-geral@t.com' })), 'coord. geral não registra (servidor)');
+  for (const [mail, role] of [['desp@t.com', 'despacho'], ['coord@t.com', 'coord_base'], ['mot@t.com', 'motorista']]) {
+    const d = await device(w, mail); await denied(d.fb.db.list(U + 'backups', []), role + ' não consulta'); await denied(d.fb.db.list(U + 'backups', [['xptId', '==', 'x1']]), role + ' não consulta a própria base');
+    await denied(setRaw(d, 'bk-' + role, rawBk('bk-' + role, { createdBy: 'uid-' + mail })), role + ' não registra'); ok(!(await SV.listBackups(d.fb, d.user, {})).ok, role + ' (serviço)');
+  }
+  const sys = await device(w, 'sys@t.com'); eq((await SV.listBackups(sys.fb, sys.user, {})).items.length, 2, 'admin_sistema vê todas');
+  eq(w._admin.listDocs(U + 'backups').length, 2, 'nada extra foi gravado');
+});
 atest('admin_sistema (mesmo com bases preenchidas por engano) carrega só os cadastros, sem ler operações/pacotes', async () => {
   const w = world(); w._admin.setDoc(U + 'users/uid-sys@t.com', { name: 'Sys', email: 'sys@t.com', role: 'admin_sistema', xptIds: ['x1'], active: true, driverId: null });
   const s = await device(w, 'sys@t.com'); ok(s.D, 'carregou'); ok(s.D.xpts.length >= 2 && s.D.drivers.length > 0); eq(s.D.packages.length, 0); eq(s.D.operations.length, 0);

@@ -52,6 +52,9 @@ service cloud.firestore {
         && exists(/databases/$(database)/documents/env/producao/claims/$(request.auth.uid))
         && claimDoc().data.opId == opId && claimDoc().data.token == op.token;
     }
+    // Backup de rotas: ver = supervisor (própria base), coord_geral e admin_sistema (todas); registrar = supervisor (própria base) e admin_sistema. Fixo (não vem da matriz editável).
+    function canBackupVer()    { return active() && role() in ['supervisor', 'coord_geral', 'admin_sistema']; }
+    function canBackupCriar()  { return active() && role() in ['supervisor', 'admin_sistema']; }
     function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
 
     // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/producao)
@@ -176,6 +179,26 @@ service cloud.firestore {
           || (request.resource.data.state == 'encerrada' && canEncerrar()))));
 
       allow delete: if false;
+    }
+
+    // Backups de rotas (coleção própria). Leitura: só da própria base (supervisor) ou de todas (coord_geral/admin_sistema). Criação: base validada
+    // aqui no servidor (hasBase), autor = quem está logado, campos fixos e valores válidos. Nunca edita nem apaga.
+    match /env/producao/backups/{bkId} {
+      allow get, list: if canBackupVer() && (isGlobal() || hasBase(resource.data.xptId));
+      allow create: if canBackupCriar() && hasBase(request.resource.data.xptId)
+        && request.resource.data.keys().hasOnly(['id', 'driverName', 'routeName', 'routeId', 'vehiclePlate', 'vehicleType', 'backupNumber', 'xptId', 'backupDate', 'createdAt', 'createdBy'])
+        && request.resource.data.keys().hasAll(['id', 'driverName', 'routeName', 'routeId', 'vehiclePlate', 'vehicleType', 'backupNumber', 'xptId', 'backupDate', 'createdAt', 'createdBy'])
+        && request.resource.data.id == bkId
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.vehicleType in ['passeio', 'utilitario', 'vuc']
+        && request.resource.data.backupNumber in ['1', '2']
+        && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() <= 80
+        && request.resource.data.routeName is string && request.resource.data.routeName.size() > 0 && request.resource.data.routeName.size() <= 80
+        && request.resource.data.routeId is string && request.resource.data.routeId.size() > 0 && request.resource.data.routeId.size() <= 80
+        && request.resource.data.vehiclePlate is string && request.resource.data.vehiclePlate.size() > 0 && request.resource.data.vehiclePlate.size() <= 10
+        && request.resource.data.backupDate is string && request.resource.data.backupDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.createdAt is number;
+      allow update, delete: if false;
     }
 
     // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.

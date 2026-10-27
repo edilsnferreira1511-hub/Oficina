@@ -87,6 +87,18 @@ t('motorista por QR (sem login): o token da operação é a prova, em uma única
   ok(!/tokenOp/.test((/match \/env\/producao\/packages[\s\S]*?\n    \}/.exec(code) || [''])[0]), 'QR não lê pacotes');
   ['users', 'xpts', 'regions', 'drivers', 'settings', 'codes', 'counters'].forEach((c) => { const b = new RegExp('match /env/producao/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b && !/tokenOp/.test(b[1]), c + ' sem acesso por QR'); });
 });
+t('backup: perfis iguais a permissions.js e ao modelo de teste; coleção própria, base validada no servidor, imutável', () => {
+  ok(setEq(roles('canBackupVer'), rolesWith('backup_ver')) && setEq(roles('canBackupVer'), FAKE.ROLES.BACKUP_VER), 'ver');
+  ok(setEq(roles('canBackupCriar'), rolesWith('backup_criar')) && setEq(roles('canBackupCriar'), FAKE.ROLES.BACKUP_CRIAR), 'criar');
+  const b = /match \/env\/producao\/backups\/\{bkId\} \{([\s\S]*?)\n    \}/.exec(code); ok(b, 'bloco backups (coleção própria em env/producao)');
+  const rd = /allow get, list:[^;]*;/.exec(b[1])[0]; ok(/canBackupVer\(\)/.test(rd) && /isGlobal\(\) \|\| hasBase\(resource\.data\.xptId\)/.test(rd), 'leitura: própria base ou perfil global');
+  const cr = /allow create:[\s\S]*?;\n/.exec(b[1])[0];
+  ok(/canBackupCriar\(\)/.test(cr) && /hasBase\(request\.resource\.data\.xptId\)/.test(cr), 'criação valida a base no servidor');
+  ok(/createdBy == request\.auth\.uid/.test(cr), 'autor = usuário logado'); ok(/vehicleType in \['passeio', 'utilitario', 'vuc'\]/.test(cr), 'tipos de veículo'); ok(/backupNumber in \['1', '2'\]/.test(cr), 'número do backup');
+  ok(/keys\(\)\.hasOnly\(/.test(cr) && /keys\(\)\.hasAll\(/.test(cr), 'campos fixos'); ok(/id == bkId/.test(cr), 'id = documento');
+  ok(/allow update, delete: if false/.test(b[1]), 'nunca edita nem apaga');
+  ok(!/backups/.test(code.replace(b[0], '')), 'nenhuma outra regra mexe em backups');
+});
 t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhuma ação administrativa', () => {
   ok(setEq(rolesWith('conferir_propria'), ['motorista']));
   ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config', 'ver_global'].forEach((a) => ok(!P.can('motorista', a), a));
