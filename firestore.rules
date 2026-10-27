@@ -41,9 +41,17 @@ service cloud.firestore {
     function canDevolucao() { return perm('devolucao', ['supervisor', 'coord_base']); }
     function canUsuarios() { return active() && role() == 'admin_sistema'; }
     function canConfig()   { return perm('config', ['administrador']); }
-    // motorista: só enxerga e confere a operação cujo driverId é o dele (userDoc.driverId); o QR nunca autentica nem autoriza
+    // motorista: só enxerga e confere a operação cujo driverId é o dele (userDoc.driverId); o QR sozinho nunca autoriza: com login anônimo vale só se o token do claim bater com o da operação (veja tokenOp)
     function isDriver() { return active() && role() == 'motorista' && userDoc().data.driverId is string; }
     function ownOp(op) { return isDriver() && op.driverId == userDoc().data.driverId; }
+    // motorista por QR (sem e-mail/senha): login anônimo + documento claims/{uid} = {opId, token}. O acesso só vale se o token do claim for IGUAL
+    // ao token gravado na própria operação (código aleatório de 128 bits, visível só para a equipe e para quem leu o QR). Dá acesso a UMA operação.
+    function claimDoc() { return get(/databases/$(database)/documents/env/producao/claims/$(request.auth.uid)); }
+    function tokenOp(opId, op) {
+      return signedIn() && op.token is string && op.token.size() >= 16
+        && exists(/databases/$(database)/documents/env/producao/claims/$(request.auth.uid))
+        && claimDoc().data.opId == opId && claimDoc().data.token == op.token;
+    }
     function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
 
     // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/producao)
@@ -132,34 +140,52 @@ service cloud.firestore {
       }
     }
 
+    // Claims do QR: cada login anônimo grava/lê só o próprio documento. Sozinho não dá acesso a nada (o token precisa bater com o da operação).
+    match /env/producao/claims/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['opId', 'token', 'at'])
+        && request.resource.data.opId is string && request.resource.data.token is string;
+      allow list, delete: if false;
+    }
+
     // Operações (ambulâncias)
     match /env/producao/operations/{opId} {
-      allow get, list: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data);
+      allow get: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data) || tokenOp(opId, resource.data);   // QR: só leitura PONTUAL (get), nunca lista
+      allow list: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data);
 
       allow create: if canOperacao() && hasBase(request.resource.data.xptId)
         && request.resource.data.state == 'em_separacao'
         && existsAfter(/databases/$(database)/documents/env/producao/counters/operations);
 
       // operação encerrada não aceita mais NADA (bloqueia conferências pelo QR); histórico só cresce; base e id não mudam
-      allow update: if resource.data.state != 'encerrada' && hasBase(resource.data.xptId)
+      allow update: if resource.data.state != 'encerrada'
         && request.resource.data.xptId == resource.data.xptId
         && request.resource.data.history.size() >= resource.data.history.size()
         && request.resource.data.history[0:resource.data.history.size()] == resource.data.history
+        && ((tokenOp(opId, resource.data) && request.resource.data.state == resource.data.state
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history'])   // token, estado e demais campos NUNCA mudam
+              && request.resource.data.checked.keys().hasAll(resource.data.checked.keys()) && request.resource.data.checked.keys().hasOnly(resource.data.packageCodes))
+          || (hasBase(resource.data.xptId)
         && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history', 'state', 'departed', 'closedAt', 'closedBy', 'pendingAtClose'])
         && ((request.resource.data.state == resource.data.state && canConferir() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history']))
           // motorista: só bipa a PRÓPRIA operação; só acrescenta leituras de códigos que pertencem a ela; nunca muda estado, histórico anterior ou outras operações
           || (request.resource.data.state == resource.data.state && ownOp(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history'])
             && request.resource.data.checked.keys().hasAll(resource.data.checked.keys()) && request.resource.data.checked.keys().hasOnly(resource.data.packageCodes))
           || (resource.data.state == 'em_separacao' && request.resource.data.state == 'saida_confirmada' && canSaida())
-          || (request.resource.data.state == 'encerrada' && canEncerrar()));
+          || (request.resource.data.state == 'encerrada' && canEncerrar()))));
 
       allow delete: if false;
     }
 
     // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.
     match /env/producao/events/{eventId} {
-      allow create: if (canAnyWrite() || canConferir() || isDriver()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
-        && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId));
+      allow create: if ((canAnyWrite() || canConferir() || isDriver()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
+        && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId)))
+        // motorista por QR: evento só da operação cujo token ele provou, com a base dela
+        || (request.resource.data.uid == request.auth.uid && request.resource.data.opId is string
+          && tokenOp(request.resource.data.opId, get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data)
+          && request.resource.data.xptId == get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.xptId);
       allow get, list: if canVerBase() && resource.data.keys().hasAll(['uid']) && (isGlobal() || resource.data.xptId in userDoc().data.xptIds);
       allow update, delete: if false;
     }

@@ -188,7 +188,7 @@
 
       scan: function (op, raw) {
         var driverMode = user.role === 'motorista';
-        if (!(can('conferir') || (can('conferir_propria') && driverMode && !!user.driverId && op.driverId === user.driverId))) return Promise.resolve({ status: 'sem_permissao', message: 'Seu perfil não pode conferir pacotes desta operação.' });
+        if (!(can('conferir') || (can('conferir_propria') && driverMode && ((!!user.driverId && op.driverId === user.driverId) || (!!user.tokenOpId && op.id === user.tokenOpId))))) return Promise.resolve({ status: 'sem_permissao', message: 'Seu perfil não pode conferir pacotes desta operação.' });
         var v = NS.codes.validate(raw);
         return fb.db.runTransaction(function (tx) {
           return tx.get(path('operations', op.id)).then(function (os) {
@@ -295,7 +295,24 @@
   }
 
   function tag(where, p) { return p.catch(function (e) { if (e && typeof e === 'object') e.cxptWhere = where; throw e; }); }
+  /** Motorista pelo QR: login anônimo + "claim" {opId, token}; o servidor só libera a operação cujo token confere. Nada é lido além dela. */
+  function claimAccess(fb, authUser, link) {
+    var bad = { ok: false, message: 'Este QR Code não é mais válido para esta ambulância. Peça ao despacho para mostrar o QR Code atual.' };
+    if (!link || !link.opId || !link.token || String(link.token).length < 16) return Promise.resolve({ ok: false, message: 'Abra a ambulância pelo QR Code (o link está incompleto).' });
+    return fb.db.runTransaction(function (tx) { tx.set(path('claims', authUser.uid), { opId: link.opId, token: link.token, at: Date.now() }); return true; })
+      .then(function () { return fb.db.get(path('operations', link.opId)); })
+      .then(function (s) {
+        if (!s.exists || s.data.token !== link.token) return bad;
+        return { ok: true, user: { uid: authUser.uid, email: 'acesso por QR', name: 'Motorista' + (s.data.driverName ? ' ' + s.data.driverName : ''), role: 'motorista', xptIds: [], driverId: null, tokenOpId: link.opId } };
+      }, function (e) { var f = failure(e); return f.reason === 'sem_permissao' ? bad : { ok: false, message: f.message }; });
+  }
   function loadAll(fb, user) {
+    if (user.tokenOpId) { // acesso por QR: só a própria operação
+      return fb.db.get(path('operations', user.tokenOpId)).then(function (s) {
+        if (!s.exists) throw Object.assign(new Error('Operação não encontrada.'), { code: 'not-found' });
+        return { xpts: [], regions: [], drivers: [], packages: [], operations: [{ id: user.tokenOpId, data: s.data }], settings: {}, permissions: null };
+      });
+    }
     var global = GLOBAL_ROLES.indexOf(user.role) >= 0; // inclui admin_sistema (acesso a todas as telas)
     var ids = user.xptIds.slice();
     function byXpt(col) {
@@ -443,6 +460,6 @@
     }).catch(failure);
   }
 
-  NS.services = { saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
+  NS.services = { saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, claimAccess: claimAccess, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.services;
 })(typeof window !== 'undefined' ? window : globalThis);

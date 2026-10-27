@@ -48,6 +48,11 @@
     function isDriver() { var d = mydata(); return active() && role() === 'motorista' && typeof d.driverId === 'string'; }
     function ownOp(op) { return !!op && isDriver() && op.driverId === mydata().driverId; }
     function canAnyWrite() { return inR(ROLES.ENTRADA) || inR(ROLES.OPERACAO) || inR(ROLES.SAIDA) || inR(ROLES.ENCERRAR) || inR(ROLES.CORRECAO) || inR(ROLES.DEVOLUCAO); }
+    // acesso por QR: o motorista entra com login anônimo e grava env/teste/claims/{uid} = {opId, token}; só vale se o token for o da operação
+    function claimOk(opId, op) {
+      var cl = session && S.docs['env/teste/claims/' + session.uid];
+      return !!(cl && op && typeof op.token === 'string' && op.token.length >= 16 && cl.data.opId === opId && cl.data.token === op.token);
+    }
     function affected(a, b) { var k = {}; Object.keys(a || {}).concat(Object.keys(b || {})).forEach(function (x) { if (JSON.stringify((a || {})[x]) !== JSON.stringify((b || {})[x])) k[x] = 1; }); return Object.keys(k); }
     function onlyKeys(a, b, allowed) { return affected(a, b).every(function (k) { return allowed.indexOf(k) >= 0; }); }
     function prefixSame(oldH, newH) { return newH.length >= oldH.length && JSON.stringify(newH.slice(0, oldH.length)) === JSON.stringify(oldH); }
@@ -61,6 +66,11 @@
         if (kind === 'get') return session.uid === id || inR(ROLES.USUARIOS);
         if (kind === 'list') return inR(ROLES.USUARIOS);
         if (kind === 'create' || kind === 'update' || kind === 'delete') return inR(ROLES.USUARIOS) && session.uid !== id;
+        return false;
+      }
+      if (col === 'claims') {
+        if (kind === 'get') return session.uid === id;
+        if (kind === 'create' || kind === 'update') return session.uid === id && Object.keys(after).every(function (k) { return ['opId', 'token', 'at'].indexOf(k) >= 0; }) && typeof after.opId === 'string' && typeof after.token === 'string';
         return false;
       }
       if (col === 'xpts') { if (kind === 'get') return hasBase(id) || inR(ROLES.USUARIOS); if (kind === 'list') return inR(ROLES.GLOBAL) || inR(ROLES.USUARIOS); if (kind === 'create' || kind === 'update') return inR(ROLES.CONFIG) || inR(ROLES.USUARIOS); return false; }
@@ -104,10 +114,15 @@
       }
       if (col === 'operations') {
         var drv = ownOp(before);
-        if (kind === 'get' || kind === 'list') return !!before && ((inR(ROLES.VER_BASE) && hasBase(before.xptId)) || drv);
+        if (kind === 'get') return !!before && ((inR(ROLES.VER_BASE) && hasBase(before.xptId)) || drv || claimOk(id, before));
+        if (kind === 'list') return !!before && ((inR(ROLES.VER_BASE) && hasBase(before.xptId)) || drv);
         if (kind === 'create') return inR(ROLES.OPERACAO) && hasBase(after.xptId) && after.state === 'em_separacao' && !!afterDocs['env/teste/counters/operations'];
         if (kind === 'update') {
-          if (before.state === 'encerrada' || !hasBase(before.xptId) || after.xptId !== before.xptId || !prefixSame(before.history, after.history)) return false;
+          if (before.state === 'encerrada') return false;
+          // motorista por QR: só acrescenta leituras de códigos da própria operação; nunca estado, token ou histórico anterior
+          if (claimOk(id, before) && after.state === before.state && after.xptId === before.xptId && prefixSame(before.history, after.history) && onlyKeys(before, after, ['checked', 'history'])
+            && Object.keys(before.checked || {}).every(function (k) { return !!(after.checked || {})[k]; }) && Object.keys(after.checked || {}).every(function (k) { return (before.packageCodes || []).indexOf(k) >= 0; })) return true;
+          if (!hasBase(before.xptId) || after.xptId !== before.xptId || !prefixSame(before.history, after.history)) return false;
           if (!onlyKeys(before, after, ['checked', 'history', 'state', 'departed', 'closedAt', 'closedBy', 'pendingAtClose'])) return false;
           return (after.state === before.state && inR(ROLES.CONFERIR) && onlyKeys(before, after, ['checked', 'history']))
             || (after.state === before.state && drv && onlyKeys(before, after, ['checked', 'history']) && Object.keys(before.checked || {}).every(function (k) { return !!(after.checked || {})[k]; })
@@ -119,6 +134,7 @@
       if (col === 'events') {
         if (kind !== 'create') return false;
         var opDoc = typeof after.opId === 'string' && S.docs['env/teste/operations/' + after.opId] ? S.docs['env/teste/operations/' + after.opId].data : null;
+        if (typeof after.opId === 'string' && opDoc && claimOk(after.opId, opDoc) && after.uid === session.uid && after.xptId === opDoc.xptId) return true;
         return (canAnyWrite() || inR(ROLES.CONFERIR) || isDriver()) && after.uid === session.uid && hasBase(after.xptId) && (!isDriver() || (typeof after.opId === 'string' && !!opDoc && opDoc.driverId === mydata().driverId));
       }
       return false;
@@ -177,7 +193,7 @@
               if ((opts.failCommit && opts.failCommit()) || forceFail) throw err('unavailable', 'Network down');
               // limites do Firestore real: 500 gravações por transação; 20 acessos a documentos distintos pelas regras (get/exists/existsAfter)
               if (paths.length > 500) throw err('invalid-argument', 'maximum 500 writes allowed per request');
-              var access = {}; paths.forEach(function (p) { var q = seg(p); if (writes[p] !== DEL && q[2] === 'packages' && !S.docs[p]) access['codes/' + writes[p].code] = 1; if (writes[p] !== DEL && q[2] === 'operations' && !S.docs[p]) access['counters/operations'] = 1; if (writes[p] !== DEL && q[2] === 'events' && writes[p].opId && isDriver()) access['operations/' + writes[p].opId] = 1; });
+              var access = {}; paths.forEach(function (p) { var q = seg(p); if (writes[p] !== DEL && q[2] === 'packages' && !S.docs[p]) access['codes/' + writes[p].code] = 1; if (writes[p] !== DEL && q[2] === 'operations' && !S.docs[p]) access['counters/operations'] = 1; if (writes[p] !== DEL && q[2] === 'events' && writes[p].opId && (isDriver() || !active())) access['operations/' + writes[p].opId] = 1; });
               if (2 + Object.keys(access).length > 20) /* 1 perfil do usuário + 1 documento de permissões + distintos */ throw err('permission-denied', 'Too many document access calls in rules (limit 20)');
               var after = {}; paths.forEach(function (p) { after[p] = writes[p]; });
               paths.forEach(function (p) {
@@ -196,7 +212,7 @@
     };
 
     // ----- Auth simulado
-    function toUser(a) { return a ? { uid: a.uid, email: a.email, displayName: null } : null; }
+    function toUser(a) { return a ? { uid: a.uid, email: a.email || null, displayName: null, isAnonymous: !!a.anonymous } : null; }
     function notify() { var u = session ? toUser(S.accounts.filter(function (a) { return a.uid === session.uid; })[0]) : null; listeners.slice().forEach(function (cb) { cb(u); }); }
     var auth = {
       onChange: function (cb) { listeners.push(cb); Promise.resolve().then(function () { cb(session ? toUser(S.accounts.filter(function (a) { return a.uid === session.uid; })[0]) : null); }); return function () { listeners = listeners.filter(function (x) { return x !== cb; }); }; },
@@ -207,6 +223,13 @@
           if (!a || a.password !== pw) throw err('auth/invalid-credential');
           if (a.disabled) throw err('auth/user-disabled');
           session = { uid: a.uid }; save(); notify(); return toUser(a);
+        });
+      },
+      signInAnonymously: function () {
+        return Promise.resolve().then(function () {
+          if (opts.anonymousDisabled) throw err('auth/operation-not-allowed');
+          sync(); S.seq = (S.seq || 0) + 1; var a = { uid: 'anon-' + S.seq + '-' + Math.random().toString(36).slice(2, 8), email: null, anonymous: true };
+          S.accounts.push(a); session = { uid: a.uid }; save(); notify(); return toUser(a);
         });
       },
       signOut: function () { session = null; save(); notify(); return Promise.resolve(); },

@@ -344,7 +344,7 @@ async function main(browser, base) {
   // ===== 9. QR Code
   check('9. QR Code exibido para visualizar e imprimir', (await page.locator('#qr-modal .qr-svg').count()) === 1 && (await page.locator('#qr-print-btn').count()) === 1);
   const qrUrl = await txt('#qr-url');
-  check('9. QR contém só o endereço da operação (sem dados de pacote/pessoa)', new RegExp('#/separation/' + op.id + '$').test(qrUrl) && !/FLX|Resp|Ambul/i.test(qrUrl));
+  check('9. QR contém só o endereço da operação (sem dados de pacote/pessoa)', new RegExp('#/separation/' + op.id + '/[0-9a-f]{32}$').test(qrUrl) && !/FLX|Resp|Ambul/i.test(qrUrl));
   const pngPath = path.join(require('os').tmpdir(), 'cxpt-qr-' + process.pid + '.png');
   await page.locator('#qr-modal .qr-svg').screenshot({ path: pngPath });
   const dec = spawnSync('python3', [path.join(ROOT, 'qr-verificacao.py'), pngPath, qrUrl], { encoding: 'utf8' });

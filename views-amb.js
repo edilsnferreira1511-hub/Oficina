@@ -36,15 +36,15 @@
     return svg;
   }
   H.showQr = function (c, op) {
-    var url = A.qrUrl(root.location.href, op.id);
+    var url = A.qrUrl(root.location.href, op.id, op.token);
     var warn = [];
     if (root.location.protocol === 'file:') warn.push('Esta página foi aberta como arquivo (file://): o endereço do QR só funciona neste computador. Publique em http(s) (ex.: GitHub Pages) para abrir em outros aparelhos.');
     if (NS.mode !== 'remoto') warn.push('Os dados desta demonstração vivem só na memória desta página: em outro aparelho, ou depois de recarregar, a operação não será encontrada (não há backend).');
-    else warn.push('A operação está gravada no servidor: quem tiver login e acesso à base abre a página de separação pelo QR.');
+    else warn.push('A operação está gravada no servidor: o motorista lê este QR e entra direto na própria ambulância, sem login.');
     var body = el('div', { class: 'qr-box', id: 'qr-box' },
       el('div', { class: 'qr-print' }, el('h3', { text: opLabel(op) + ' · ' + op.id }), el('p', { class: 'hint', text: H.xptName(c.D, op.xptId) + ' · Responsável: ' + op.responsible }), qrSvg(url, 'QR Code da operação ' + op.id),
         el('p', { class: 'mono small qr-url', id: 'qr-url', text: url })),
-      ui.callout('info', 'O QR identifica apenas a operação.', 'Não contém dados de pacotes ou pessoas e não substitui login nem permissões: quem abrir precisa ter acesso à base e à situação da operação.'),
+      ui.callout('info', op.token ? 'O QR dá acesso direto a esta ambulância.' : 'O QR identifica apenas a operação.', op.token ? 'Quem ler o QR entra sem login, mas só enxerga e bipa esta ambulância (nada de pacotes de outras, usuários ou outras telas). Não contém dados de pacotes ou pessoas. Mostre-o só ao motorista; ao encerrar a operação ele deixa de bipar.' : 'Não contém dados de pacotes ou pessoas e não substitui login nem permissões: quem abrir precisa ter acesso à base e à situação da operação.'),
       warn.map(function (w) { return el('p', { class: 'hint', text: w }); }));
     return ui.modal('QR Code da operação ' + op.id, body, [
       { label: 'Imprimir', cls: 'btn--primary', id: 'qr-print-btn', onClick: function () { root.print(); } },

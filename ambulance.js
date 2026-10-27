@@ -95,7 +95,7 @@
     if (Object.keys(errors).length) return { ok: false, reason: 'invalido', errors: errors, blocked: blocked };
     var col = pickColor(known, xptId);
     var op = {
-      id: nextId(D), xptId: xptId, color: col.hex, name: name, responsible: resp, driverId: f.driverId || null, packageIds: ids, state: STATE.EM_SEPARACAO,
+      id: nextId(D), xptId: xptId, color: col.hex, name: name, responsible: resp, driverId: f.driverId || null, driverName: (drv && drv.name) || null, token: newToken(), packageIds: ids, state: STATE.EM_SEPARACAO,
       createdAt: ctx.nowMs, createdBy: ctx.operator || 'Operador Demo', groupLabel: name, regionId: null, checked: {}, history: [],
     };
     logOp(op, ctx, 'operacao_criada', ids.length + ' pacote(s) vinculado(s); responsável: ' + resp);
@@ -197,11 +197,17 @@
   }
 
   /** Endereço aberto pelo QR: só o identificador da operação (sem dados sensíveis). */
-  function qrUrl(baseHref, opId) { return String(baseHref).split('#')[0] + '#/separation/' + encodeURIComponent(opId); }
+  function qrUrl(baseHref, opId, token) { return String(baseHref).split('#')[0] + '#/separation/' + encodeURIComponent(opId) + (token ? '/' + encodeURIComponent(token) : ''); }
+  /** Código secreto da ambulância (128 bits). Quem tem o QR/link entra direto na tela do motorista, sem login. */
+  function newToken() {
+    var a = new Uint32Array(4);
+    if (root.crypto && root.crypto.getRandomValues) root.crypto.getRandomValues(a); else for (var i = 0; i < 4; i++) a[i] = Math.floor(Math.random() * 4294967296);
+    return Array.prototype.map.call(a, function (n) { return ('00000000' + n.toString(16)).slice(-8); }).join('');
+  }
 
   NS.ambulance = {
     STATE: STATE, MAX_PACKAGES: MAX_PACKAGES, COLORS: COLORS, colorOf: colorOf, isActive: isActive, activeOpOf: activeOpOf, ineligible: ineligible, createAmbulance: createAmbulance,
-    scan: scan, unscan: unscan, summary: summary, confirmExit: confirmExit, closeOperation: closeOperation, qrUrl: qrUrl, opPackages: opPkgs,
+    scan: scan, unscan: unscan, summary: summary, confirmExit: confirmExit, closeOperation: closeOperation, qrUrl: qrUrl, newToken: newToken, opPackages: opPkgs,
   };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.ambulance;
 })(typeof window !== 'undefined' ? window : globalThis);

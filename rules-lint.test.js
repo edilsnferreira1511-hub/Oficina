@@ -68,12 +68,24 @@ t('motorista: regras de acesso exclusivo à PRÓPRIA operação', () => {
   ok(/function isDriver\(\)[^}]*role\(\) == 'motorista'/.test(code), 'isDriver'); ok(/function ownOp\(op\)[^}]*op\.driverId == userDoc\(\)\.data\.driverId/.test(code), 'ownOp compara driverId do servidor');
   const ops = /match \/env\/producao\/operations\/\{opId\} \{([\s\S]*?)\n    \}/.exec(code); ok(ops, 'bloco operations');
   const create = /allow create:[^;]*;/.exec(ops[1])[0]; ok(!/ownOp|isDriver/.test(create), 'motorista não cria operação');
-  ok(/allow get, list:[^;]*ownOp\(resource\.data\)/.test(ops[1]), 'motorista lê só a própria operação');
+  ok(/allow get:[^;]*ownOp\(resource\.data\)/.test(ops[1]) && /allow list:[^;]*ownOp\(resource\.data\)/.test(ops[1]), 'motorista lê só a própria operação');
+  ok(!/allow list:[^;]*tokenOp/.test(ops[1]) && /allow get:[^;]*tokenOp\(opId, resource\.data\)/.test(ops[1]), 'QR: só leitura pontual (get), nunca lista');
   const up = /allow update:[\s\S]*?;\n/.exec(ops[1])[0]; ok(/ownOp\(resource\.data\)[^|]*hasOnly\(\['checked', 'history'\]\)/.test(up), 'motorista só altera checked/history'); ok(/hasOnly\(resource\.data\.packageCodes\)/.test(up), 'só códigos da própria operação');
   ok(!/ownOp[^|]*(saida_confirmada|encerrada)/.test(up), 'motorista não confirma saída nem encerra');
   const pk = /match \/env\/producao\/packages\/\{pkId\} \{([\s\S]*?)\n    \}/.exec(code); if (pk) ok(!/isDriver|ownOp/.test(pk[1]), 'motorista não lê pacotes');
   ['users', 'xpts', 'regions', 'drivers'].forEach((c) => { const b = new RegExp('match /env/producao/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b, c); if (c !== 'drivers') ok(!/isDriver|ownOp/.test(b[1]), c + ' sem acesso do motorista'); });
   ok(/allow get, list:[^;]*isDriver\(\) && id == userDoc\(\)\.data\.driverId/.test(code), 'motorista só lê o próprio cadastro de motorista');
+});
+t('motorista por QR (sem login): o token da operação é a prova, em uma única operação', () => {
+  ok(/function tokenOp\(opId, op\)[^}]*op\.token\.size\(\) >= 16[^}]*claimDoc\(\)\.data\.opId == opId[^}]*claimDoc\(\)\.data\.token == op\.token/.test(code), 'tokenOp compara opId e token do claim com a operação');
+  const cl = /match \/env\/producao\/claims\/\{uid\} \{([\s\S]*?)\n    \}/.exec(code); ok(cl, 'bloco claims');
+  ok(/request\.auth\.uid == uid/.test(cl[1]) && /hasOnly\(\['opId', 'token', 'at'\]\)/.test(cl[1]) && /allow list, delete: if false/.test(cl[1]), 'claim só do próprio uid, campos fixos, sem list/delete');
+  const ops = /match \/env\/producao\/operations\/\{opId\} \{([\s\S]*?)\n    \}/.exec(code)[1];
+  const up = /allow update:[\s\S]*?\n      allow delete/.exec(ops)[0];
+  ok(/tokenOp\(opId, resource\.data\)[\s\S]*?hasOnly\(\['checked', 'history'\]\)[\s\S]*?hasOnly\(resource\.data\.packageCodes\)/.test(up), 'QR: só checked/history e códigos da própria operação');
+  ok(/resource\.data\.state != 'encerrada'/.test(up), 'operação encerrada bloqueia também o QR');
+  ok(!/tokenOp/.test((/match \/env\/producao\/packages[\s\S]*?\n    \}/.exec(code) || [''])[0]), 'QR não lê pacotes');
+  ['users', 'xpts', 'regions', 'drivers', 'settings', 'codes', 'counters'].forEach((c) => { const b = new RegExp('match /env/producao/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b && !/tokenOp/.test(b[1]), c + ' sem acesso por QR'); });
 });
 t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhuma ação administrativa', () => {
   ok(setEq(rolesWith('conferir_propria'), ['motorista']));

@@ -1,6 +1,6 @@
 /* COOPMETRO XPT — adaptador do Firebase (módulo ES). Só carrega o SDK quando firebase-config.js tem apiKey.
  * Expõe window.CXPT_FB = { auth, db } com a interface que services.js/auth.js usam (a mesma do backend simulado dos testes):
- *   auth: onChange(cb), signIn(email, senha), signOut(), sendReset(email)
+ *   auth: onChange(cb), signIn(email, senha), signInAnonymously(), signOut(), sendReset(email)
  *   db:   get(path), list(colecao, [[campo, op, valor]]), runTransaction(async tx => ...)  com tx.get / tx.set / tx.update
  * Não usa Analytics, nem popup/redirect de login, nem Cloud Functions. */
 (function () {
@@ -15,12 +15,13 @@
     var db = F.initializeFirestore(app, { experimentalAutoDetectLongPolling: true });
     function ref(p) { return F.doc.apply(null, [db].concat(p.split('/'))); }
     function snap(s) { return { exists: s.exists(), data: s.exists() ? s.data() : null }; }
-    function toUser(u) { return u ? { uid: u.uid, email: u.email, displayName: u.displayName } : null; }
+    function toUser(u) { return u ? { uid: u.uid, email: u.email, displayName: u.displayName, isAnonymous: !!u.isAnonymous } : null; }
     window.CXPT_FB = {
       kind: 'real', // FIREBASE REAL (SDK oficial contra o projeto); o backend dos testes automatizados usa kind 'simulado'
       auth: {
         onChange: function (cb) { return Au.onAuthStateChanged(auth, function (u) { cb(toUser(u)); }); },
         signIn: function (email, pw) { return Au.signInWithEmailAndPassword(auth, email, pw).then(function (c) { return toUser(c.user); }); },
+        signInAnonymously: function () { return Au.signInAnonymously(auth).then(function (c) { return toUser(c.user); }); }, // motorista pelo QR (sem e-mail/senha)
         signOut: function () { return Au.signOut(auth); },
         sendReset: function (email) { return Au.sendPasswordResetEmail(auth, email); },
       },

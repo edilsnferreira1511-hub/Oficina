@@ -5,7 +5,7 @@ Os dados ficam **só** em `env/producao/...` (caminho definido em `dataPath` no 
 
 ## Ações suas (o que eu não podia fazer)
 1. **(Já colada)** `apiKey` em `firebase-config.js` (Console → Configurações do projeto → Seus apps → "Coopmetro" → Configuração do SDK). Não foi informada e **não foi inventada**. Ela identifica o app e não é segredo; a proteção é Auth + regras. Não coloque senhas, contas de serviço nem tokens no código.
-2. **Autenticação**: confirme que *Authentication → Sign-in method → E-mail/senha* está ativo e que o domínio onde você abrir o sistema está em *Authentication → Settings → Authorized domains* (`localhost` e `coopmetro-xpt.firebaseapp.com` já costumam estar).
+2. **Autenticação**: confirme que *Authentication → Sign-in method → E-mail/senha* está ativo, **e ative também o provedor "Anônimo"** (é ele que deixa o motorista entrar pelo QR sem e-mail e senha), e que o domínio onde você abrir o sistema está em *Authentication → Settings → Authorized domains* (`localhost` e `coopmetro-xpt.firebaseapp.com` já costumam estar).
 3. **Criar o 1º administrador** (sem senha embutida no código):
    a. Console → Authentication → Users → *Add user* (e-mail + senha forte escolhidos por você). Copie o **UID**.
    b. Console → Firestore → *Iniciar coleção* `env` → documento `teste` (pode estar vazio) → coleção `users` → documento com **ID = o UID** e campos: `name` (texto), `email` (texto), `role` = `admin_sistema`, `xptIds` = array vazio, `active` = `true` (booleano), `driverId` = null.

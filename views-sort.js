@@ -75,12 +75,13 @@
   }
   V.driverOp = function (c) {
     var D = c.D, me = c.driverId, mine = D.operations.filter(function (o) { return o.driverId === me && A.isActive(o); });
-    var id = c.params[0], op;
-    if (!me) return H.page([ui.callout('warn', 'Seu usuário não está vinculado a um motorista.', 'Peça ao administrador para preencher o campo driverId do seu cadastro.')]);
-    if (id) { op = D.operations.filter(function (o) { return o.id === id; })[0]; if (!op || op.driverId !== me) return denied(c, 'Esta operação não foi atribuída a você (ou não existe). O QR Code identifica a operação, mas não concede acesso.'); }
+    var id = c.params[0], op, tok = c.user && c.user.tokenOpId; // tok: entrou pelo QR (sem login); a prova é o código secreto verificado no servidor
+    if (tok) { op = D.operations.filter(function (o) { return o.id === tok; })[0]; if (!op) return denied(c, 'Esta ambulância não está disponível. Peça ao despacho o QR Code atual.'); }
+    else if (!me) return H.page([ui.callout('warn', 'Seu usuário não está vinculado a um motorista.', 'Peça ao administrador para preencher o campo driverId do seu cadastro.')]);
+    else if (id) { op = D.operations.filter(function (o) { return o.id === id; })[0]; if (!op || op.driverId !== me) return denied(c, 'Esta operação não foi atribuída a você (ou não existe). O QR Code identifica a operação, mas não concede acesso.'); }
     else op = mine[0];
     if (!op) return H.page([ui.callout('info', 'Você não tem ambulância ativa agora.', 'Quando o despacho criar uma ambulância para você, ela aparece aqui. Use "Atualizar dados" para recarregar.')]);
-    var active = A.isActive(op), drvDoc = D.drivers.filter(function (d) { return d.id === me; })[0];
+    var active = A.isActive(op), drvDoc = tok ? { name: op.driverName } : D.drivers.filter(function (d) { return d.id === me; })[0];
     var head = el('div', { id: 'drv-head' }), list = el('div', { id: 'drv-list' });
     function draw() {
       var s = A.summary(D, op), done = op.checked || {}, pk = A.opPackages(D, op);
@@ -110,7 +111,7 @@
       ui.card('Minha ambulância', el('dl', { class: 'dl', id: 'drv-info' }, [['Ambulância', H.ambChip(op)], ['Operação', el('span', { class: 'mono', id: 'drv-op', text: op.id })], ['Motorista', (drvDoc && drvDoc.name) || (c.user && c.user.name) || '—'], ['Situação', ui.badge(NS.operations.OP_STATE[op.state] || op.state, active ? 'info' : 'neutral')]].map(function (r) { return [el('dt', { text: r[0] }), el('dd', null, r[1])]; }).reduce(function (a, b) { return a.concat(b); }, []))),
       !active ? ui.callout('danger', 'Operação encerrada.', 'Novas bipagens estão bloqueadas.') : null,
       ui.card('Conferência', el('div', null, head, rd.node)), ui.card('Pacotes desta ambulância', list),
-      el('p', { class: 'hint', text: 'O QR Code só identificou esta operação. O acesso depende do seu login e do vínculo com a ambulância, verificados no servidor. Mapa-resumo indisponível para o seu perfil.' }),
+      el('p', { class: 'hint', text: tok ? 'Você entrou pelo QR Code desta ambulância (sem login). Não compartilhe o QR: quem o tiver consegue bipar nela. Mapa-resumo indisponível para o seu perfil.' : 'O QR Code só identificou esta operação. O acesso depende do seu login e do vínculo com a ambulância, verificados no servidor. Mapa-resumo indisponível para o seu perfil.' }),
     ]), destroy: rd.destroy };
   };
 })(typeof window !== 'undefined' ? window : globalThis);

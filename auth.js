@@ -18,9 +18,19 @@
     'auth/api-key-not-valid.-please-pass-a-valid-api-key.': 'A apiKey em firebase-config.js é inválida. Copie de novo em Console → Configurações do projeto → Seus apps → Coopmetro.',
     'auth/app-not-authorized': 'Este app não está autorizado a usar o Firebase com a apiKey informada (confira restrições da chave no Google Cloud).',
     'auth/configuration-not-found': 'O Authentication ainda não foi configurado neste projeto Firebase (Console → Authentication → Primeiros passos).',
+    'auth/admin-restricted-operation': 'O acesso por QR Code (login anônimo) não está ativado no Firebase. O administrador deve ativar em Console → Authentication → Sign-in method → Anônimo.',
     'auth/internal-error': 'Erro interno do Firebase Auth. Verifique a apiKey e o domínio autorizado.',
   };
+  var LINK_KEY = 'cxpt-last-link';
+  /** Endereço do QR da ambulância: #/separation/{opId}/{token}. Sem token no endereço, tenta o último QR aberto neste aparelho. */
+  function parseLink() {
+    var h = (root.location && root.location.hash || '').replace(/^#\/?/, '').split('/').filter(Boolean);
+    if (h[0] === 'separation' && h[1] && h[2]) { var l = { opId: decodeURIComponent(h[1]), token: decodeURIComponent(h[2]) }; try { localStorage.setItem(LINK_KEY, JSON.stringify(l)); } catch (_) { /* ignore */ } return l; }
+    return null;
+  }
+  function savedLink() { try { var l = JSON.parse(localStorage.getItem(LINK_KEY) || 'null'); return l && l.opId && l.token ? l : null; } catch (_) { return null; } }
   function authMessage(e) { return AUTH_ERRORS[(e && e.code) || ''] || 'Não foi possível entrar. Tente novamente.'; }
+  function anonMessage(e) { var c = (e && e.code) || ''; return c === 'auth/operation-not-allowed' || c === 'auth/admin-restricted-operation' ? AUTH_ERRORS['auth/admin-restricted-operation'] : authMessage(e); }
 
   function roots() { return { auth: document.getElementById('auth-root'), shell: document.querySelector('.shell') }; }
   function showAuth(node) { var r = roots(); r.shell.hidden = true; r.auth.hidden = false; r.auth.replaceChildren(node); }
@@ -72,28 +82,49 @@
     whenReady(function () {
       var fb = root.CXPT_FB;
       if (!fb) { blockedScreen(null, 'Firebase indisponível', 'Não foi possível carregar o Firebase' + (root.CXPT_FB_ERROR ? ' (' + root.CXPT_FB_ERROR + ')' : '') + '. Verifique a internet e a política de segurança do navegador.'); return; }
-      var started = false, seen = false, pendingMsg = null;
+      var started = false, seen = false, pendingMsg = null, anonTried = false, link = parseLink();
       try { pendingMsg = sessionStorage.getItem(MSG_KEY); sessionStorage.removeItem(MSG_KEY); } catch (_) { /* ignore */ }
+      function enter(p) {
+        return NS.services.loadAll(fb, p.user).then(function (data) {
+          var D = NS.services.applyLoaded(NS.services.emptyD(), data);
+          var svc = NS.services.createRemote({ backend: fb, D: D, store: null, user: p.user });
+          showShell();
+          startApp({ svc: svc, user: p.user, D: D });
+        });
+      }
+      function fail(e) {
+        started = false;
+        var f = NS.services.failure(e);
+        blockedScreen(fb, 'Não foi possível carregar', f.message + (e && e.cxptWhere ? ' [leitura recusada em: ' + NS.services.ENV + '/' + e.cxptWhere + ']' : '') + (f.reason === 'sem_permissao' ? ' (as regras do Firestore recusaram a leitura; confira se as regras foram publicadas e se o seu usuário tem as bases corretas).' : ''));
+      }
       fb.auth.onChange(function (u) {
         if (!u) {
           if (started) { try { sessionStorage.setItem(MSG_KEY, 'Sua sessão terminou. Entre novamente.'); } catch (_) { /* ignore */ } location.reload(); return; }
+          if (link && fb.auth.signInAnonymously && !anonTried) { // QR da ambulância: entra direto, sem e-mail e senha
+            anonTried = true; loadingScreen('Abrindo a sua ambulância…');
+            fb.auth.signInAnonymously().catch(function (err) { blockedScreen(fb, 'Não foi possível abrir a ambulância', anonMessage(err)); });
+            return;
+          }
           seen = true; loginScreen(fb, pendingMsg); return;
         }
         if (started) return;
-        started = true; loadingScreen('Carregando seu perfil e os dados da sua base…');
+        started = true;
+        if (u.isAnonymous) { // sessão do QR: nunca é perfil de equipe
+          var lk = link || savedLink();
+          if (!lk) { started = false; blockedScreen(fb, 'Abra pelo QR Code', 'Para entrar na sua ambulância, leia o QR Code impresso pelo despacho. Quem é da equipe: toque em Sair e entre com e-mail e senha.'); return; }
+          loadingScreen('Abrindo a sua ambulância…');
+          NS.services.claimAccess(fb, u, lk).then(function (p) {
+            if (!p.ok) { started = false; blockedScreen(fb, 'Ambulância indisponível', p.message); return null; }
+            if (!/^#\/separation\//.test(root.location.hash)) { try { history.replaceState(null, '', '#/separation/' + encodeURIComponent(lk.opId) + '/' + encodeURIComponent(lk.token)); } catch (_) { /* ignore */ } }
+            return enter(p);
+          }).catch(fail);
+          return;
+        }
+        loadingScreen('Carregando seu perfil e os dados da sua base…');
         NS.services.loadProfile(fb, u).then(function (p) {
           if (!p.ok) { started = false; blockedScreen(fb, 'Acesso não liberado', p.message); return null; }
-          return NS.services.loadAll(fb, p.user).then(function (data) {
-            var D = NS.services.applyLoaded(NS.services.emptyD(), data);
-            var svc = NS.services.createRemote({ backend: fb, D: D, store: null, user: p.user });
-            showShell();
-            startApp({ svc: svc, user: p.user, D: D });
-          });
-        }).catch(function (e) {
-          started = false;
-          var f = NS.services.failure(e);
-          blockedScreen(fb, 'Não foi possível carregar', f.message + (e && e.cxptWhere ? ' [leitura recusada em: ' + NS.services.ENV + '/' + e.cxptWhere + ']' : '') + (f.reason === 'sem_permissao' ? ' (as regras do Firestore recusaram a leitura; confira se as regras foram publicadas e se o seu usuário tem as bases corretas).' : ''));
-        });
+          return enter(p);
+        }).catch(fail);
       });
     });
   }

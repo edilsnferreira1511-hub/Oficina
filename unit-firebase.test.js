@@ -191,6 +191,61 @@ atest('motorista: operação encerrada bloqueia bipagem (serviço e regras)', as
   const x = await m2.svc.scan(op2, 'E-1', m2.who); ok(x.status !== 'ok', 'não deve gravar'); 
   await denied(m2.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then(() => tx.update(U + 'operations/OP-0001', { checked: { 'E-1': { at: 2 } } }))), 'encerrada');
 });
+
+/** Motorista pelo QR: aparelho novo, SEM e-mail/senha: login anônimo + claim com o código secreto da operação. */
+async function qrDevice(base, link, opts) {
+  const fb = FAKE.create(Object.assign({ state: base._admin.state() }, opts));
+  const au = await fb.auth.signInAnonymously();
+  const p = await SV.claimAccess(fb, au, link);
+  if (!p.ok) return { fb, au, p };
+  const D = SV.applyLoaded(SV.emptyD(), await SV.loadAll(fb, p.user));
+  const svc = SV.createRemote({ backend: fb, D, store: null, user: p.user });
+  return { fb, au, p, D, svc, user: p.user, who: { profile: p.user.role, operator: p.user.name } };
+}
+atest('QR sem login: a ambulância tem código secreto; o motorista entra direto, bipa só os pacotes dela e nada mais', async () => {
+  const w = world(), { r } = await setupOp(w, ['Q-1', 'Q-2']); ok(r.ok);
+  const stored = w._admin.getDoc(U + 'operations/OP-0001'); ok(typeof stored.token === 'string' && stored.token.length >= 32, 'token gravado');
+  ok(stored.driverName, 'nome do motorista gravado');
+  const url = NS.ambulance.qrUrl('https://x.app/index.html#/map', 'OP-0001', stored.token); ok(url.endsWith('#/separation/OP-0001/' + stored.token));
+  const m = await qrDevice(w, { opId: 'OP-0001', token: stored.token }); ok(m.p.ok, JSON.stringify(m.p && m.p.message));
+  ok(m.au.isAnonymous, 'sem e-mail e senha'); eq(m.D.operations.length, 1); eq(m.D.packages.length, 0); eq(m.D.drivers.length, 0);
+  const op = m.D.operations[0];
+  eq((await m.svc.scan(op, 'q-1', m.who)).status, 'ok'); eq((await m.svc.scan(op, 'Q-1', m.who)).status, 'repetido');
+  eq(Object.keys(w._admin.getDoc(U + 'operations/OP-0001').checked), ['Q-1']);
+  ok(w._admin.listDocs(U + 'events').some((e) => e.data.uid === m.au.uid && e.data.opId === 'OP-0001'), 'evento auditável do QR');
+  ok((await m.svc.scan(op, 'NADA-9', m.who)).status !== 'ok');
+  eq(w._admin.getDoc(U + 'packages/pk-Q-1').state, 'em_separacao', 'bipar não confirma saída');
+  const keep = JSON.stringify(w._admin.getDoc(U + 'operations/OP-0001').token);
+  // o que o QR NÃO permite
+  await denied(m.fb.db.get(U + 'packages/pk-Q-1'), 'pacote'); await denied(m.fb.db.list(U + 'packages', []), 'lista de pacotes');
+  await denied(m.fb.db.list(U + 'operations', []), 'lista de operações'); await denied(m.fb.db.list(U + 'users', []), 'usuários');
+  await denied(m.fb.db.get(U + 'settings/main'), 'configurações'); await denied(m.fb.db.get(U + 'drivers/m6'), 'motoristas');
+  const t = (p, d) => m.fb.db.runTransaction((tx) => tx.get(U + 'operations/OP-0001').then(() => tx.update(U + 'operations/OP-0001', d)));
+  await denied(t(null, { state: 'encerrada' }), 'encerrar'); await denied(t(null, { state: 'saida_confirmada' }), 'confirmar saída');
+  await denied(t(null, { token: 'outro-token-qualquer-123456789012345' }), 'trocar o token'); await denied(t(null, { checked: { 'FORA-1': { at: 1 } } }), 'código de fora da operação');
+  await denied(t(null, { checked: {} }), 'apagar leituras'); eq(JSON.stringify(w._admin.getDoc(U + 'operations/OP-0001').token), keep);
+});
+atest('QR: token errado, operação de outro código, QR sem código e acesso anônimo desativado não abrem nada', async () => {
+  const w = await (async () => { const x = world(); await setupOp(x, ['T-1']); return x; })();
+  const real = w._admin.getDoc(U + 'operations/OP-0001').token;
+  const bad = await qrDevice(w, { opId: 'OP-0001', token: 'x'.repeat(32) }); ok(!bad.p.ok, 'token errado'); ok(/QR/.test(bad.p.message));
+  ok(!(await qrDevice(w, { opId: 'OP-0001', token: '' })).p.ok, 'sem token'); ok(!(await qrDevice(w, { opId: 'OP-0099', token: real })).p.ok, 'operação inexistente');
+  const off = FAKE.create({ state: w._admin.state(), anonymousDisabled: true });
+  await off.auth.signInAnonymously().then(() => { throw new Error('deveria falhar'); }, (e) => eq(e.code, 'auth/operation-not-allowed'));
+  // anônimo sem claim não lê nada
+  const nobody = FAKE.create({ state: w._admin.state() }); await nobody.auth.signInAnonymously();
+  await denied(nobody.db.get(U + 'operations/OP-0001'), 'sem claim'); await denied(nobody.db.get(U + 'claims/uid-de-outro'), 'claim alheio');
+  await denied(nobody.db.runTransaction((tx) => { tx.set(U + 'claims/uid-de-outro', { opId: 'OP-0001', token: real }); return true; }), 'claim em nome de outro');
+});
+atest('QR: operação encerrada bloqueia a bipagem do motorista sem login', async () => {
+  const w = world(), { r } = await setupOp(w, ['C-1']); ok(r.ok);
+  const token = w._admin.getDoc(U + 'operations/OP-0001').token;
+  const m = await qrDevice(w, { opId: 'OP-0001', token }); const op = m.D.operations[0];
+  const sup = await device(w, 'sup@t.com'); const sop = sup.D.operations[0];
+  eq((await sup.svc.scan(sop, 'C-1', sup.who)).status, 'ok'); await sup.svc.confirmExit(sop, sup.who); await sup.svc.closeOperation(sop, sup.who);
+  const x = await m.svc.scan(op, 'C-1', m.who); ok(x.status !== 'ok', 'não deve gravar');
+  const m2 = await qrDevice(w, { opId: 'OP-0001', token }); ok(m2.p.ok && m2.D.operations[0].state === 'encerrada', 'ainda consegue ver, mas não bipar');
+});
 atest('admin_sistema (mesmo com bases preenchidas por engano) carrega só os cadastros, sem ler operações/pacotes', async () => {
   const w = world(); w._admin.setDoc(U + 'users/uid-sys@t.com', { name: 'Sys', email: 'sys@t.com', role: 'admin_sistema', xptIds: ['x1'], active: true, driverId: null });
   const s = await device(w, 'sys@t.com'); ok(s.D, 'carregou'); ok(s.D.xpts.length >= 2 && s.D.drivers.length > 0); eq(s.D.packages.length, 0); eq(s.D.operations.length, 0);

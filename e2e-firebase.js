@@ -152,7 +152,7 @@ async function main(browser, base) {
   check('9. ambulância gravada com motorista e cor da paleta', op && op.driverId === 'm1' && /^#[0-9a-f]{6}$/.test(op.color));
   check('9. operação gravada: id único, base, responsável, pacotes, estado, criador autenticado', op && op.xptId === 'x1' && op.packageIds.length === 2 && op.state === 'em_separacao' && op.responsible === 'Resp FB' && /Nome coord/.test(op.createdBy));
   check('9. pacotes vinculados à operação (trava de operação ativa) e em separação', (await doc(U + 'packages/pk-FB-001')).activeOpId === 'OP-0001' && (await doc(U + 'packages/pk-FB-003')).state === 'em_separacao');
-  const qrUrl = await txt('#qr-url'); check('9. QR contém só o endereço da operação', new RegExp('#/separation/OP-0001$').test(qrUrl));
+  const qrUrl = await txt('#qr-url'); check('9. QR contém só o endereço da operação', new RegExp('#/separation/OP-0001/[0-9a-f]{32}$').test(qrUrl));
   await page.locator('.modal-back button:has-text("Fechar")').click();
 
   // ===== QR aberto em "outro aparelho": nova aba, mesma conta → carrega a operação gravada
@@ -168,6 +168,39 @@ async function main(browser, base) {
   await scan(p2tab, 'NAO-EXISTE');
   check('14. código desconhecido: aviso sem alterar a lista', (await p2tab.locator('#scan-result').getAttribute('data-status')) === 'inexistente' && (await p2tab.locator('#cnt-done').innerText()) === '1');
   await p2tab.close();
+  // ===== motorista SEM login: celular novo (outro contexto, nenhuma sessão), lê o QR e entra direto na própria ambulância
+  const serverState = await page.evaluate(() => localStorage.getItem('cxpt-fake-fb'));
+  const ctx2 = await browser.newContext({ viewport: { width: 390, height: 800 } });
+  await ctx2.route(TILE_HOST + '**', (r) => r.fulfill({ status: 200, contentType: 'image/png', body: TILE_PNG }));
+  await ctx2.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x)x.dataPath='env/teste';v=x;}});})();");
+  await ctx2.addInitScript({ content: fs.readFileSync(path.join(ROOT, 'fake-firebase.js'), 'utf8') });
+  await ctx2.addInitScript('(function(){try{if(!localStorage.getItem("cxpt-fake-fb"))localStorage.setItem("cxpt-fake-fb",' + JSON.stringify(serverState) + ');}catch(e){}})();');
+  await ctx2.addInitScript({ content: SEED });
+  const dp = await ctx2.newPage(); dp.on('pageerror', (e) => errors.push('pageerror(motorista): ' + e.message));
+  await dp.goto(qrUrl); await dp.waitForSelector('#drv-in, #blocked-msg', { timeout: 10000 });
+  check('QR sem login: não pede e-mail nem senha e abre direto a ambulância', (await dp.locator('#login-form').count()) === 0 && (await dp.locator('#drv-in').count()) === 1 && /Ambulância FB/.test(await dp.locator('main').innerText()));
+  check('QR sem login: mostra o nome do motorista e os totais', /Motorista Teste 1/.test(await dp.locator('#drv-info').innerText()) && (await dp.locator('#cnt-total').innerText()) === '2');
+  check('QR sem login: menu reduzido (só "Minha ambulância")', (await dp.locator('#nav a').count()) === 1);
+  const qscan = async (c) => { await dp.fill('#drv-in', c); await dp.press('#drv-in', 'Enter'); await dp.waitForFunction(() => { const r = document.getElementById('drv-in-result'); return r && r.textContent.length > 0; }); };
+  await qscan('fb-003'); await dp.waitForSelector('.conf-item[data-code=FB-003][data-state=conferido]');
+  const srv2 = () => dp.evaluate(() => window.CXPT_FB._admin.getDoc('env/teste/operations/OP-0001'));
+  check('QR sem login: bipagem gravada no servidor com o autor anônimo', !!(await srv2()).checked['FB-003'] && (await dp.evaluate(() => window.CXPT_FB._admin.listDocs('env/teste/events').some((e) => /^anon-/.test(e.data.uid)))));
+  await qscan('NAO-EXISTE'); check('QR sem login: código desconhecido não altera nada', Object.keys((await srv2()).checked).length === 2 || Object.keys((await srv2()).checked).length === 1);
+  await dp.evaluate(() => { location.hash = '#/packages'; }); await dp.waitForSelector('#drv-in');
+  check('QR sem login: outras telas voltam para a própria ambulância', /#\/separation/.test(await dp.evaluate(() => location.hash)));
+  await dp.reload(); await dp.waitForSelector('#drv-in', { timeout: 10000 });
+  check('QR sem login: recarregar mantém a ambulância e o que já foi bipado', (await dp.locator('.conf-item[data-state=conferido]').count()) >= 1);
+  // sem QR (abrir o site direto no mesmo aparelho): nunca vira acesso de equipe
+  await dp.goto(new URL('/index.html', base).href + '#/overview'); await dp.waitForSelector('#drv-in, #blocked-msg, #login-form', { timeout: 10000 });
+  check('motorista por QR: o site aberto direto continua só com a própria ambulância', (await dp.locator('#drv-in').count()) === 1 || (await dp.locator('#blocked-msg').count()) === 1);
+  // QR com código errado
+  const ctx3 = await browser.newContext(); await ctx3.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x)x.dataPath='env/teste';v=x;}});})();");
+  await ctx3.addInitScript({ content: fs.readFileSync(path.join(ROOT, 'fake-firebase.js'), 'utf8') });
+  await ctx3.addInitScript('(function(){try{if(!localStorage.getItem("cxpt-fake-fb"))localStorage.setItem("cxpt-fake-fb",' + JSON.stringify(serverState) + ');}catch(e){}})();');
+  await ctx3.addInitScript({ content: SEED });
+  const bp = await ctx3.newPage(); await bp.goto(qrUrl.replace(/\/[0-9a-f]{32}$/, '/' + 'a'.repeat(32))); await bp.waitForSelector('#blocked-msg, #drv-in', { timeout: 10000 });
+  check('QR com código errado: acesso recusado, sem dados', (await bp.locator('#drv-in').count()) === 0 && /QR/.test(await bp.locator('#blocked-msg').innerText()) && !/Ambulância FB/.test(await bp.locator('body').innerText()));
+  await ctx3.close(); await ctx2.close();
   // a página principal vê a conferência feita em outro aparelho depois de atualizar
   await page.click('#refresh-btn'); await go('exit');
   check('20. outro aparelho: após "Atualizar dados" aparece a leitura gravada', (await page.locator('#cnt-done').innerText()) === '1');
