@@ -182,7 +182,9 @@
             delete: function (path) { wrote = true; writes[path] = DEL; },
             update: function (path, data) { wrote = true; var cur = writes[path] || (S.docs[path] && S.docs[path].data); if (!cur || cur === DEL) throw err('not-found'); writes[path] = Object.assign({}, clone(cur), clone(data)); },
           };
-          return Promise.resolve(fn(tx)).then(function (result) {
+          var ret = fn(tx);
+          if (!ret || typeof ret.then !== 'function') return Promise.reject(new Error('Transaction callback must return a Promise')); // o Firebase real exige
+          return Promise.resolve(ret).then(function (result) {
             return Promise.resolve().then(function () {
               sync(); if (opts.beforeCommit) opts.beforeCommit(attempt, S);
               // conflito: algum documento lido mudou desde a leitura

@@ -235,7 +235,7 @@ atest('QR: token errado, operação de outro código, QR sem código e acesso an
   // anônimo sem claim não lê nada
   const nobody = FAKE.create({ state: w._admin.state() }); await nobody.auth.signInAnonymously();
   await denied(nobody.db.get(U + 'operations/OP-0001'), 'sem claim'); await denied(nobody.db.get(U + 'claims/uid-de-outro'), 'claim alheio');
-  await denied(nobody.db.runTransaction((tx) => { tx.set(U + 'claims/uid-de-outro', { opId: 'OP-0001', token: real }); return true; }), 'claim em nome de outro');
+  await denied(nobody.db.runTransaction((tx) => { tx.set(U + 'claims/uid-de-outro', { opId: 'OP-0001', token: real }); return Promise.resolve(true); }), 'claim em nome de outro');
 });
 atest('QR: operação encerrada bloqueia a bipagem do motorista sem login', async () => {
   const w = world(), { r } = await setupOp(w, ['C-1']); ok(r.ok);

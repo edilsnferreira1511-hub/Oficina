@@ -299,7 +299,7 @@
   function claimAccess(fb, authUser, link) {
     var bad = { ok: false, message: 'Este QR Code não é mais válido para esta ambulância. Peça ao despacho para mostrar o QR Code atual.' };
     if (!link || !link.opId || !link.token || String(link.token).length < 16) return Promise.resolve({ ok: false, message: 'Abra a ambulância pelo QR Code (o link está incompleto).' });
-    return fb.db.runTransaction(function (tx) { tx.set(path('claims', authUser.uid), { opId: link.opId, token: link.token, at: Date.now() }); return true; })
+    return fb.db.runTransaction(function (tx) { tx.set(path('claims', authUser.uid), { opId: link.opId, token: link.token, at: Date.now() }); return Promise.resolve(true); })
       .then(function () { return fb.db.get(path('operations', link.opId)); })
       .then(function (s) {
         if (!s.exists || s.data.token !== link.token) return bad;
