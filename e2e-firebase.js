@@ -190,9 +190,11 @@ async function main(browser, base) {
   check('QR sem login: outras telas voltam para a própria ambulância', /#\/separation/.test(await dp.evaluate(() => location.hash)));
   await dp.reload(); await dp.waitForSelector('#drv-in', { timeout: 10000 });
   check('QR sem login: recarregar mantém a ambulância e o que já foi bipado', (await dp.locator('.conf-item[data-state=conferido]').count()) >= 1);
-  // sem QR (abrir o site direto no mesmo aparelho): nunca vira acesso de equipe
-  await dp.goto(new URL('/index.html', base).href + '#/overview'); await dp.waitForSelector('#drv-in, #blocked-msg, #login-form', { timeout: 10000 });
-  check('motorista por QR: o site aberto direto continua só com a própria ambulância', (await dp.locator('#drv-in').count()) === 1 || (await dp.locator('#blocked-msg').count()) === 1);
+  // sem QR (abrir o site direto no mesmo aparelho): a sessão do QR é encerrada e aparece o login normal (equipe não é jogada na ambulância)
+  await dp.goto(new URL('/index.html', base).href + '#/overview'); await dp.waitForSelector('#login-form, #drv-in, #blocked-msg', { timeout: 10000 });
+  check('site aberto direto no aparelho do QR: mostra o login, não a ambulância', (await dp.locator('#login-form').count()) === 1 && (await dp.locator('#drv-in').count()) === 0);
+  await dp.fill('#login-email', 'sup@t.com'); await dp.fill('#login-pass', 'senha-sup@t.com'); await dp.click('#login-btn'); await dp.waitForSelector('#main[data-render]', { timeout: 10000 });
+  check('equipe que entra nesse aparelho cai na tela normal (Visão Geral), não na ambulância', (await dp.locator('#drv-in').count()) === 0 && (await dp.locator('#nav a').count()) > 3);
   // QR com código errado
   const ctx3 = await browser.newContext(); await ctx3.addInitScript("(function(){var v;Object.defineProperty(window,'CXPT_FIREBASE',{configurable:true,get:function(){return v;},set:function(x){if(x)x.dataPath='env/teste';v=x;}});})();");
   await ctx3.addInitScript({ content: fs.readFileSync(path.join(ROOT, 'fake-firebase.js'), 'utf8') });

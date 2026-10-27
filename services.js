@@ -303,7 +303,7 @@
       .then(function () { return fb.db.get(path('operations', link.opId)); })
       .then(function (s) {
         if (!s.exists || s.data.token !== link.token) return bad;
-        return { ok: true, user: { uid: authUser.uid, email: 'acesso por QR', name: 'Motorista' + (s.data.driverName ? ' ' + s.data.driverName : ''), role: 'motorista', xptIds: [], driverId: null, tokenOpId: link.opId } };
+        return { ok: true, user: { uid: authUser.uid, email: 'acesso por QR', name: 'Motorista' + (s.data.driverName ? ' ' + s.data.driverName : ''), role: 'motorista', xptIds: [], driverId: null, tokenOpId: link.opId, token: link.token } };
       }, function (e) { var f = failure(e); return f.reason === 'sem_permissao' ? bad : { ok: false, message: f.message }; });
   }
   function loadAll(fb, user) {

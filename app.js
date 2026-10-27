@@ -60,7 +60,7 @@
       if (!ROUTES.some(function (r) { return r.id === id; })) id = 'overview';
       var params = h.slice(1).map(decodeURIComponent);
       if (state.profile === 'motorista' && DRIVER_ROUTES.indexOf(id) < 0) { // rota fora da tela do motorista: volta para a própria ambulância
-        id = 'separation'; params = []; try { history.replaceState(null, '', '#/separation'); } catch (_) { /* ignore */ }
+        id = 'separation'; params = []; try { history.replaceState(null, '', user && user.tokenOpId ? '#/separation/' + encodeURIComponent(user.tokenOpId) + '/' + encodeURIComponent(user.token) : '#/separation'); } catch (_) { /* ignore */ } // QR: mantém o código no endereço (recarregar continua na ambulância)
       }
       state.route = id; state.params = params;
     }
