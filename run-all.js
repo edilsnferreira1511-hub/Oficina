@@ -4,7 +4,7 @@
 const { spawnSync } = require('child_process');
 const path = require('path');
 const suites = [['unit', 'unit.test.js'], ['unit fluxo (ambulância/QR/entrada/zona)', 'unit-fluxo.test.js'], ['unit Backup (aba Backup: regras puras e permissões)', 'unit-backup.test.js'], ['unit Firebase (serviços + backend SIMULADO)', 'unit-firebase.test.js'], ['análise estática das regras do Firestore', 'rules-lint.test.js']];
-if (!process.env.SKIP_E2E) suites.push(['e2e (Chromium)', 'e2e.js'], ['e2e fluxo completo (Chromium, celular com toque)', 'e2e-fluxo.js'], ['e2e modo Firebase (Chromium, backend SIMULADO)', 'e2e-firebase.js'], ['e2e aba Backup (Chromium, celular e computador, backend SIMULADO)', 'e2e-backup.js']);
+if (!process.env.SKIP_E2E) suites.push(['e2e (Chromium)', 'e2e.js'], ['e2e fluxo completo (Chromium, celular com toque)', 'e2e-fluxo.js'], ['e2e modo Firebase (Chromium, backend SIMULADO)', 'e2e-firebase.js'], ['e2e aba Backup (Chromium, celular e computador, backend SIMULADO)', 'e2e-backup.js'], ['e2e Totem (Chromium, passo a passo, administração e relatório, backend SIMULADO)', 'e2e-totem.js']);
 let bad = 0;
 for (const [label, file] of suites) {
   console.log('\n### ' + label);

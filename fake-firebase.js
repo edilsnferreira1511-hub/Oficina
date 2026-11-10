@@ -9,7 +9,7 @@
     VER_BASE: ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho'],
     ENTRADA: ['despacho'], CONFERIR: ['supervisor', 'coord_base', 'despacho'], OPERACAO: ['administrador', 'supervisor', 'coord_base'],
     CORRECAO: ['administrador', 'supervisor', 'coord_base'], SAIDA: ['supervisor', 'coord_base'], ENCERRAR: ['administrador', 'supervisor'],
-    DEVOLUCAO: ['supervisor', 'coord_base'], USUARIOS: ['admin_sistema'], BACKUP_VER: ['supervisor', 'coord_geral', 'admin_sistema'], BACKUP_CRIAR: ['supervisor', 'admin_sistema'], CONFIG: ['admin_sistema', 'administrador'], GLOBAL: ['administrador', 'coord_geral', 'admin_sistema'],
+    DEVOLUCAO: ['supervisor', 'coord_base'], USUARIOS: ['admin_sistema'], TOTEM: ['totem'], BACKUP_VER: ['supervisor', 'coord_geral', 'admin_sistema'], BACKUP_CRIAR: ['supervisor', 'admin_sistema'], CONFIG: ['admin_sistema', 'administrador'], GLOBAL: ['administrador', 'coord_geral', 'admin_sistema'],
   };
   function err(code, msg) { var e = new Error(msg || code); e.code = code; return e; }
   function clone(o) { return o === undefined ? undefined : JSON.parse(JSON.stringify(o)); }
@@ -37,7 +37,7 @@
     // lista de perfis de uma ação: documento de permissões (se existir) ou padrão; admin_sistema sempre tem tudo; motorista nunca vem da matriz
     function inR(list) {
       if (!active()) return false;
-      if (list === ROLES.USUARIOS || list === ROLES.GLOBAL || list === ROLES.BACKUP_VER || list === ROLES.BACKUP_CRIAR) return list.indexOf(role()) >= 0;
+      if (list === ROLES.USUARIOS || list === ROLES.GLOBAL || list === ROLES.TOTEM || list === ROLES.BACKUP_VER || list === ROLES.BACKUP_CRIAR) return list.indexOf(role()) >= 0;
       if (role() === 'admin_sistema') return true; if (role() === 'motorista') return false;
       var name = Object.keys(ROLES).filter(function (k) { return ROLES[k] === list; })[0], pd = permsDoc();
       if (pd && ACT[name]) { var l = pd[ACT[name]]; return Array.isArray(l) && l.indexOf(role()) >= 0; }
@@ -89,8 +89,8 @@
       }
       if (col === 'settings') { if (kind === 'get') return active(); if (kind === 'create' || kind === 'update') return id === 'permissions' ? inR(ROLES.USUARIOS) : inR(ROLES.CONFIG); return false; }
       if (col === 'codes') {
-        if (kind === 'get') return inR(ROLES.ENTRADA);
-        if (kind === 'create') return inR(ROLES.ENTRADA) && Object.keys(after).every(function (k) { return k === 'createdAt'; });
+        if (kind === 'get') return inR(ROLES.ENTRADA) || inR(ROLES.TOTEM);
+        if (kind === 'create') return (inR(ROLES.ENTRADA) || inR(ROLES.TOTEM)) && Object.keys(after).every(function (k) { return k === 'createdAt'; });
         return false;
       }
       if (col === 'counters') {
@@ -102,7 +102,7 @@
       if (col === 'packages') {
         if (kind === 'get' || kind === 'list') return !!before && inR(ROLES.VER_BASE) && hasBase(before.xptId);
         if (kind === 'create') {
-          return inR(ROLES.ENTRADA) && hasBase(after.xptId) && id === 'pk-' + after.code && !!afterDocs['env/teste/codes/' + after.code]
+          return (inR(ROLES.ENTRADA) || (inR(ROLES.TOTEM) && typeof after.returnedBy === 'string' && (mydata().totemDrivers || []).indexOf(after.returnedBy) >= 0)) && hasBase(after.xptId) && id === 'pk-' + after.code && !!afterDocs['env/teste/codes/' + after.code]
             && after.state === 'em_estoque' && after.activeOpId === null && after.history.length === 1;
         }
         if (kind === 'update') {
@@ -143,7 +143,7 @@
         if (kind !== 'create') return false;
         var opDoc = typeof after.opId === 'string' && S.docs['env/teste/operations/' + after.opId] ? S.docs['env/teste/operations/' + after.opId].data : null;
         if (typeof after.opId === 'string' && opDoc && claimOk(after.opId, opDoc) && after.uid === session.uid && after.xptId === opDoc.xptId) return true;
-        return (canAnyWrite() || inR(ROLES.CONFERIR) || isDriver()) && after.uid === session.uid && hasBase(after.xptId) && (!isDriver() || (typeof after.opId === 'string' && !!opDoc && opDoc.driverId === mydata().driverId));
+        return (canAnyWrite() || inR(ROLES.CONFERIR) || isDriver() || inR(ROLES.TOTEM)) && after.uid === session.uid && hasBase(after.xptId) && (!isDriver() || (typeof after.opId === 'string' && !!opDoc && opDoc.driverId === mydata().driverId));
       }
       return false;
     }

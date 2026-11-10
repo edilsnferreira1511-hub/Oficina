@@ -263,7 +263,7 @@ test('paginação limita linhas', () => {
   eq(NS.packages.paginate(fresh().packages, 999, 20).page, r.pages);
 });
 test('permissões: matriz proposta, motorista restrito, ninguém com tudo', () => {
-  const P = NS.permissions; eq(P.PROFILES.length, 7); eq(P.can('motorista', 'entrada'), false); eq(P.can('despacho', 'entrada'), true);
+  const P = NS.permissions; eq(P.PROFILES.length, 8); eq(P.can('motorista', 'entrada'), false); eq(P.can('despacho', 'entrada'), true);
   eq(P.can('despacho', 'usuarios'), false);
   ['ver_global', 'ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config'].forEach(a => eq(P.can('admin_sistema', a), true, 'admin_sistema ' + a));
   eq(P.can('admin_sistema', 'conferir_propria'), false); eq(P.can('motorista', 'usuarios'), false);
@@ -277,5 +277,17 @@ test('permissões: matriz proposta, motorista restrito, ninguém com tudo', () =
 });
 test('auditoria só acrescenta e é imutável', () => {
   const a = NS.audit.createAudit(() => NOW); const e = a.log('x', 'x1', 'd'); eq(a.count(), 1); eq(Object.isFrozen(e), true); eq(typeof a.remove, 'undefined');
+});
+test('totem: perfil só com a ação de registrar devolução; motorista da devolução vai para o pacote e o histórico', () => {
+  const P = NS.permissions; eq(P.PROFILES.map(p => p.id).includes('totem'), true);
+  eq(P.ACTIONS.filter(a => P.can('totem', a.id)).map(a => a.id), ['totem_entrada']);
+  eq(P.PROFILES.filter(p => P.can(p.id, 'totem_entrada')).map(p => p.id), ['totem']);
+  eq(P.EDITABLE.includes('totem_entrada'), false);
+  const D = fresh(), n = D.packages.length;
+  const r = NS.registry.registerEntries(D, 'x1', [{ code: 'TOT-1', size: 'P', reasonId: D.reasons[0].id, location: { kind: 'pendente', lat: null, lng: null, regionId: null }, returnedBy: '  João Pereira ' }, { code: 'TOT-2', size: 'P', reasonId: D.reasons[0].id, location: { kind: 'pendente', lat: null, lng: null, regionId: null } }], { nowMs: NOW, operator: 'Totem' });
+  eq(r.created.length, 2); eq(r.created[0].returnedBy, 'João Pereira'); ok(/devolvido por: João Pereira/.test(r.created[0].history[0].note)); eq(r.created[1].returnedBy, undefined); ok(!/devolvido por/.test(r.created[1].history[0].note));
+  const live = NS.registry.registerEntries(fresh(), 'x1', [{ code: 'TOT-9', size: 'P', reasonId: D.reasons[0].id, location: { kind: 'pendente', lat: null, lng: null, regionId: null } }], { nowMs: NOW, operator: 'T', live: true });
+  ok(!/demonstra/i.test(live.created[0].history[0].note), 'uso real: o histórico não fala em demonstração');
+  eq(D.packages.length, n + 2);
 });
 done('unit.test.js');

@@ -12,6 +12,7 @@
     { id: 'coord_base', label: 'Coordenador de base' },
     { id: 'despacho', label: 'Despacho' },
     { id: 'motorista', label: 'Motorista/agregado' },
+    { id: 'totem', label: 'Totem (autoatendimento)' },
   ];
   var ACTIONS = [
     { id: 'ver_global', label: 'Ver indicadores de todas as bases autorizadas' },
@@ -27,6 +28,7 @@
     { id: 'config', label: 'Alterar configurações (motivos, limites)' },
     { id: 'minhas_ops', label: 'Ver operações atribuídas a si' },
     { id: 'conferir_propria', label: 'Bipar (conferir) os pacotes da PRÓPRIA ambulância' },
+    { id: 'totem_entrada', label: 'Registrar devolução no totem (entrada de pacote pelo motorista)' },
     { id: 'backup_ver', label: 'Ver a aba Backup (rotas com backup)' },
     { id: 'backup_criar', label: 'Registrar backup (somente na própria base)' },
   ];
@@ -39,6 +41,7 @@
     coord_base: { ver_base: 1, operacao: 1, conferir: 1, confirmar_saida: 1, correcao: 1, devolucao: 1 },
     despacho: { ver_base: 1, entrada: 1, conferir: 1 },
     motorista: { minhas_ops: 1, conferir_propria: 1 },
+    totem: { totem_entrada: 1 }, // login do totem: só registra entrada pelo passo a passo, na própria base, com motorista da lista dele
   };
   // Ações que o administrador do sistema pode conceder/retirar por perfil (salvas em env/producao/settings/permissions e APLICADAS pelas regras).
   // Fixas (não editáveis): linha do admin_sistema e do motorista; ver_global, usuarios, minhas_ops, conferir_propria.

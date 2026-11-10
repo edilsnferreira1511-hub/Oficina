@@ -55,6 +55,9 @@ service cloud.firestore {
     // Backup de rotas: ver = supervisor (própria base), coord_geral e admin_sistema (todas); registrar = supervisor (própria base) e admin_sistema. Fixo (não vem da matriz editável).
     function canBackupVer()    { return active() && role() in ['supervisor', 'coord_geral', 'admin_sistema']; }
     function canBackupCriar()  { return active() && role() in ['supervisor', 'admin_sistema']; }
+    // Totem (autoatendimento): login próprio, preso a UMA base, que só REGISTRA entrada de pacote (devolução) informando o motorista que devolveu.
+    // O motorista tem de estar na lista (totemDrivers) do cadastro do próprio totem. Não lê pacotes, operações nem motoristas; não altera nada existente.
+    function canTotem() { return active() && role() == 'totem'; }
     function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
 
     // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/producao)
@@ -92,8 +95,8 @@ service cloud.firestore {
 
     // Índice de códigos: garante que um código nunca vira dois pacotes (nem em bases diferentes). Só existência; sem dados da base.
     match /env/producao/codes/{code} {
-      allow get: if canEntrada();
-      allow create: if canEntrada() && request.resource.data.keys().hasOnly(['createdAt']);
+      allow get: if canEntrada() || canTotem();
+      allow create: if (canEntrada() || canTotem()) && request.resource.data.keys().hasOnly(['createdAt']);
       allow update, delete: if false;
     }
 
@@ -109,7 +112,7 @@ service cloud.firestore {
     match /env/producao/packages/{pkgId} {
       allow get, list: if canVerBase() && hasBase(resource.data.xptId);
 
-      allow create: if canEntrada() && hasBase(request.resource.data.xptId)
+      allow create: if (canEntrada() || (canTotem() && request.resource.data.returnedBy is string && request.resource.data.returnedBy in userDoc().data.totemDrivers)) && hasBase(request.resource.data.xptId)
         && pkgId == 'pk-' + request.resource.data.code
         && existsAfter(/databases/$(database)/documents/env/producao/codes/$(request.resource.data.code))
         && request.resource.data.state == 'em_estoque'
@@ -203,7 +206,7 @@ service cloud.firestore {
 
     // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.
     match /env/producao/events/{eventId} {
-      allow create: if ((canAnyWrite() || canConferir() || isDriver()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
+      allow create: if ((canAnyWrite() || canConferir() || isDriver() || canTotem()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
         && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId)))
         // motorista por QR: evento só da operação cujo token ele provou, com a base dela
         || (request.resource.data.uid == request.auth.uid && request.resource.data.opId is string

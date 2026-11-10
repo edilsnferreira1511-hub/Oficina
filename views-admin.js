@@ -34,6 +34,9 @@
     var retRows = [0, 1, 2, 3, 4].map(function (n) { return [n === 4 ? '4 ou mais retornos' : n + ' retorno(s)', String(cret[n] || 0)]; });
     var divRows = pk.filter(function (p) { return p.state === 'divergente'; }).map(function (p) { return [p.code, H.sizeLabel(D, p.size), H.reasonLabel(D, p.reasonId)]; });
     var opRows = NS.operations.opsOf(D, c.xptId).map(function (o) { var pr = c.store.conference(o).progress(); return [o.id, NS.operations.OP_STATE[o.state], pr.done + ' de ' + pr.total]; });
+    var byDrv = {}; pk.forEach(function (p) { if (p.returnedBy) byDrv[p.returnedBy] = (byDrv[p.returnedBy] || 0) + 1; });
+    var drvRows = Object.keys(byDrv).sort(function (a, b) { return byDrv[b] - byDrv[a] || a.localeCompare(b); }).map(function (n) { return [n, String(byDrv[n])]; });
+    var drvDetail = pk.filter(function (p) { return p.returnedBy; }).sort(function (a, b) { return a.returnedBy.localeCompare(b.returnedBy) || a.entryAt - b.entryAt; }).map(function (p) { return [p.returnedBy, p.code, ui.fmtDateTime(p.entryAt), H.sizeLabel(D, p.size), H.reasonLabel(D, p.reasonId), H.xptName(D, p.xptId)]; });
     var pair = function (a, b) { return function (r) { return [a, b]; }; };
     function t2(h1, h2, rows) { return ui.table([{ label: h1, render: function (r) { return r[0]; } }, { label: h2, render: function (r) { return r[1]; } }], rows, { label: h1 }); }
     return H.page([
@@ -44,6 +47,8 @@
       rep('pacotes-antigos', 'Pacotes antigos (> ' + NS.alerts.limitOf(D) + ' dias)', ['codigo', 'dias'], old.map(function (p) { return [p.code, String(P.stayDays(p, now))]; }),
         old.length ? t2('Código', 'Dias', old.slice(0, 15).map(function (p) { return [p.code, String(P.stayDays(p, now))]; })) : ui.empty('Nenhum pacote acima do limite.')),
       rep('motivos', 'Motivos de devolução', ['motivo', 'pacotes'], rsRows, t2('Motivo', 'Pacotes', rsRows)),
+      rep('devolucoes-por-motorista', 'Devoluções por motorista (registradas no totem)', ['motorista', 'codigo', 'entrada', 'tamanho', 'motivo', 'xpt'], drvDetail,
+        drvRows.length ? t2('Motorista', 'Pacotes', drvRows) : ui.empty('Nenhuma devolução pelo totem ainda.', 'Os pacotes registrados no totem mostram aqui quem devolveu. O CSV traz um pacote por linha.')),
       rep('retornos', 'Retornos por pacote', ['retornos', 'pacotes'], retRows, t2('Retornos', 'Pacotes', retRows)),
       rep('divergencias', 'Divergências', ['codigo', 'tamanho', 'motivo'], divRows, divRows.length ? ui.table([{ label: 'Código', render: function (r) { return r[0]; } }, { label: 'Tamanho', render: function (r) { return r[1]; } }, { label: 'Motivo', render: function (r) { return r[2]; } }], divRows, { label: 'Divergências' }) : ui.empty('Nenhuma divergência.')),
       rep('operacoes', 'Operações e conferências', ['operacao', 'estado', 'conferidos'], opRows, t2('Operação', 'Conferidos', opRows.map(function (r) { return [r[0], r[2]]; }))),

@@ -291,6 +291,56 @@ atest('backup: supervisor só vê a própria base (consulta e tentativa de burla
   const sys = await device(w, 'sys@t.com'); eq((await SV.listBackups(sys.fb, sys.user, {})).items.length, 2, 'admin_sistema vê todas');
   eq(w._admin.listDocs(U + 'backups').length, 2, 'nada extra foi gravado');
 });
+
+// ---------- Totem (autoatendimento)
+function addTotem(w, email, xpts, names) { w._admin.addAccount(email, 'senha-' + email, 'uid-' + email); w._admin.setDoc(U + 'users/uid-' + email, { name: 'Totem ' + email, email, role: 'totem', xptIds: xpts, active: true, driverId: null, totemDrivers: names }); }
+const tItem = (code, by, o) => Object.assign({ code, size: 'M', reasonId: 'r_ausente', note: 'obs', location: { kind: 'marcada', lat: -16.33, lng: -48.95, regionId: null }, returnedBy: by }, o);
+atest('totem: administrador cria o login do totem com a lista de motoristas e edita a lista; regras de cadastro', async () => {
+  const w = world(), s = await device(w, 'sys@t.com');
+  ok(!(await SV.linkUser(s.fb, s.user, { uid: 't1', name: 'Totem A', email: 't@t.com', role: 'totem', xptIds: ['x1', 'x2'], totemDrivers: 'A' })).ok, 'totem: só uma base');
+  ok(!(await SV.linkUser(s.fb, s.user, { uid: 't1', name: 'Totem A', email: 't@t.com', role: 'totem', xptIds: ['x1'], totemDrivers: 'x'.repeat(81) })).ok, 'nome longo');
+  const r = await SV.linkUser(s.fb, s.user, { uid: 't1', name: 'Totem A', email: 't@t.com', role: 'totem', xptIds: ['x1'], totemDrivers: ' João Pereira \nMaria Souza\n\njoão pereira;Carlos Lima ' }); ok(r.ok, JSON.stringify(r));
+  const doc = w._admin.getDoc(U + 'users/t1'); eq(doc.role, 'totem'); eq(doc.xptIds, ['x1']); eq(doc.totemDrivers, ['João Pereira', 'Maria Souza', 'Carlos Lima'], 'sem espaços/repetidos');
+  const u = await SV.updateUser(s.fb, s.user, 't1', { name: 'Totem A', role: 'totem', xptIds: ['x1'], active: true, totemDrivers: 'João Pereira\nNovo Motorista' }); ok(u.ok);
+  eq(w._admin.getDoc(U + 'users/t1').totemDrivers, ['João Pereira', 'Novo Motorista'], 'lista editada');
+  ok((await SV.updateUser(s.fb, s.user, 't1', { name: 'Totem A', role: 'despacho', xptIds: ['x1'], active: true })).ok); eq(w._admin.getDoc(U + 'users/t1').totemDrivers, null, 'ao deixar de ser totem a lista some');
+  eq(SV.normNames('a\n b ;A').names, ['a', 'b']);
+});
+atest('totem: registra devolução com o motorista da lista (pacote + histórico + índice + evento) e só isso', async () => {
+  const w = world(); addTotem(w, 'totem@t.com', ['x1'], ['João Pereira', 'Maria Souza']);
+  const t = await device(w, 'totem@t.com'); ok(t.profile === undefined, 'perfil carregou'); eq(t.user.totemDrivers, ['João Pereira', 'Maria Souza']); eq(t.D.packages.length, 0, 'não lê pacotes'); eq(t.D.operations.length, 0); eq(t.D.drivers.length, 0); eq(t.D.xpts.length, 1);
+  ok(t.D.sizes.length > 0 && t.D.reasons.length > 0, 'tamanhos e motivos da configuração');
+  const r = await t.svc.registerEntries('x1', [tItem('TT-1', 'João Pereira'), tItem('TT-2', 'Maria Souza', { location: { kind: 'pendente', lat: null, lng: null, regionId: null } })], t.who); eq(r.created.length, 2, JSON.stringify(r));
+  const p = w._admin.getDoc(U + 'packages/pk-TT-1'); eq(p.returnedBy, 'João Pereira'); eq(p.xptId, 'x1'); eq(p.state, 'em_estoque'); eq(p.size, 'M'); eq(p.note, 'obs'); ok(/devolvido por: João Pereira/.test(p.history[0].note) && !/demonstra/i.test(p.history[0].note), p.history[0].note);
+  eq(w._admin.getDoc(U + 'packages/pk-TT-2').location.kind, 'pendente'); ok(w._admin.getDoc(U + 'codes/TT-1') && w._admin.listDocs(U + 'events').some((e) => e.data.code === 'TT-1' && e.data.uid === 'uid-totem@t.com'), 'índice e evento');
+  const dup = await t.svc.registerEntries('x1', [tItem('TT-1', 'João Pereira')], t.who); eq(dup.created.length, 0); eq(dup.skipped[0].reason, 'ja_existe');
+  const bad = await t.svc.registerEntries('x1', [tItem('TT-3', 'Intruso')], t.who); eq(bad.created.length, 0); ok(!w._admin.getDoc(U + 'packages/pk-TT-3'), 'motorista fora da lista (serviço)');
+  const outra = await t.svc.registerEntries('x2', [tItem('TT-4', 'João Pereira')], t.who); eq(outra.created.length, 0); ok(!w._admin.getDoc(U + 'packages/pk-TT-4'), 'outra base (serviço)');
+  // a equipe vê o motorista no pacote/relatório
+  const d = await device(w, 'desp@t.com'); eq(d.D.packages.filter((x) => x.returnedBy === 'João Pereira').length, 1); eq(d.D.packages.filter((x) => x.returnedBy).length, 2);
+});
+atest('totem: regras do servidor recusam tudo fora do passo a passo (mesmo burlando a interface)', async () => {
+  const w = world(); addTotem(w, 'totem@t.com', ['x1'], ['João Pereira']); const ok1 = await device(w, 'desp@t.com'); await ok1.svc.registerEntries('x1', [item('EXIST-1')], ok1.who);
+  w._admin.setDoc(U + 'operations/OP-0099', { id: 'OP-0099', xptId: 'x1', state: 'em_separacao', checked: {}, history: [], packageCodes: [], driverId: 'm1' }); w._admin.setDoc(U + 'backups/bk-x', { id: 'bk-x', xptId: 'x1' });
+  const t = await device(w, 'totem@t.com');
+  const raw = (id, o) => Object.assign({ id: 'pk-' + id, code: id, xptId: 'x1', size: 'M', reasonId: 'r_ausente', entryAt: 1, firstEntryAt: 1, state: 'em_estoque', activeOpId: null, cycle: 1, returns: 0, location: { kind: 'pendente', lat: null, lng: null, regionId: null }, note: '', returnedBy: 'João Pereira', history: [{ id: 'e1', code: id, xptId: 'x1', type: 'entrada', at: 1, from: null, to: 'em_estoque', operator: 'x', note: 'n' }] }, o);
+  const put = (id, o) => t.fb.db.runTransaction((tx) => tx.get(U + 'codes/' + id).then(() => { tx.set(U + 'codes/' + id, { createdAt: 1 }); tx.set(U + 'packages/pk-' + id, raw(id, o)); }));
+  await put('RAW-OK'); ok(w._admin.getDoc(U + 'packages/pk-RAW-OK'), 'o caminho legítimo passa');
+  await denied(put('RAW-1', { returnedBy: 'Intruso' }), 'motorista fora da lista'); await denied(put('RAW-2', { returnedBy: undefined }), 'sem motorista'); await denied(put('RAW-3', { xptId: 'x2' }), 'base alheia');
+  await denied(put('RAW-4', { state: 'em_rota' }), 'estado diferente de entrada'); await denied(put('RAW-5', { activeOpId: 'OP-1' }), 'já com operação');
+  await denied(t.fb.db.get(U + 'packages/pk-EXIST-1'), 'ler pacote'); await denied(t.fb.db.list(U + 'packages', [['xptId', '==', 'x1']]), 'listar pacotes');
+  await denied(t.fb.db.runTransaction((tx) => tx.get(U + 'packages/pk-RAW-OK').then(() => { tx.update(U + 'packages/pk-RAW-OK', { state: 'em_separacao' }); })), 'alterar pacote');
+  await denied(t.fb.db.runTransaction((tx) => tx.get(U + 'packages/pk-RAW-OK').then(() => { tx.update(U + 'packages/pk-RAW-OK', { returnedBy: 'Outro' }); })), 'trocar o motorista depois');
+  await denied(t.fb.db.runTransaction((tx) => { tx.delete(U + 'packages/pk-RAW-OK'); return Promise.resolve(); }), 'apagar');
+  await denied(t.fb.db.list(U + 'operations', []), 'operações'); await denied(t.fb.db.list(U + 'drivers', []), 'motoristas'); await denied(t.fb.db.list(U + 'users', []), 'usuários'); await denied(t.fb.db.list(U + 'backups', []), 'backups');
+  await denied(t.fb.db.runTransaction((tx) => { tx.set(U + 'users/uid-totem@t.com', { name: 'x', role: 'admin_sistema', xptIds: [], active: true }); return Promise.resolve(); }), 'auto-promoção');
+  await denied(t.fb.db.runTransaction((tx) => { tx.set(U + 'settings/main', { stayLimitDays: 99 }); return Promise.resolve(); }), 'configurações');
+  await denied(t.fb.db.runTransaction((tx) => { tx.set(U + 'xpts/x9', { name: 'x', active: true }); return Promise.resolve(); }), 'bases');
+  // lista editada pelo administrador vale de imediato no servidor
+  const s = await device(w, 'sys@t.com'); await SV.updateUser(s.fb, s.user, 'uid-totem@t.com', { name: 'Totem', role: 'totem', xptIds: ['x1'], active: true, totemDrivers: 'Maria Souza' });
+  await denied(put('RAW-6', { returnedBy: 'João Pereira' }), 'motorista removido da lista'); await put('RAW-7', { returnedBy: 'Maria Souza' });
+  const off = await device(w, 'totem@t.com'); eq(off.D.packages.length, 0);
+});
 atest('admin_sistema (mesmo com bases preenchidas por engano) carrega só os cadastros, sem ler operações/pacotes', async () => {
   const w = world(); w._admin.setDoc(U + 'users/uid-sys@t.com', { name: 'Sys', email: 'sys@t.com', role: 'admin_sistema', xptIds: ['x1'], active: true, driverId: null });
   const s = await device(w, 'sys@t.com'); ok(s.D, 'carregou'); ok(s.D.xpts.length >= 2 && s.D.drivers.length > 0); eq(s.D.packages.length, 0); eq(s.D.operations.length, 0);

@@ -15,6 +15,7 @@
     { id: 'reports', label: 'Relatórios', icon: 'chart', title: 'Relatórios' },
     { id: 'drivers', label: 'Motoristas', icon: 'user', title: 'Motoristas e agregados' },
     { id: 'xpts', label: 'XPT / Galpões', icon: 'building', title: 'Administração de XPTs' },
+    { id: 'totem', label: 'Totem', icon: 'entry', title: 'Totem de devolução', nav: false },
     { id: 'backup', label: 'Backup', icon: 'box', title: 'Backup de rotas' },
     { id: 'setup', label: 'Administração', icon: 'help', title: 'Administração do sistema', nav: false },
     { id: 'help', label: 'Ajuda', icon: 'help', title: 'Ajuda e configurações' },
@@ -25,6 +26,7 @@
   // Motorista: interface separada e reduzida. SÓ a bipagem da própria ambulância; qualquer outra rota volta para ela.
   // (Isto é conforto de tela: a proteção de verdade são as regras do Firestore, que recusam leituras e gravações fora da própria operação.)
   var DRIVER_ROUTES = ['separation'];
+  var TOTEM_ROUTES = ['totem']; // totem (autoatendimento): só o passo a passo da devolução
 
   function start(opts) {
     opts = opts || {};
@@ -60,6 +62,7 @@
       var id = h[0] || 'overview';
       if (!ROUTES.some(function (r) { return r.id === id; })) id = 'overview';
       var params = h.slice(1).map(decodeURIComponent);
+      if (state.profile === 'totem' && TOTEM_ROUTES.indexOf(id) < 0) { id = 'totem'; params = []; try { history.replaceState(null, '', '#/totem'); } catch (_) { /* ignore */ } }
       if (state.profile === 'motorista' && DRIVER_ROUTES.indexOf(id) < 0) { // rota fora da tela do motorista: volta para a própria ambulância
         id = 'separation'; params = []; try { history.replaceState(null, '', user && user.tokenOpId ? '#/separation/' + encodeURIComponent(user.tokenOpId) + '/' + encodeURIComponent(user.token) : '#/separation'); } catch (_) { /* ignore */ } // QR: mantém o código no endereço (recarregar continua na ambulância)
       }
@@ -67,6 +70,8 @@
     }
     function closeMenu() { sidebar.classList.remove('open'); overlay.hidden = true; var b = document.getElementById('menu-btn'); if (b) b.setAttribute('aria-expanded', 'false'); }
     function renderNav() {
+      document.body.classList.toggle('is-totem', state.profile === 'totem');
+      if (state.profile === 'totem') { nav.replaceChildren(); return; }
       if (state.profile === 'motorista') { nav.replaceChildren(el('a', { href: '#/separation', class: 'nav-item active', 'aria-current': 'page', onclick: closeMenu }, ui.icon('truck'), el('span', { text: 'Minha ambulância' }))); return; }
       nav.replaceChildren.apply(nav, ROUTES.filter(function (r) { return (r.nav !== false || (r.id === 'setup' && remote && user.role === 'admin_sistema')) && (r.id !== 'backup' || NS.permissions.can(state.profile, 'backup_ver')); }).map(function (r) {
         var active = r.id === state.route || (state.route === 'package' && r.id === 'packages') || ((state.route === 'operation' || state.route === 'separation') && r.id === 'ops');
@@ -83,6 +88,11 @@
         D.xpts.map(function (x) { return el('option', { value: x.id, selected: x.id === state.xptId, disabled: x.active === false }, x.name + (x.active === false ? ' (desativada)' : '')); }));
       var psel = remote ? el('span', { id: 'user-badge', class: 'user-badge' }, user.name + ' · ' + (NS.permissions.PROFILES.filter(function (p) { return p.id === user.role; })[0] || {}).label) : el('select', { id: 'profile-select', 'aria-label': 'Perfil demonstrativo (sem proteção real)', title: NS.permissions.DISCLAIMER, onchange: function (e) { state.profile = e.target.value; render(); } },
         NS.permissions.PROFILES.map(function (p) { return el('option', { value: p.id, selected: p.id === state.profile, text: p.label }); }));
+      if (state.profile === 'totem') { // totem: barra mínima (sem menu, base, alertas)
+        top.replaceChildren(el('div', { class: 'top-title' }, el('span', { class: 'top-kicker', text: 'XPT: ' + xpt().name }), el('h1', { id: 'page-title', text: 'Totem de devolução' })),
+          el('div', { class: 'top-controls' }, remote ? el('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'logout-btn', onclick: function () { ui.confirmModal('Sair do totem?', 'Só a equipe deve sair. Depois será preciso entrar de novo com o login do totem.', 'Sair', function () { NS.auth.logout(); }); } }, 'Sair (equipe)') : el('label', { class: 'sel', for: 'profile-select' }, el('span', { text: 'Perfil (demo)' }), psel)));
+        return;
+      }
       if (state.profile === 'motorista') { // barra reduzida: sem seletor de base, sem alertas do despacho
         top.replaceChildren(
           el('button', { type: 'button', id: 'menu-btn', class: 'icon-btn menu-btn', 'aria-label': 'Abrir menu', 'aria-controls': 'sidebar', 'aria-expanded': 'false',
@@ -127,6 +137,7 @@
     document.addEventListener('keydown', function (e) { if (e.key === 'Escape') closeMenu(); });
     root.addEventListener('hashchange', function () { render(); main.focus({ preventScroll: true }); });
     if (remote && user.role === 'admin_sistema' && !location.hash) location.hash = '#/setup';
+    if (remote && user.role === 'totem') location.hash = '#/totem';
     render();
     return { D: D, store: store, state: state, go: go, setXpt: setXpt, render: render };
   }

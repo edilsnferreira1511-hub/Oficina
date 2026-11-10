@@ -99,6 +99,17 @@ t('backup: perfis iguais a permissions.js e ao modelo de teste; coleção própr
   ok(/allow update, delete: if false/.test(b[1]), 'nunca edita nem apaga');
   ok(!/backups/.test(code.replace(b[0], '')), 'nenhuma outra regra mexe em backups');
 });
+t('totem: login próprio preso a uma base, só registra entrada com motorista da própria lista', () => {
+  ok(/function canTotem\(\)[^}]*role\(\) == 'totem'/.test(code), 'canTotem');
+  ok(setEq(rolesWith('totem_entrada'), ['totem']) && setEq(FAKE.ROLES.TOTEM, ['totem']), 'perfil do totem igual ao permissions.js e ao modelo');
+  const pk = /match \/env\/producao\/packages\/\{pkgId\} \{([\s\S]*?)\n    \}/.exec(code); ok(pk, 'pacotes');
+  const cr = /allow create:[\s\S]*?;\n/.exec(pk[1])[0];
+  ok(/canTotem\(\) && request\.resource\.data\.returnedBy is string && request\.resource\.data\.returnedBy in userDoc\(\)\.data\.totemDrivers/.test(cr) && /hasBase\(request\.resource\.data\.xptId\)/.test(cr) && /state == 'em_estoque'/.test(cr) && /activeOpId == null/.test(cr), 'criação: motorista da lista, base própria, estado de entrada');
+  ok(!/canTotem/.test(/allow update:[\s\S]*?;\n/.exec(pk[1])[0]), 'totem nunca altera pacote');
+  const body = code.replace(/function canTotem[^\n]*\n/, '');
+  ok((body.match(/canTotem\(\)/g) || []).length === 4, 'canTotem só em: pacote (criar), índice de códigos (ler/criar) e eventos (criar)');
+  ['operations', 'users', 'drivers', 'regions', 'xpts', 'settings', 'counters', 'backups', 'claims'].forEach((c) => { const b = new RegExp('match /env/producao/' + c + '/\\{[a-zA-Z]+\\} \\{([\\s\\S]*?)\\n    \\}').exec(code); ok(b && !/canTotem/.test(b[1]), c + ' sem acesso do totem'); });
+});
 t('permissions.js: só motorista tem conferir_propria; motorista não tem nenhuma ação administrativa', () => {
   ok(setEq(rolesWith('conferir_propria'), ['motorista']));
   ['ver_base', 'entrada', 'conferir', 'operacao', 'correcao', 'confirmar_saida', 'encerrar', 'devolucao', 'usuarios', 'config', 'ver_global'].forEach((a) => ok(!P.can('motorista', a), a));

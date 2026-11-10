@@ -33,11 +33,19 @@
   }
   function userCard(c) {
     var uid = input('usr-new-uid', 'UID (copiado do Authentication)'), nm = input('usr-new-name', 'Nome'), em = input('usr-new-email', 'E-mail'), dr = input('usr-new-driver', 'driverId (só para motorista)', 'm1'), xs = input('usr-new-xpts', 'Bases (ids separados por vírgula)', 'x1');
-    var role = el('select', { id: 'usr-new-role' }, NS.permissions.PROFILES.map(function (p) { return el('option', { value: p.id, text: p.label }); })), msg = el('p', { class: 'form-msg', id: 'usr-new-msg', role: 'status' });
-    return ui.card('Vincular usuário (perfil e bases)', el('div', null, el('p', { class: 'hint', text: 'Primeiro crie o login em Console → Authentication → Users e copie o UID. Aqui só se cria o perfil; nunca se altera um existente nem o seu próprio.' }), uid.f, nm.f, em.f, ui.field('Perfil', role), xs.f, dr.f, el('button', { type: 'button', class: 'btn btn--primary', id: 'usr-new-btn', onclick: function () {
+    var role = el('select', { id: 'usr-new-role' }, NS.permissions.PROFILES.map(function (p) { return el('option', { value: p.id, text: p.label }); })), msg = el('p', { class: 'form-msg', id: 'usr-new-msg', role: 'status' }), tb = totemBox(role);
+    return ui.card('Vincular usuário (perfil e bases)', el('div', null, el('p', { class: 'hint', text: 'Primeiro crie o login em Console → Authentication → Users e copie o UID. Aqui só se cria o perfil; nunca se altera um existente nem o seu próprio.' }), uid.f, nm.f, em.f, ui.field('Perfil', role), xs.f, dr.f, tb.node, el('button', { type: 'button', class: 'btn btn--primary', id: 'usr-new-btn', onclick: function () {
       msg.textContent = 'Gravando…';
-      NS.services.linkUser(root.CXPT_FB, c.user, { uid: uid.i.value, name: nm.i.value, email: em.i.value, role: role.value, xptIds: xs.i.value.split(',').map(function (s) { return s.trim(); }), driverId: dr.i.value }).then(function (r) { msg.textContent = r.ok ? 'Perfil criado. A pessoa já pode entrar.' : r.message; });
+      NS.services.linkUser(root.CXPT_FB, c.user, { uid: uid.i.value, name: nm.i.value, email: em.i.value, role: role.value, xptIds: xs.i.value.split(',').map(function (s) { return s.trim(); }), driverId: dr.i.value, totemDrivers: tb.ta.value }).then(function (r) { msg.textContent = r.ok ? 'Perfil criado. A pessoa já pode entrar.' : r.message; });
     } }, 'Vincular usuário'), msg));
+  }
+  /** Campo "Motoristas do totem" (um nome por linha): aparece só quando o perfil escolhido é Totem. */
+  function totemBox(roleSel, initial) {
+    var ta = el('textarea', { id: 'totem-names', rows: '6', placeholder: 'Um nome por linha\nJoão Pereira\nMaria Souza', 'aria-label': 'Motoristas do totem (um nome por linha)' }); ta.value = (initial || []).join('\n');
+    var wrap = el('div', { id: 'totem-box', hidden: true }, ui.field('Motoristas do totem (um nome por linha)', ta, null, 'Esses nomes aparecem na lista do totem. O totem pertence a UMA base (informe só uma acima). Para incluir outro motorista depois, edite este usuário.'));
+    function sync() { wrap.hidden = roleSel.value !== 'totem'; }
+    roleSel.addEventListener('change', sync); sync();
+    return { ta: ta, node: wrap };
   }
   function done(c) { return c.svc.refresh().then(function () { c.rerender(); }, function () { c.rerender(); }); }
   var PLABEL = {}; NS.permissions.PROFILES.forEach(function (p) { PLABEL[p.id] = p.label; });
@@ -60,12 +68,12 @@
       var nm = input('ue-name', 'Nome'), xs = input('ue-xpts', 'Bases (ids separados por vírgula)'), dr = input('ue-driver', 'driverId (só para motorista)');
       nm.i.value = u.name || ''; xs.i.value = (u.xptIds || []).join(','); dr.i.value = u.driverId || '';
       var role = el('select', { id: 'ue-role' }, NS.permissions.PROFILES.map(function (p) { return el('option', { value: p.id, text: p.label, selected: p.id === u.role }); }));
-      var act = el('input', { type: 'checkbox', id: 'ue-active', checked: u.active === true }), em = el('p', { class: 'form-msg', id: 'ue-msg', role: 'alert' });
-      ui.modal('Editar usuário', el('div', null, el('p', { class: 'hint', text: (u.email || '') + ' · UID ' + u.uid }), nm.f, ui.field('Perfil', role), xs.f, dr.f, el('label', { class: 'check' }, act, ' Ativo (pode entrar)'), em), [
+      var act = el('input', { type: 'checkbox', id: 'ue-active', checked: u.active === true }), em = el('p', { class: 'form-msg', id: 'ue-msg', role: 'alert' }), tb = totemBox(role, u.totemDrivers);
+      ui.modal('Editar usuário', el('div', null, el('p', { class: 'hint', text: (u.email || '') + ' · UID ' + u.uid }), nm.f, ui.field('Perfil', role), xs.f, dr.f, tb.node, el('label', { class: 'check' }, act, ' Ativo (pode entrar)'), em), [
         { label: 'Cancelar', onClick: function (close) { close(); } },
         { label: 'Salvar', cls: 'btn--primary', id: 'ue-save', onClick: function (close) {
           em.textContent = 'Gravando…';
-          NS.services.updateUser(root.CXPT_FB, c.user, u.uid, { name: nm.i.value, role: role.value, xptIds: xs.i.value.split(','), driverId: dr.i.value, active: act.checked }).then(function (r) { if (!r.ok) { em.textContent = r.message; return; } close(); load(); });
+          NS.services.updateUser(root.CXPT_FB, c.user, u.uid, { name: nm.i.value, role: role.value, xptIds: xs.i.value.split(','), driverId: dr.i.value, totemDrivers: tb.ta.value, active: act.checked }).then(function (r) { if (!r.ok) { em.textContent = r.message; return; } close(); load(); });
         } },
       ], { id: 'user-edit-modal' });
     }
@@ -74,7 +82,7 @@
         us.sort(function (a, b) { return String(a.name).localeCompare(String(b.name)); });
         box.replaceChildren(us.length ? el('ul', { class: 'why-list' }, us.map(function (u) {
           var me = u.uid === c.user.uid;
-          return el('li', { id: 'usr-row-' + u.uid }, (u.name || '(sem nome)') + ' · ' + (u.email || '') + ' · ' + (PLABEL[u.role] || u.role) + ' · bases: ' + ((u.xptIds || []).join(', ') || '—') + (u.driverId ? ' · motorista ' + u.driverId : '') + (u.active === true ? '' : ' · DESATIVADO') + (me ? ' (você)' : '') + ' ',
+          return el('li', { id: 'usr-row-' + u.uid }, (u.name || '(sem nome)') + ' · ' + (u.email || '') + ' · ' + (PLABEL[u.role] || u.role) + ' · bases: ' + ((u.xptIds || []).join(', ') || '—') + (u.driverId ? ' · motorista ' + u.driverId : '') + (u.role === 'totem' ? ' · ' + (Array.isArray(u.totemDrivers) ? u.totemDrivers.length : 0) + ' motorista(s) na lista' : '') + (u.active === true ? '' : ' · DESATIVADO') + (me ? ' (você)' : '') + ' ',
             me ? null : el('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'usr-edit-' + u.uid, onclick: function () { edit(u); } }, 'Editar'), ' ',
             me ? null : el('button', { type: 'button', class: 'btn btn--ghost btn--sm', id: 'usr-del-' + u.uid, onclick: function () {
               ui.confirmModal('Excluir o acesso de ' + (u.name || u.email) + '?', 'O perfil é removido e a pessoa não consegue mais usar o sistema. O login em Authentication continua no Console do Firebase (apague lá se quiser). Os registros já feitos por ela são mantidos.', 'Excluir acesso', function () {

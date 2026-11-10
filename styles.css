@@ -206,3 +206,27 @@ input[readonly] { background: var(--surface2); }
 
 .demo-banner[hidden] { display: none; }
 .qr-url { overflow-wrap: anywhere; word-break: break-all; }
+
+/* ---------- Totem (autoatendimento): tela cheia, botões grandes para toque */
+body.is-totem .sidebar, body.is-totem .menu-btn, body.is-totem .overlay { display: none !important; }
+body.is-totem main { padding: 0; }
+.tt { max-width: 640px; margin: 0 auto; min-height: calc(100vh - 70px); display: flex; flex-direction: column; background: var(--bg, #f3f6f3); }
+.tt-steps { display: flex; gap: 6px; padding: 14px 16px 0; } .tt-steps i { flex: 1; height: 8px; border-radius: 99px; background: #cfdccf; } .tt-steps i.on { background: #1a8a4a; } .tt-steps i.cur { background: #1a8a4a; box-shadow: 0 0 0 3px #1a8a4a33; }
+.tt-count { padding: 6px 16px 0; color: var(--muted, #5b6e5f); font-size: 14px; display: flex; justify-content: space-between; gap: 8px; }
+.tt-body { flex: 1; padding: 14px 16px; display: flex; flex-direction: column; gap: 14px; }
+.tt-h { font-size: 28px; line-height: 1.15; margin: 4px 0 0; } .tt-sub { color: var(--muted, #5b6e5f); font-size: 17px; margin: -6px 0 0; } .tt-center { text-align: center; align-items: center; }
+.tt-in, .tt-ta { width: 100%; font-size: 24px; padding: 16px; border: 3px solid var(--border, #d6e3d8); border-radius: 16px; background: #fff; color: inherit; } .tt-in:focus, .tt-ta:focus { outline: none; border-color: #1a8a4a; }
+.tt-ta { font-size: 18px; min-height: 76px; resize: none; font-family: inherit; }
+.tt-list { display: grid; gap: 10px; }
+.tt-opt { background: #fff; border: 3px solid var(--border, #d6e3d8); border-radius: 18px; font: inherit; font-size: 20px; font-weight: 700; color: inherit; cursor: pointer; min-height: 64px; padding: 14px 16px; }
+.tt-opt.sel { border-color: #1a8a4a; background: #e8f6ed; } .tt-row { display: flex; align-items: center; gap: 12px; text-align: left; width: 100%; } .tt-ic { font-size: 26px; }
+.tt-grid3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: 12px; } .tt-card { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 10px; text-align: center; font-size: 17px; min-height: 120px; }
+.tt-box { display: block; background: #cfa56a; border: 3px solid #8b6a35; border-radius: 6px; }
+.tt-scan { border: 3px dashed #1a8a4a; border-radius: 18px; background: #fff; padding: 20px 14px; text-align: center; display: grid; gap: 12px; } .tt-barcode { font-size: 46px; letter-spacing: 4px; } .tt-code { text-align: center; font-family: ui-monospace, Menlo, monospace; font-weight: 700; letter-spacing: .05em; }
+.tt-hint { color: var(--muted, #5b6e5f); font-size: 15px; min-height: 22px; margin: 0; } .tt-err { background: #fde8e6; color: #8a1c14; border: 2px solid #f1b9b3; border-radius: 12px; padding: 12px 14px; font-size: 17px; font-weight: 600; margin: 0; }
+.tt-wrap-map { display: grid; gap: 8px; } .tt-map { height: min(52vh, 420px); min-height: 280px; border-radius: 18px; border: 3px solid var(--border, #d6e3d8); overflow: hidden; }
+.tt-sum { background: #fff; border: 2px solid var(--border, #d6e3d8); border-radius: 16px; padding: 12px 16px; margin: 0; display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; font-size: 18px; } .tt-sum dt { color: var(--muted, #5b6e5f); } .tt-sum dd { margin: 0; font-weight: 600; overflow-wrap: anywhere; }
+.tt-big { font-size: 72px; } .tt-recap { background: #fff; border: 2px solid var(--border, #d6e3d8); border-radius: 14px; padding: 8px 14px; font-size: 16px; text-align: left; width: 100%; } .tt-recap div { padding: 5px 0; }
+.tt-foot { position: sticky; bottom: 0; display: flex; gap: 12px; padding: 14px 16px 18px; background: #fff; border-top: 1px solid var(--border, #d6e3d8); }
+.tt-btn { flex: 1; font: inherit; font-size: 21px; font-weight: 800; border: 0; border-radius: 16px; padding: 18px 10px; min-height: 66px; cursor: pointer; } .tt-pri { background: #1a8a4a; color: #fff; } .tt-sec { background: #e5ece6; color: #14331f; } .tt-small { flex: .7; font-size: 17px; } .tt-btn:disabled { opacity: .35; cursor: not-allowed; }
+@media (max-width: 480px) { .tt-grid3 { grid-template-columns: 1fr; } .tt-card { flex-direction: row; min-height: 72px; justify-content: flex-start; padding-left: 20px; } .tt-h { font-size: 24px; } .tt-foot { flex-wrap: wrap; } }

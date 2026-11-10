@@ -99,6 +99,7 @@
         { label: 'Código', render: H.link }, { label: 'XPT', render: function (p) { return H.xptName(D, p.xptId); } },
         { label: 'Tamanho', render: function (p) { return H.sizeLabel(D, p.size); } },
         { label: 'Motivo', render: function (p) { return H.reasonLabel(D, p.reasonId); } },
+        { label: 'Devolvido por', render: function (p) { return p.returnedBy || '—'; } },
         { label: 'Entrada', render: function (p) { return ui.fmtDate(p.entryAt); } },
         { label: 'Estado', render: function (p) { return H.stateBadge(D, p.state); } },
         { label: 'Localização', render: function (p) { return H.locBadge(p.location); } },
@@ -122,7 +123,7 @@
     if (!p) return H.page([ui.empty('Pacote não encontrado nesta base.', 'O pacote não existe ou não está disponível para a XPT/perfil atuais.'), el('a', { class: 'btn btn--ghost', href: '#/packages' }, 'Voltar à listagem')]);
     var loc = p.location, d = P.stayDays(p, c.nowMs), flag = P.returnFlag(p);
     var info = el('dl', { class: 'dl' }, [
-      ['Código', p.code], ['XPT de origem (permanente)', H.xptName(D, p.xptId)], ['Tamanho', H.sizeLabel(D, p.size)], ['Motivo da devolução', H.reasonLabel(D, p.reasonId)],
+      ['Código', p.code], ['XPT de origem (permanente)', H.xptName(D, p.xptId)], ['Tamanho', H.sizeLabel(D, p.size)], ['Motivo da devolução', H.reasonLabel(D, p.reasonId)], ['Motorista que devolveu', p.returnedBy || '—'],
       ['Entrada no ciclo atual', ui.fmtDateTime(p.entryAt)], ['Ciclo atual', String(p.cycle)], ['Retornos', String(p.returns)],
       ['Idade no estoque', d === null ? 'não aplicável / data indisponível' : d + ' dia(s)'], ['Observação', p.note || '—'],
     ].map(function (r) { return [el('dt', { text: r[0] }), el('dd', { text: r[1] })]; }).reduce(function (a, b) { return a.concat(b); }, []));

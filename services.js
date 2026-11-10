@@ -112,7 +112,12 @@
       refresh: function () { return loadAll(fb, user).then(function (data) { applyLoaded(D, data); return { ok: true }; }).catch(failure); },
 
       registerEntries: function (xptId, items) {
-        if (!can('entrada')) return Promise.resolve({ created: [], skipped: items.map(function (i) { return { code: i.code, reason: 'sem_permissao' }; }), error: 'Seu perfil não pode registrar entradas.' });
+        var totem = user.role === 'totem';
+        if (!(can('entrada') || (totem && can('totem_entrada')))) return Promise.resolve({ created: [], skipped: items.map(function (i) { return { code: i.code, reason: 'sem_permissao' }; }), error: 'Seu perfil não pode registrar entradas.' });
+        if (totem) { // totem: só a própria base e só motorista da lista cadastrada na conta do totem (as regras do servidor conferem de novo)
+          if ((user.xptIds || []).indexOf(xptId) < 0) return Promise.resolve({ created: [], skipped: items.map(function (i) { return { code: i.code, reason: 'sem_permissao' }; }), error: 'Este totem não pertence a esta base.' });
+          if (items.some(function (i) { return (user.totemDrivers || []).indexOf(i.returnedBy) < 0; })) return Promise.resolve({ created: [], skipped: items.map(function (i) { return { code: i.code, reason: 'motorista_invalido' }; }), error: 'Escolha o motorista na lista do totem.' });
+        }
         var chunks = [], i;
         for (i = 0; i < items.length; i += 15) chunks.push(items.slice(i, i + 15)); // regras do Firestore: no máximo 20 acessos a documentos por transação (1 'codes' por pacote)
         var total = { created: [], skipped: [] };
@@ -122,7 +127,7 @@
               var m = mini(), codes = chunk.map(function (it) { return NS.codes.validate(it.code); }).filter(function (v) { return v.ok; }).map(function (v) { return v.code; });
               return Promise.all(codes.map(function (c) { return tx.get(path('codes', c)); })).then(function (res) {
                 res.forEach(function (r, k) { if (r.exists) m.packages.push({ id: '?' + codes[k], code: codes[k], xptId: '?' }); });
-                var r = R.registerEntries(m, xptId, chunk, { nowMs: nowMs(), operator: user.name, idFor: pkgIdFor });
+                var r = R.registerEntries(m, xptId, chunk, { nowMs: nowMs(), operator: user.name, idFor: pkgIdFor, live: true });
                 r.created.forEach(function (p) {
                   tx.set(path('codes', p.code), { createdAt: p.entryAt });
                   tx.set(path('packages', p.id), clean(p));
@@ -290,7 +295,7 @@
       var u = s.data || {};
       if (u.active !== true) return { ok: false, reason: 'inativo', message: 'Seu usuário está desativado. Procure o administrador.' };
       if (!NS.permissions.PROFILES.some(function (p) { return p.id === u.role; })) return { ok: false, reason: 'perfil_invalido', message: 'O perfil cadastrado para você não é reconhecido. Procure o administrador.' };
-      return { ok: true, user: { uid: authUser.uid, email: authUser.email, name: u.name || authUser.displayName || authUser.email, role: u.role, xptIds: Array.isArray(u.xptIds) ? u.xptIds : [], driverId: u.driverId || null } };
+      return { ok: true, user: { uid: authUser.uid, email: authUser.email, name: u.name || authUser.displayName || authUser.email, role: u.role, xptIds: Array.isArray(u.xptIds) ? u.xptIds : [], driverId: u.driverId || null, totemDrivers: Array.isArray(u.totemDrivers) ? u.totemDrivers.filter(function (x) { return typeof x === 'string'; }) : [] } };
     });
   }
 
@@ -320,6 +325,9 @@
       return Promise.all(ids.map(function (id) { return fb.db.list(ENV + '/' + col, [['xptId', '==', id]]); })).then(function (parts) { return [].concat.apply([], parts); });
     }
     var xpts = global ? fb.db.list(ENV + '/xpts', []) : Promise.all(ids.map(function (id) { return fb.db.get(path('xpts', id)).then(function (s) { return s.exists ? [{ id: id, data: s.data }] : []; }); })).then(function (p) { return [].concat.apply([], p); });
+    if (user.role === 'totem') { // totem: só a própria base e as configurações (tamanhos e motivos). Nada de pacotes, operações ou motoristas.
+      return Promise.all([tag('xpts', xpts), tag('settings/main', fb.db.get(path('settings', 'main')))]).then(function (r) { return { xpts: r[0], regions: [], drivers: [], packages: [], operations: [], settings: r[1].exists ? r[1].data : {}, permissions: null }; });
+    }
     var isDriver = user.role === 'motorista';
     var ops = isDriver ? (user.driverId ? fb.db.list(ENV + '/operations', [['driverId', '==', user.driverId]]) : Promise.resolve([])) : byXpt('operations');
     // motorista: nada de listas gerais (regiões, motoristas, pacotes): só o próprio cadastro de motorista e as próprias operações
@@ -377,6 +385,17 @@
       });
     }).catch(failure);
   }
+  /** Lista de motoristas do totem: aceita texto (um nome por linha ou separados por ;) ou lista. Remove espaços e repetidos; máx. 200 nomes de até 80 caracteres. */
+  function normNames(v) {
+    var arr = Array.isArray(v) ? v : String(v || '').split(/[\n;]+/), seen = {}, out = [], bad = null;
+    arr.forEach(function (x) {
+      var n = String(x === undefined || x === null ? '' : x).replace(/\s+/g, ' ').trim(); if (!n) return;
+      if (n.length > 80) { bad = 'Cada nome de motorista pode ter no máximo 80 caracteres.'; return; }
+      var k = n.toLowerCase(); if (seen[k]) return; seen[k] = 1; out.push(n);
+    });
+    if (out.length > 200) bad = 'No máximo 200 motoristas por totem.';
+    return { names: out, error: bad };
+  }
   /** Vincula um login (UID do Authentication) a um perfil: cria env/teste/users/{uid} (nunca sobrescreve; nunca o próprio). Só admin_sistema. */
   function linkUser(fb, user, u) {
     if (user.role !== 'admin_sistema') return Promise.resolve({ ok: false, message: 'Somente o administrador do sistema vincula usuários.' });
@@ -387,10 +406,13 @@
     var xptIds = (u.xptIds || []).filter(Boolean), isGlobal = role === 'administrador' || role === 'coord_geral' || role === 'admin_sistema';
     if (!isGlobal && !xptIds.length) return Promise.resolve({ ok: false, message: 'Informe ao menos uma base para este perfil.' });
     if (role === 'motorista' && !String(u.driverId || '').trim()) return Promise.resolve({ ok: false, message: 'Motorista precisa de um motorista cadastrado (driverId).' });
+    var tn = normNames(u.totemDrivers); if (role === 'totem') { if (tn.error) return Promise.resolve({ ok: false, message: tn.error }); if (xptIds.length !== 1) return Promise.resolve({ ok: false, message: 'O totem pertence a UMA base: informe só uma.' }); }
     return fb.db.runTransaction(function (tx) {
       return tx.get(path('users', uid)).then(function (s) {
         if (s.exists) return { ok: false, message: 'Este UID já tem perfil cadastrado. Nada foi alterado.' };
-        tx.set(path('users', uid), { name: name, email: email, role: role, xptIds: xptIds, active: true, driverId: role === 'motorista' ? String(u.driverId).trim() : null }); return { ok: true };
+        var doc = { name: name, email: email, role: role, xptIds: xptIds, active: true, driverId: role === 'motorista' ? String(u.driverId).trim() : null };
+        if (role === 'totem') doc.totemDrivers = tn.names;
+        tx.set(path('users', uid), doc); return { ok: true };
       });
     }).catch(failure);
   }
@@ -410,10 +432,13 @@
     var isGlobal = GLOBAL_ROLES.indexOf(role) >= 0;
     if (!isGlobal && !xptIds.length) return Promise.resolve({ ok: false, message: 'Informe ao menos uma base para este perfil.' });
     if (role === 'motorista' && !String(f.driverId || '').trim()) return Promise.resolve({ ok: false, message: 'Motorista precisa de um driverId.' });
+    var tn = normNames(f.totemDrivers); if (role === 'totem') { if (tn.error) return Promise.resolve({ ok: false, message: tn.error }); if (xptIds.length !== 1) return Promise.resolve({ ok: false, message: 'O totem pertence a UMA base: informe só uma.' }); }
     return fb.db.runTransaction(function (tx) {
       return tx.get(path('users', uid)).then(function (s) {
         if (!s.exists) return { ok: false, message: 'Usuário não encontrado.' };
-        tx.update(path('users', uid), { name: name, role: role, xptIds: xptIds, active: f.active !== false, driverId: role === 'motorista' ? String(f.driverId).trim() : null }); return { ok: true };
+        var upd = { name: name, role: role, xptIds: xptIds, active: f.active !== false, driverId: role === 'motorista' ? String(f.driverId).trim() : null };
+        if (role === 'totem') upd.totemDrivers = tn.names; else if (s.data && s.data.totemDrivers !== undefined) upd.totemDrivers = null;
+        tx.update(path('users', uid), upd); return { ok: true };
       });
     }).catch(failure);
   }
@@ -490,6 +515,6 @@
     }).then(function (r) { return r; }, function (e) { var fl = failure(e); return { ok: false, message: fl.reason === 'sem_permissao' ? 'O servidor recusou a gravação do backup (confira as regras do Firestore e a sua base).' : fl.message }; });
   }
 
-  NS.services = { listBackups: listBackups, createBackup: createBackup, saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, claimAccess: claimAccess, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
+  NS.services = { normNames: normNames, listBackups: listBackups, createBackup: createBackup, saveSettings: saveSettings, listUsers: listUsers, updateUser: updateUser, deleteUser: deleteUser, saveXpt: saveXpt, savePermissions: savePermissions, registerDriver: registerDriver, linkUser: linkUser, ENV: ENV, createDemo: createDemo, createRemote: createRemote, loadProfile: loadProfile, loadAll: loadAll, claimAccess: claimAccess, applyLoaded: applyLoaded, emptyD: emptyD, seedTest: seedTest, failure: failure, pkgIdFor: pkgIdFor };
   if (typeof module !== 'undefined' && module.exports) module.exports = NS.services;
 })(typeof window !== 'undefined' ? window : globalThis);

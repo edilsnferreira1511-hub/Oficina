@@ -97,3 +97,20 @@ Abaixo do mapa (Mapa e Regiões): caixinha **"Ver informações do pacote ao toc
 - **Regras (PRECISAM SER PUBLICADAS por você):** novo bloco `backups` em `firestore.rules`/`firestore.rules.txt`: leitura só da própria base (ou global p/ coord. geral/admin_sistema); criação só supervisor/admin_sistema **com `xptId` validado no servidor** (`hasBase`), `createdBy == request.auth.uid`, campos exatos, tipo e número válidos, tamanhos, data no formato; **sem editar/apagar**. Sem publicar as regras novas a aba mostra "O servidor recusou…". Não publiquei nada.
 - **Limites conhecidos:** a data é calculada no aparelho (as regras só conferem o formato; o servidor não sabe o fuso); duplicidade (mesma rota no mesmo dia) não é bloqueada; não há edição/exclusão de backup (decisão de segurança: registro imutável).
 - **Testes:** `unit-backup.test.js` (8), `unit-firebase.test.js` (+3 de backup, total 32), `rules-lint.test.js` (+1, total 15), `e2e-backup.js` (36: celular 390px e computador 1280px). Backend **simulado**; regras não executadas no Emulator.
+
+## 14. Totem de devolução (autoatendimento)
+
+**O que é:** uma aba nova (`#/totem`) para o motorista registrar sozinho a devolução: motorista (lista) → código de barras → tamanho → motivo (+ observação) → localização no mapa (ou "Não sei o local") → resumo com "Adicionar mais pacote" / "Finalizar". A Entrada existente não foi alterada.
+
+**Como criar o login do totem**
+1. Firebase Console → Authentication → crie um usuário (e-mail/senha) para o totem e copie o UID.
+2. No sistema, como admin_sistema: Administração → vincular usuário → cole o UID, cargo **Totem (autoatendimento)**, escolha **UMA** base.
+3. Ao escolher o cargo Totem aparece o campo **lista de motoristas** (um nome por linha ou separados por `;`). Para incluir/remover nomes depois, edite o usuário na mesma tela.
+
+**O que o totem pode:** criar pacote em estoque na própria base com `returnedBy` na lista, ler/criar códigos, criar eventos. **Não pode:** ler pacotes, operações, usuários, backups, alterar nada existente.
+
+**Histórico e relatório:** o pacote guarda "Devolvido por" (nota no histórico, linha no detalhe, coluna em Pacotes e card "Devoluções por motorista" em Relatórios).
+
+**Regras:** `firestore.rules.txt` mudou (função `canTotem`). Publique-as você mesmo; não foram publicadas por mim.
+
+**Limites:** testado só com simulação local (não no Firebase real/Emulator); o reset por inatividade (90 s) não tem teste automatizado; excluir usuário remove só o perfil.

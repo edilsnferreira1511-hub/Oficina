@@ -37,9 +37,10 @@
         id: ctx.idFor ? ctx.idFor(v.code) : nextPackageId(D), code: v.code, xptId: xptId, size: it.size, reasonId: it.reasonId,
         entryAt: at, firstEntryAt: at, state: 'em_estoque', activeOpId: null, cycle: 1, returns: 0, location: nl.loc, note: it.note || '', history: [],
       };
+      if (it.returnedBy) p.returnedBy = String(it.returnedBy).trim(); // motorista que devolveu (totem)
       p.history.push({
         id: 'ev-' + p.id + '-01', code: p.code, xptId: p.xptId, type: 'entrada', at: at, from: null, to: 'em_estoque', operator: op,
-        note: 'Entrada confirmada (demonstração em memória) · localização: ' + NS.geo.LOC_LABEL[nl.loc.kind],
+        note: 'Entrada confirmada' + (ctx.live ? '' : ' (demonstração em memória)') + ' · localização: ' + NS.geo.LOC_LABEL[nl.loc.kind] + (p.returnedBy ? ' · devolvido por: ' + p.returnedBy : ''),
       });
       D.packages.push(p); created.push(p);
     });
