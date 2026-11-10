@@ -1,0 +1,3 @@
+tile-simulado.png: imagem SINTÉTICA (grade + texto "TILE SIMULADO") usada só nos testes de navegador para
+exercitar o componente de mapa sem provedor real. NÃO é cartografia e jamais deve ser exibida ao usuário.
+Os testes que a usam são "simulados"; nenhuma validação com cartografia real foi (nem pôde ser) feita.

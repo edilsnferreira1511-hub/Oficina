@@ -1,0 +1,219 @@
+rules_version = '2';
+
+// COOPMETRO XPT — regras do Firestore (PROPOSTA para REVISÃO; NÃO foram publicadas por este projeto).
+//
+// ANTES DE PUBLICAR:
+//  1. Estas regras cobrem SOMENTE o caminho env/producao/... (dados de PRODUÇÃO). Qualquer outro caminho continua NEGADO.
+//     Se o seu projeto já usa outras coleções com regras próprias, MESCLE em vez de substituir (senão elas passam a ser negadas).
+//  2. Valide no Console (Firestore → Regras → "Simulador de regras") ou no Emulator Suite. Estas regras NÃO foram executadas
+//     contra o Emulator no ambiente de desenvolvimento (sem acesso); só passaram por análise estática (rules-lint.test.js).
+//  3. A matriz de perfis tem PADRÕES iguais a permissions.js (rules-lint.test.js compara) e pode ser EDITADA pelo admin_sistema na tela
+//     Configuração inicial; a edição fica em env/producao/settings/permissions e estas regras passam a usá-la. admin_sistema tem tudo (fixo).
+//
+// O que as regras garantem: login obrigatório; usuário ativo cadastrado em env/producao/users/{uid}; acesso só às bases do usuário
+// (perfis globais veem todas); ninguém altera o próprio perfil; código e XPT de origem imutáveis; histórico só cresce; eventos só
+// podem ser criados (nunca editados/apagados); operação encerrada não aceita mais alterações; nada é apagado.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ---------- funções auxiliares
+    function signedIn() { return request.auth != null; }
+    function userDoc() { return get(/databases/$(database)/documents/env/producao/users/$(request.auth.uid)); }
+    function hasUser() { return signedIn() && exists(/databases/$(database)/documents/env/producao/users/$(request.auth.uid)); }
+    function active() { return hasUser() && userDoc().data.active == true; }
+    function role() { return userDoc().data.role; }
+    function isGlobal() { return active() && role() in ['administrador', 'coord_geral', 'admin_sistema']; }
+    function hasBase(x) { return active() && (role() in ['administrador', 'coord_geral', 'admin_sistema'] || x in userDoc().data.xptIds); }
+
+    // ---------- ações: a matriz de perfis é EDITÁVEL pelo admin_sistema em env/producao/settings/permissions ({acao: [perfis]}).
+    // Sem esse documento valem os padrões abaixo (iguais a permissions.js). admin_sistema sempre tem tudo (linha fixa).
+    // motorista e a linha do admin_sistema nunca vêm da matriz.
+    function permDoc() { return /databases/$(database)/documents/env/producao/settings/permissions; }
+    function perm(a, def) { return active() && (role() == 'admin_sistema' || (role() != 'motorista' && (exists(permDoc()) ? role() in get(permDoc()).data[a] : role() in def))); }
+    function canVerBase()  { return perm('ver_base', ['administrador', 'coord_geral', 'supervisor', 'coord_base', 'despacho']); }
+    function canEntrada()  { return perm('entrada', ['despacho']); }
+    function canConferir() { return perm('conferir', ['supervisor', 'coord_base', 'despacho']); }
+    function canOperacao() { return perm('operacao', ['administrador', 'supervisor', 'coord_base']); }
+    function canCorrecao() { return perm('correcao', ['administrador', 'supervisor', 'coord_base']); }
+    function canSaida()    { return perm('confirmar_saida', ['supervisor', 'coord_base']); }
+    function canEncerrar() { return perm('encerrar', ['administrador', 'supervisor']); }
+    function canDevolucao() { return perm('devolucao', ['supervisor', 'coord_base']); }
+    function canUsuarios() { return active() && role() == 'admin_sistema'; }
+    function canConfig()   { return perm('config', ['administrador']); }
+    // motorista: só enxerga e confere a operação cujo driverId é o dele (userDoc.driverId); o QR sozinho nunca autoriza: com login anônimo vale só se o token do claim bater com o da operação (veja tokenOp)
+    function isDriver() { return active() && role() == 'motorista' && userDoc().data.driverId is string; }
+    function ownOp(op) { return isDriver() && op.driverId == userDoc().data.driverId; }
+    // motorista por QR (sem e-mail/senha): login anônimo + documento claims/{uid} = {opId, token}. O acesso só vale se o token do claim for IGUAL
+    // ao token gravado na própria operação (código aleatório de 128 bits, visível só para a equipe e para quem leu o QR). Dá acesso a UMA operação.
+    function claimDoc() { return get(/databases/$(database)/documents/env/producao/claims/$(request.auth.uid)); }
+    function tokenOp(opId, op) {
+      return signedIn() && op.token is string && op.token.size() >= 16
+        && exists(/databases/$(database)/documents/env/producao/claims/$(request.auth.uid))
+        && claimDoc().data.opId == opId && claimDoc().data.token == op.token;
+    }
+    // Backup de rotas: ver = supervisor (própria base), coord_geral e admin_sistema (todas); registrar = supervisor (própria base) e admin_sistema. Fixo (não vem da matriz editável).
+    function canBackupVer()    { return active() && role() in ['supervisor', 'coord_geral', 'admin_sistema']; }
+    function canBackupCriar()  { return active() && role() in ['supervisor', 'admin_sistema']; }
+    // Totem (autoatendimento): login próprio, preso a UMA base, que só REGISTRA entrada de pacote (devolução) informando o motorista que devolveu.
+    // O motorista tem de estar na lista (totemDrivers) do cadastro do próprio totem. Não lê pacotes, operações nem motoristas; não altera nada existente.
+    function canTotem() { return active() && role() == 'totem'; }
+    function canAnyWrite() { return canEntrada() || canOperacao() || canSaida() || canEncerrar() || canCorrecao() || canDevolucao(); }
+
+    // ---------- tudo que não está listado abaixo é NEGADO (inclusive qualquer caminho fora de env/producao)
+
+    // Usuários: cada pessoa lê só o próprio cadastro; só o administrador do sistema cria/altera. Ninguém apaga.
+    match /env/producao/users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || canUsuarios());
+      allow list: if canUsuarios();
+      allow create, update, delete: if canUsuarios() && request.auth.uid != uid;   // admin_sistema cria/edita/exclui perfis, nunca o próprio
+    }
+
+    // XPTs, regiões, motoristas e configurações: leitura só da própria base; escrita só administração.
+    match /env/producao/xpts/{xptId} {
+      allow get: if hasBase(xptId) || canUsuarios();
+      allow list: if isGlobal() || canUsuarios();
+      allow create, update: if canConfig() || canUsuarios();
+      allow delete: if false;
+    }
+    match /env/producao/regions/{id} {
+      allow get, list: if canUsuarios() || (canVerBase() && hasBase(resource.data.xptId));
+      allow create, update: if canConfig();
+      allow delete: if false;
+    }
+    match /env/producao/drivers/{id} {
+      // motorista lê apenas o próprio cadastro (nunca a lista de motoristas da base)
+      allow get, list: if canUsuarios() || (canVerBase() && hasBase(resource.data.xptId)) || (isDriver() && id == userDoc().data.driverId);
+      allow create, update: if canConfig();
+      allow delete: if false;
+    }
+    match /env/producao/settings/{id} {
+      allow get: if active();
+      allow create, update: if (id == 'permissions' ? canUsuarios() : canConfig());   // só o admin_sistema altera a matriz de permissões
+      allow delete: if false;
+    }
+
+    // Índice de códigos: garante que um código nunca vira dois pacotes (nem em bases diferentes). Só existência; sem dados da base.
+    match /env/producao/codes/{code} {
+      allow get: if canEntrada() || canTotem();
+      allow create: if (canEntrada() || canTotem()) && request.resource.data.keys().hasOnly(['createdAt']);
+      allow update, delete: if false;
+    }
+
+    // Contador de operações (número único e sequencial): só cresce de 1 em 1.
+    match /env/producao/counters/{id} {
+      allow get: if canOperacao();
+      allow create: if canOperacao() && id == 'operations' && request.resource.data.n == 1;
+      allow update: if canOperacao() && id == 'operations' && request.resource.data.n == resource.data.n + 1;
+      allow delete: if false;
+    }
+
+    // Pacotes
+    match /env/producao/packages/{pkgId} {
+      allow get, list: if canVerBase() && hasBase(resource.data.xptId);
+
+      allow create: if (canEntrada() || (canTotem() && request.resource.data.returnedBy is string && request.resource.data.returnedBy in userDoc().data.totemDrivers)) && hasBase(request.resource.data.xptId)
+        && pkgId == 'pk-' + request.resource.data.code
+        && existsAfter(/databases/$(database)/documents/env/producao/codes/$(request.resource.data.code))
+        && request.resource.data.state == 'em_estoque'
+        && request.resource.data.activeOpId == null
+        && request.resource.data.history.size() == 1;
+
+      allow update: if canAnyWrite() && hasBase(resource.data.xptId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['state', 'activeOpId', 'history', 'location', 'cycle', 'returns', 'entryAt', 'size', 'reasonId', 'note'])
+        && request.resource.data.history.size() >= resource.data.history.size()
+        && request.resource.data.history[0:resource.data.history.size()] == resource.data.history
+        && transitionOk()
+        && lockOk();
+
+      allow delete: if false;
+
+      function transitionOk() {
+        return resource.data.state == request.resource.data.state
+          || (resource.data.state == 'em_estoque' && request.resource.data.state == 'em_separacao' && canOperacao())
+          || (resource.data.state == 'em_separacao' && request.resource.data.state == 'em_rota' && canSaida())
+          || (resource.data.state == 'em_separacao' && request.resource.data.state == 'em_estoque' && (canEncerrar() || canCorrecao()))
+          || (resource.data.state == 'em_rota' && request.resource.data.state == 'em_estoque' && (canEntrada() || canCorrecao()))
+          || (resource.data.state == 'em_rota' && request.resource.data.state == 'entregue' && (canCorrecao() || canSaida()))
+          || (request.resource.data.state in ['aguardando_devolucao', 'devolvido'] && canDevolucao())
+          || (request.resource.data.state in ['divergente', 'em_estoque'] && canCorrecao());
+      }
+      // vínculo com operação ativa: só quem cria operação vincula (e só pacote em estoque e livre); só quem encerra libera
+      function lockOk() {
+        return resource.data.activeOpId == request.resource.data.activeOpId
+          || (resource.data.activeOpId == null && request.resource.data.activeOpId is string && canOperacao() && resource.data.state == 'em_estoque')
+          || (resource.data.activeOpId is string && request.resource.data.activeOpId == null && canEncerrar());
+      }
+    }
+
+    // Claims do QR: cada login anônimo grava/lê só o próprio documento. Sozinho não dá acesso a nada (o token precisa bater com o da operação).
+    match /env/producao/claims/{uid} {
+      allow get: if signedIn() && request.auth.uid == uid;
+      allow create, update: if signedIn() && request.auth.uid == uid
+        && request.resource.data.keys().hasOnly(['opId', 'token', 'at'])
+        && request.resource.data.opId is string && request.resource.data.token is string;
+      allow list, delete: if false;
+    }
+
+    // Operações (ambulâncias)
+    match /env/producao/operations/{opId} {
+      allow get: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data) || tokenOp(opId, resource.data);   // QR: só leitura PONTUAL (get), nunca lista
+      allow list: if (canVerBase() && hasBase(resource.data.xptId)) || ownOp(resource.data);
+
+      allow create: if canOperacao() && hasBase(request.resource.data.xptId)
+        && request.resource.data.state == 'em_separacao'
+        && existsAfter(/databases/$(database)/documents/env/producao/counters/operations);
+
+      // operação encerrada não aceita mais NADA (bloqueia conferências pelo QR); histórico só cresce; base e id não mudam
+      allow update: if resource.data.state != 'encerrada'
+        && request.resource.data.xptId == resource.data.xptId
+        && request.resource.data.history.size() >= resource.data.history.size()
+        && request.resource.data.history[0:resource.data.history.size()] == resource.data.history
+        && ((tokenOp(opId, resource.data) && request.resource.data.state == resource.data.state
+              && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history'])   // token, estado e demais campos NUNCA mudam
+              && request.resource.data.checked.keys().hasAll(resource.data.checked.keys()) && request.resource.data.checked.keys().hasOnly(resource.data.packageCodes))
+          || (hasBase(resource.data.xptId)
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history', 'state', 'departed', 'closedAt', 'closedBy', 'pendingAtClose'])
+        && ((request.resource.data.state == resource.data.state && canConferir() && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history']))
+          // motorista: só bipa a PRÓPRIA operação; só acrescenta leituras de códigos que pertencem a ela; nunca muda estado, histórico anterior ou outras operações
+          || (request.resource.data.state == resource.data.state && ownOp(resource.data) && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['checked', 'history'])
+            && request.resource.data.checked.keys().hasAll(resource.data.checked.keys()) && request.resource.data.checked.keys().hasOnly(resource.data.packageCodes))
+          || (resource.data.state == 'em_separacao' && request.resource.data.state == 'saida_confirmada' && canSaida())
+          || (request.resource.data.state == 'encerrada' && canEncerrar()))));
+
+      allow delete: if false;
+    }
+
+    // Backups de rotas (coleção própria). Leitura: só da própria base (supervisor) ou de todas (coord_geral/admin_sistema). Criação: base validada
+    // aqui no servidor (hasBase), autor = quem está logado, campos fixos e valores válidos. Nunca edita nem apaga.
+    match /env/producao/backups/{bkId} {
+      allow get, list: if canBackupVer() && (isGlobal() || hasBase(resource.data.xptId));
+      allow create: if canBackupCriar() && hasBase(request.resource.data.xptId)
+        && request.resource.data.keys().hasOnly(['id', 'driverName', 'routeName', 'routeId', 'vehiclePlate', 'vehicleType', 'backupNumber', 'xptId', 'backupDate', 'createdAt', 'createdBy'])
+        && request.resource.data.keys().hasAll(['id', 'driverName', 'routeName', 'routeId', 'vehiclePlate', 'vehicleType', 'backupNumber', 'xptId', 'backupDate', 'createdAt', 'createdBy'])
+        && request.resource.data.id == bkId
+        && request.resource.data.createdBy == request.auth.uid
+        && request.resource.data.vehicleType in ['passeio', 'utilitario', 'vuc']
+        && request.resource.data.backupNumber in ['1', '2']
+        && request.resource.data.driverName is string && request.resource.data.driverName.size() > 0 && request.resource.data.driverName.size() <= 80
+        && request.resource.data.routeName is string && request.resource.data.routeName.size() > 0 && request.resource.data.routeName.size() <= 80
+        && request.resource.data.routeId is string && request.resource.data.routeId.size() > 0 && request.resource.data.routeId.size() <= 80
+        && request.resource.data.vehiclePlate is string && request.resource.data.vehiclePlate.size() > 0 && request.resource.data.vehiclePlate.size() <= 10
+        && request.resource.data.backupDate is string && request.resource.data.backupDate.matches('^[0-9]{4}-[0-9]{2}-[0-9]{2}$')
+        && request.resource.data.createdAt is number;
+      allow update, delete: if false;
+    }
+
+    // Eventos (trilha de auditoria): só criar; nunca editar nem apagar; o autor gravado é o usuário autenticado.
+    match /env/producao/events/{eventId} {
+      allow create: if ((canAnyWrite() || canConferir() || isDriver() || canTotem()) && request.resource.data.uid == request.auth.uid && hasBase(request.resource.data.xptId)
+        && (!isDriver() || (request.resource.data.opId is string && get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.driverId == userDoc().data.driverId)))
+        // motorista por QR: evento só da operação cujo token ele provou, com a base dela
+        || (request.resource.data.uid == request.auth.uid && request.resource.data.opId is string
+          && tokenOp(request.resource.data.opId, get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data)
+          && request.resource.data.xptId == get(/databases/$(database)/documents/env/producao/operations/$(request.resource.data.opId)).data.xptId);
+      allow get, list: if canVerBase() && resource.data.keys().hasAll(['uid']) && (isGlobal() || resource.data.xptId in userDoc().data.xptIds);
+      allow update, delete: if false;
+    }
+  }
+}
